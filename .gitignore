@@ -4,3 +4,4 @@
 *.log
 *.db
 /key/*
+*.pid
