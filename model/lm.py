@@ -18,7 +18,7 @@ class CharacterLanguageModel(object):
                                                        labels=self.X_label[:, 1:])
         return loss
 
-    @util.define_scope("predict")
+    @util.define_scope("sample")
     def sample_op(self):
         logits, init_state, out_state = self.logit_op
         sample = tf.multinomial(tf.exp(logits)[:, 0, :], 1)[:, 0]

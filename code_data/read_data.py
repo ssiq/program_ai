@@ -24,3 +24,7 @@ def read_submit_data(conn):
     submit_joined_df['status'] = submit_joined_df['status'].replace(verdict)
 
     return submit_joined_df
+
+def read_local_submit_data():
+    from code_data.constants import local_db_path
+    return read_submit_data(local_db_path)
