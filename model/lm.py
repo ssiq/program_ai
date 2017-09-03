@@ -16,8 +16,9 @@ class CharacterLanguageModel(object):
 
     @util.define_scope("loss")
     def loss_op(self):
+        one_hot = tf.one_hot(self.X_label, self.embedding_matrix.shape[0])
         loss = tf.nn.softmax_cross_entropy_with_logits(logits=self.logit_op[:, -1],
-                                                       labels=self.X_label[:, 1:])
+                                                       labels=one_hot[:, 1:])
         return loss
 
     @util.define_scope("sample")
