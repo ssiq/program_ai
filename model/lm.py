@@ -1,4 +1,6 @@
 import tensorflow as tf
+import numpy as np
+
 from model import util
 
 
@@ -40,3 +42,15 @@ class CharacterLanguageModel(object):
         character_embedding = tf.get_variable('embedding', initializer=self.embedding_matrix, dtype=tf.float32)
         embededing = tf.nn.embedding_lookup(character_embedding, self.X_label)
         return embededing
+
+
+def build_model(learning_rate, hidden_size, embedding_size, character_size, Model, max_grad_norm):
+    X = tf.placeholder(dtype=tf.int32, shape=(None, None), name='X')
+    rnn_cell = tf.contrib.rnn.BasicLSTMCell(hidden_size)
+
+    model = Model(X, rnn_cell, np.random.randn(character_size, embedding_size))
+    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+    gradients = optimizer.compute_gradients(model.loss_op)
+    clipped_gradients = tf.clip_by_global_norm(gradients, max_grad_norm)
+    train_op = optimizer.apply_gradients(clipped_gradients)
+    return model, train_op
