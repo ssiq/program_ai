@@ -27,4 +27,6 @@ def read_submit_data(conn):
 
 def read_local_submit_data():
     from code_data.constants import local_db_path
-    return read_submit_data(local_db_path)
+    import sqlite3
+    con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
+    return read_submit_data(con)
