@@ -6,3 +6,4 @@
 /key/*
 *.pid
 /test/*
+.ipynb_checkpoints/
