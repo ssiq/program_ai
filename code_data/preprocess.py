@@ -54,6 +54,14 @@ class CharacterSet(object):
     def character_set(self):
         return self._character_set
 
+    @property
+    def end_label(self):
+        return _END_LABEL
+
+    @property
+    def begin_label(self):
+        return _BEGIN_LABEL
+
 
 if __name__ == "__main__":
     strings = ['ababvd', 'abccrf', 'aaaaaahhhhh']
