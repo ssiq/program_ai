@@ -39,10 +39,6 @@ class CombineGenerator(object):
         """
         self.generator = args
 
-    def _generate(self, generator_list, generate_time):
-        if not generator_list:
-            pass
-
     def __call__(self, generate_time: int):
         generator_list = list(map(lambda x: x(generate_time), self.generator))
         for _ in range(generate_time):
