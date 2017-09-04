@@ -50,6 +50,6 @@ def read_code_list(filter_function: typing.Callable[pd.DataFrame, pd.DataFrame],
         return pd.read_pickle(path)
     else:
         df = read_local_submit_data()
-        df = df[filter_function(df)]
+        df = df[filter_function(df)]['code']
         df.to_pickle(path)
         return df

@@ -6,7 +6,8 @@ ParamIterator = typing.Iterator[typing.Dict[str, typing.Any]]
 
 
 class Generator(object):
-    pass
+    def __call__(self, generate_time: int) -> ParamIterator:
+        pass
 
 
 class RandomGenerator(Generator):
