@@ -21,4 +21,4 @@ def format_dict_to_string(to_format_dict: dict):
     :return:
     """
 
-    return '__'.join(str(a)+'_'+str(b) for a, b in to_format_dict.items())
+    return '__'.join(str(a)+str(b) for a, b in to_format_dict.items())
