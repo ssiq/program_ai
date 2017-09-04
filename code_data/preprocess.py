@@ -47,6 +47,7 @@ class CharacterSet(object):
     def id_to_character(self, i):
         return self.id_to_character_dict[i]
 
+    @property
     def character_set_size(self):
         return len(self.character_to_id_dict)
 
