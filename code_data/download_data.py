@@ -3,7 +3,7 @@ from code_data.constants import spider_key_path, remote_db_path, spider_ip, spid
 import os
 import logging
 
-def get_remote_data():
+def get_remote_data() -> None:
 
     if not os.path.exists(spider_key_path):
         logging.error("Private key not exists.")

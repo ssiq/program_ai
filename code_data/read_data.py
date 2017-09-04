@@ -1,7 +1,8 @@
 import pandas as pd
 import typing
+import sqlite3
 
-def read_submit_data(conn):
+def read_submit_data(conn: sqlite3.Connection) -> pd.DataFrame:
     problems_df = pd.read_sql('select problem_name, tags from {}'.format('problem'), conn)
     submit_df = pd.read_sql('select * from {}'.format('submit'), conn)
     submit_joined_df = submit_df.join(problems_df.set_index('problem_name'), on = 'problem_name')
@@ -26,7 +27,7 @@ def read_submit_data(conn):
 
     return submit_joined_df
 
-def read_local_submit_data():
+def read_local_submit_data() -> pd.DataFrame:
     from code_data.constants import local_db_path
     import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)

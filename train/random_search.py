@@ -1,8 +1,16 @@
 import numpy as np
+import typing
+
+ParamType = typing.Union[typing.Dict[str, typing.Any], typing.Sequence[typing.Tuple[str, typing.Any]]]
+ParamIterator = typing.Iterator[typing.Dict[str, typing.Any]]
 
 
-class RandomGenerator(object):
-    def __init__(self, generate_space):
+class Generator(object):
+    pass
+
+
+class RandomGenerator(Generator):
+    def __init__(self, generate_space: ParamType):
         """
         :param generate_space: a dict or a tuple list of (parameter_name, sample log space), los space is a (low, high) tuple
         """
@@ -10,7 +18,7 @@ class RandomGenerator(object):
             generate_space = generate_space.items()
         self.generate_space = generate_space
 
-    def __call__(self, generate_time: int):
+    def __call__(self, generate_time: int) -> ParamIterator:
         for i in range(generate_time):
             r = {}
             for a, b in self.generate_space:
@@ -18,8 +26,8 @@ class RandomGenerator(object):
             yield r
 
 
-class ConstantGenerator(object):
-    def __init__(self, parameter_value):
+class ConstantGenerator(Generator):
+    def __init__(self, parameter_value: ParamType):
         """
         :param parameter_value:  a dict or a tuple list of (parameter_name, parameter_value)
         """
@@ -27,13 +35,13 @@ class ConstantGenerator(object):
             parameter_value = dict(parameter_value)
         self.parameter_value = parameter_value
 
-    def __call__(self, generate_time: int):
+    def __call__(self, generate_time: int) -> ParamIterator:
         for i in range(generate_time):
             yield self.parameter_value
 
 
-class ChoiceGenerator(object):
-    def __init__(self, parameter_value):
+class ChoiceGenerator(Generator):
+    def __init__(self, parameter_value: ParamType):
         """
         :param parameter_value: a dict or a tuple list of (parameter_name, choice space), choice space is a (choice1, choice2, ..)tuple
         """
@@ -41,7 +49,7 @@ class ChoiceGenerator(object):
             parameter_value = parameter_value.items()
         self.generate_space = parameter_value
 
-    def __call__(self, generate_time: int):
+    def __call__(self, generate_time: int) -> ParamIterator:
         for i in range(generate_time):
             d = {}
             for a, b in self.generate_space:
@@ -49,14 +57,14 @@ class ChoiceGenerator(object):
             yield d
 
 
-class CombineGenerator(object):
-    def __init__(self, *generators):
+class CombineGenerator(Generator):
+    def __init__(self, *generators: Generator):
         """
         :param generators: any generator object
         """
         self.generator = generators
 
-    def __call__(self, generate_time: int):
+    def __call__(self, generate_time: int) -> ParamIterator:
         generator_list = list(map(lambda x: x(generate_time), self.generator))
         for _ in range(generate_time):
             r = {}
@@ -65,7 +73,8 @@ class CombineGenerator(object):
             yield r
 
 
-def random_parameters_generator(random_param=dict(), choice_param=dict(), constant_param=dict()):
+def random_parameters_generator(random_param: ParamType = dict(), choice_param: ParamType = dict(),
+                                constant_param: ParamType = dict()) -> Generator:
     """
     :param random_param: a dict or a tuple list of (parameter_name, sample log space), los space is a (low, high) tuple
     :param choice_param: a dict or a tuple list of (parameter_name, choice space), choice space is a (choice1, choice2, ..)tuple

@@ -1,5 +1,6 @@
 import functools
 import tensorflow as tf
+import typing
 
 
 def doublewrap(function):
@@ -43,7 +44,7 @@ def define_scope(function, scope=None, *args, **kwargs):
     return decorator
 
 
-def init_all_op(self):
+def init_all_op(self: typing.Any) -> None:
     """
     The function is used to add all op in the model to the default tensorflow graph.
     """
@@ -52,7 +53,7 @@ def init_all_op(self):
             getattr(self, i)
 
 
-def length(seq):
+def length(seq: tf.Tensor) -> tf.Tensor:
     """
     :param seq: a tenser of sequence [batch, time, ....]
     :return: the length of the sequence

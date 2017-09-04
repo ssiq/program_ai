@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import typing
 
 from model import util
 
@@ -31,7 +32,7 @@ class CharacterLanguageModel(object):
     def logit_op(self):
         default_init_state = self.rnn_cell.zero_state(tf.shape(self.X_label)[0], tf.float32),
         init_state = tf.placeholder_with_default(default_init_state,
-                                               shape=[None,]+tf.shape(default_init_state)[1:])
+                                                 shape=[None, ] + tf.shape(default_init_state)[1:])
         sequence_length = util.length(self.X_label)
         outputs, state = tf.nn.dynamic_rnn(self.rnn_cell, self.embedding_op, sequence_length=sequence_length,
                                            initial_state=init_state,
@@ -47,12 +48,14 @@ class CharacterLanguageModel(object):
 
     @util.define_scope(scope='summary')
     def summary_op(self):
-        tf.summary.scalar('perplexity', util.perplexity(self.logit_op, tf.one_hot(self.X_label, self.embedding_matrix.shape[0])))
+        tf.summary.scalar('perplexity',
+                          util.perplexity(self.logit_op, tf.one_hot(self.X_label, self.embedding_matrix.shape[0])))
         tf.summary.scalar('loss', self.loss_op)
         return tf.summary.merge_all()
 
 
-def build_model(learning_rate, hidden_size, embedding_size, character_size, Model, max_grad_norm):
+def build_model(learning_rate: float, hidden_size: int, embedding_size: int, character_size: int, Model: typing.Type,
+                max_grad_norm: float) -> typing.Tuple[object, tf.Tensor, tf.Tensor, tf.Tensor]:
     X_input = tf.placeholder(dtype=tf.int32, shape=(None, None), name='X')
     rnn_cell = tf.contrib.rnn.LSTMCell(hidden_size)
 
