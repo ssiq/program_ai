@@ -40,7 +40,7 @@ class CharacterLanguageModel(object):
 
     @util.define_scope('embedding')
     def embedding_op(self):
-        character_embedding = tf.get_variable('embedding', initializer=self.embedding_matrix, dtype=tf.float32)
+        character_embedding = tf.Variable(name='embedding', initial_value=self.embedding_matrix, dtype=tf.float32)
         embededing = tf.nn.embedding_lookup(character_embedding, self.X_label)
         return embededing
 
