@@ -1,4 +1,5 @@
 import pandas as pd
+import typing
 
 def read_submit_data(conn):
     problems_df = pd.read_sql('select problem_name, tags from {}'.format('problem'), conn)
@@ -30,3 +31,24 @@ def read_local_submit_data():
     import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
     return read_submit_data(con)
+
+def read_code_list(filter_function: typing.Callable[pd.DataFrame, pd.DataFrame], head: int) -> pd.DataFrame:
+    """
+    This is a function to read code from database. It will cache the code list in the cache directory.
+    :param filter_function: It get df parameter return a binary value list, not use the lambda expression
+    :param head: it get the number of code
+    :return:
+    """
+    import os
+    from code_data.constants import cache_data_path
+    from util import make_dir
+    name = filter_function.__name__ + '_' + str(head)
+    make_dir(cache_data_path)
+    path = os.path.join(cache_data_path, name)
+    if os.path.exists(path):
+        return pd.read_pickle(path)
+    else:
+        df = read_local_submit_data()
+        df = df[filter_function(df)]
+        df.to_pickle(path)
+        return df
