@@ -32,12 +32,29 @@ class ConstantGenerator(object):
             yield self.parameter_value
 
 
+class ChoiceGenerator(object):
+    def __init__(self, parameter_value):
+        """
+        :param parameter_value: a dict or a tuple list of (parameter_name, choice space), choice space is a (choice1, choice2, ..)tuple
+        """
+        if isinstance(parameter_value, dict):
+            parameter_value = parameter_value.items()
+        self.generate_space = parameter_value
+
+    def __call__(self, generate_time: int):
+        for i in range(generate_time):
+            d = {}
+            for a, b in self.generate_space:
+                d[a] = np.random.choice(b)
+            yield d
+
+
 class CombineGenerator(object):
-    def __init__(self, *args):
+    def __init__(self, *generators):
         """
-        :param args: any generator object
+        :param generators: any generator object
         """
-        self.generator = args
+        self.generator = generators
 
     def __call__(self, generate_time: int):
         generator_list = list(map(lambda x: x(generate_time), self.generator))
@@ -46,6 +63,20 @@ class CombineGenerator(object):
             for i in generator_list:
                 r.update(next(i))
             yield r
+
+
+def random_parameters_generator(random_param=dict(), choice_param=dict(), constant_param=dict()):
+    """
+    :param random_param: a dict or a tuple list of (parameter_name, sample log space), los space is a (low, high) tuple
+    :param choice_param: a dict or a tuple list of (parameter_name, choice space), choice space is a (choice1, choice2, ..)tuple
+    :param constant_param: a dict or a tuple list of (parameter_name, parameter_value)
+    :return:
+    """
+    random_generator = RandomGenerator(random_param)
+    choice_generator = ChoiceGenerator(choice_param)
+    constant_generator = ConstantGenerator(constant_param)
+    generator = CombineGenerator(random_generator, choice_generator, constant_generator)
+    return generator
 
 
 if __name__ == '__main__':
