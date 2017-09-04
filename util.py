@@ -14,3 +14,4 @@ def load_check_point(checkpoint_path, sess, saver):
     ckpt = tf.train.get_checkpoint_state(os.path.dirname(checkpoint_path))
     if ckpt and ckpt.model_checkpoint_path:
         saver.restore(sess, ckpt.model_checkpoint_path)
+

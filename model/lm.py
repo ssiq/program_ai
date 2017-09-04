@@ -61,4 +61,4 @@ def build_model(learning_rate, hidden_size, embedding_size, character_size, Mode
     global_step = tf.Variable(initial_value=0, name='global_step', dtype=tf.int32, )
     clipped_gradients = tf.clip_by_global_norm(gradients, max_grad_norm)
     train_op = optimizer.apply_gradients(clipped_gradients, global_step=global_step)
-    return model, train_op, X_input
+    return model, train_op, X_input, global_step
