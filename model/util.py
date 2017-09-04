@@ -7,12 +7,14 @@ def doublewrap(function):
     A decorator decorator, allowing to use the decorator to be used without
     parentheses if not arguments are provided. All arguments must be optional.
     """
+
     @functools.wraps(function)
     def decorator(*args, **kwargs):
         if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
             return function(args[0])
         else:
             return lambda wrapee: function(wrapee, *args, **kwargs)
+
     return decorator
 
 
@@ -29,6 +31,7 @@ def define_scope(function, scope=None, *args, **kwargs):
     """
     attribute = '_cache_' + function.__name__
     name = scope or function.__name__
+
     @property
     @functools.wraps(function)
     def decorator(self):
@@ -36,7 +39,9 @@ def define_scope(function, scope=None, *args, **kwargs):
             with tf.variable_scope(name, *args, **kwargs):
                 setattr(self, attribute, function(self))
         return getattr(self, attribute)
+
     return decorator
+
 
 def init_all_op(self):
     """
@@ -54,6 +59,7 @@ def length(seq):
     """
     return tf.reduce_sum(tf.reduce_max(tf.sign(seq), 2), 1)
 
+
 def perplexity(logits: tf.Tensor, one_hot_labels: tf.Tensor):
     """
     :param logits: the logits which has the size [batch, time, label_size]
@@ -62,7 +68,8 @@ def perplexity(logits: tf.Tensor, one_hot_labels: tf.Tensor):
     """
     length_of_series = length(one_hot_labels)
     pp = tf.nn.softmax(logits, )
-    return tf.pow(tf.constant(2, dtype=tf.int32), -tf.reduce_sum(tf.log(pp)*one_hot_labels, axis=tf.shape(pp)[1:])/length_of_series)
+    return tf.reduce_mean(tf.pow(tf.constant(2, dtype=tf.int32),
+                                 -tf.reduce_sum(tf.log(pp) * one_hot_labels, axis=tf.shape(pp)[1:]) / length_of_series))
 
 
 if __name__ == '__main__':
@@ -83,5 +90,6 @@ if __name__ == '__main__':
         @define_scope
         def c(self):
             print("c is not a op")
+
 
     test = Test()

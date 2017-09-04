@@ -44,6 +44,12 @@ class CharacterLanguageModel(object):
         embededing = tf.nn.embedding_lookup(character_embedding, self.X_label)
         return embededing
 
+    @util.define_scope('summary')
+    def summary_op(self):
+        tf.summary.scalar('perplexity', util.perplexity(self.logit_op, tf.one_hot(self.X_label, self.embedding_matrix.shape[0])))
+        tf.summary.scalar('loss', self.loss_op)
+        return tf.summary.merge_all()
+
 
 def build_model(learning_rate, hidden_size, embedding_size, character_size, Model, max_grad_norm):
     X_input = tf.placeholder(dtype=tf.int32, shape=(None, None), name='X')
@@ -52,6 +58,7 @@ def build_model(learning_rate, hidden_size, embedding_size, character_size, Mode
     model = Model(X_input, rnn_cell, np.random.randn(character_size, embedding_size))
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     gradients = optimizer.compute_gradients(model.loss_op)
+    global_step = tf.Variable(initial_value=0, name='global_step', dtype=tf.int32, )
     clipped_gradients = tf.clip_by_global_norm(gradients, max_grad_norm)
-    train_op = optimizer.apply_gradients(clipped_gradients)
+    train_op = optimizer.apply_gradients(clipped_gradients, global_step=global_step)
     return model, train_op, X_input
