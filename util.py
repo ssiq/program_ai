@@ -2,11 +2,24 @@ import tensorflow as tf
 import os
 
 
-def make_dir(path):
+def make_dir(*path):
+    """
+    This method will recursively create the directory
+    :param path: a variable length parameter
+    :return:
+    """
+    path = os.path.join(*path)
+
+    if not path:
+        return
+
     if os.path.exists(path):
         if not os.path.isdir(path):
             raise ValueError("The path {} already exits but it is not a directory".format(path))
         return
+
+    base, _ = os.path.split(path)
+    make_dir(base)
     os.mkdir(path)
 
 
@@ -22,3 +35,7 @@ def format_dict_to_string(to_format_dict: dict):
     """
 
     return '__'.join(str(a)+str(b) for a, b in to_format_dict.items())
+
+
+if __name__ == '__main__':
+    make_dir('data', 'cache_data')
