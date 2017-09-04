@@ -58,7 +58,7 @@ def build_model(learning_rate, hidden_size, embedding_size, character_size, Mode
     model = Model(X_input, rnn_cell, np.random.randn(character_size, embedding_size))
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     gradients = optimizer.compute_gradients(model.loss_op)
-    global_step = tf.Variable(initial_value=0, name='global_step', dtype=tf.int32, )
+    global_step = tf.Variable(initial_value=0, name='global_step', dtype=tf.int32, trainable=False)
     clipped_gradients = tf.clip_by_global_norm(gradients, max_grad_norm)
     train_op = optimizer.apply_gradients(clipped_gradients, global_step=global_step)
     return model, train_op, X_input, global_step
