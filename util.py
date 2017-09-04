@@ -15,3 +15,10 @@ def load_check_point(checkpoint_path, sess, saver):
     if ckpt and ckpt.model_checkpoint_path:
         saver.restore(sess, ckpt.model_checkpoint_path)
 
+def format_dict_to_string(to_format_dict: dict):
+    """
+    :param to_format_dict: a dict to format
+    :return:
+    """
+
+    return '__'.join(str(a)+'_'+str(b) for a, b in to_format_dict.items())
