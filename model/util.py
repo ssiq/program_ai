@@ -54,6 +54,16 @@ def length(seq):
     """
     return tf.reduce_sum(tf.reduce_max(tf.sign(seq), 2), 1)
 
+def perplexity(logits: tf.Tensor, one_hot_labels: tf.Tensor):
+    """
+    :param logits: the logits which has the size [batch, time, label_size]
+    :param one_hot_labels: the one_hot_labels with the size [batch, time, label_size]
+    :return: the perplexity
+    """
+    length_of_series = length(one_hot_labels)
+    pp = tf.nn.softmax(logits, )
+    return tf.pow(tf.constant(2, dtype=tf.int32), -tf.reduce_sum(tf.log(pp)*one_hot_labels, axis=tf.shape(pp)[1:])/length_of_series)
+
 
 if __name__ == '__main__':
     class Test(object):
