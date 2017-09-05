@@ -12,20 +12,26 @@ from model.lm import CharacterLanguageModel, build_model
 from train.random_search import random_parameters_generator
 import util
 
+
 def get_right_C_code(df: pd.DataFrame) -> pd.Series:
     return (df.language == 1) & (df.status != 7)
+
 
 def create_character_set(code_list: StringSeq) -> CharacterSet:
     character_set = CharacterSet(code_list)
     return character_set
 
-def data(code_set:IdList, character_set: CharacterSet, batch_size:int=32, epoches:int=10) -> typing.Iterator[IdList]:
+
+def data(code_set: IdList, character_set: CharacterSet, batch_size: int = 32, epoches: int = 10) -> typing.Iterator[
+    IdList]:
     for i in range(epoches):
         code_set = sklearn.utils.shuffle(code_set)
         for t in range(0, len(code_set), batch_size):
-            yield character_set.align_texts_with_same_length(code_set[t:t+batch_size])
+            yield character_set.align_texts_with_same_length(code_set[t:t + batch_size])
 
-def train(model_parameters, train_data, val_data, character_set, epoches=15, skip_steps=5, print_skip_step=100, save_steps=1000):
+
+def train(model_parameters, train_data, val_data, character_set, epoches=15, skip_steps=5, print_skip_step=100,
+          save_steps=1000):
     print("model_parameter:{}".format(model_parameters))
     model, train_op, X_input, global_step = build_model(**model_parameters)
     saver = tf.train.Saver()
@@ -33,10 +39,12 @@ def train(model_parameters, train_data, val_data, character_set, epoches=15, ski
     sess = tf.Session()
     sess.run(init)
     del model_parameters['Model']
-    train_writer = tf.summary.FileWriter(logdir='./graphs/{}'.format(util.format_dict_to_string(model_parameters)+"_train"),
-                                   graph=sess.graph)
-    validation_writer = tf.summary.FileWriter(logdir='./graphs/{}'.format(util.format_dict_to_string(model_parameters)+"_validation"),
-                                   graph=sess.graph)
+    train_writer = tf.summary.FileWriter(
+        logdir='./graphs/{}'.format(util.format_dict_to_string(model_parameters) + "_train"),
+        graph=sess.graph)
+    validation_writer = tf.summary.FileWriter(
+        logdir='./graphs/{}'.format(util.format_dict_to_string(model_parameters) + "_validation"),
+        graph=sess.graph)
     losses = []
     val_data = character_set.align_texts_with_same_length(val_data)
     for i, codes in enumerate(data(train_data, character_set, epoches=epoches)):
@@ -52,10 +60,12 @@ def train(model_parameters, train_data, val_data, character_set, epoches=15, ski
             print("step {}: loss {}".format(i, np.mean(losses)))
             losses = []
         if i % save_steps == 0:
-            saver.save(sess, 'checkpoints/rnn_language_model', global_step.eval(sess))
+            saver.save(sess, 'checkpoints/rnn_language_model/{}'.format(util.format_dict_to_string(model_parameters)),
+                       global_step.eval(sess))
 
     train_writer.close()
     validation_writer.close()
+
 
 if __name__ == '__main__':
     code_list = read_code_list(get_right_C_code, 100)
@@ -72,7 +82,3 @@ if __name__ == '__main__':
     for param in param_generator(1):
         tf.reset_default_graph()
         train(param, train_data, val_data, character_set)
-
-
-
-
