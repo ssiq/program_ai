@@ -69,8 +69,19 @@ def perplexity(logits: tf.Tensor, one_hot_labels: tf.Tensor):
     """
     length_of_series = length(one_hot_labels)
     pp = tf.nn.softmax(logits, )
-    return tf.reduce_mean(tf.pow(tf.constant(2, dtype=tf.int32),
-                                 -tf.reduce_sum(tf.log(pp) * one_hot_labels, axis=tf.shape(pp)[1:]) / length_of_series))
+    pp_one_product = tf.log(pp) * one_hot_labels
+    exponent_sum = -tf.reduce_sum(pp_one_product, axis=tf.range(1, get_shape(tf.shape(pp))[0]))
+    return tf.reduce_mean(tf.pow(tf.constant(2.0, dtype=tf.float32),
+                                 exponent_sum / length_of_series))
+
+
+def get_shape(tensor: tf.Tensor) -> typing.List:
+  """Returns static shape if available and dynamic shape otherwise."""
+  static_shape = tensor.shape.as_list()
+  dynamic_shape = tf.unstack(tf.shape(tensor))
+  dims = [s[1] if s[0] is None else s[0]
+          for s in zip(static_shape, dynamic_shape)]
+  return dims
 
 
 if __name__ == '__main__':

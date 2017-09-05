@@ -33,7 +33,7 @@ def read_local_submit_data() -> pd.DataFrame:
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
     return read_submit_data(con)
 
-def read_code_list(filter_function: typing.Callable[pd.DataFrame, pd.DataFrame], head: int) -> pd.DataFrame:
+def read_code_list(filter_function: typing.Callable[[pd.DataFrame], pd.Series], head: int) -> pd.DataFrame:
     """
     This is a function to read code from database. It will cache the code list in the cache directory.
     :param filter_function: It get df parameter return a binary value list, not use the lambda expression
@@ -50,6 +50,6 @@ def read_code_list(filter_function: typing.Callable[pd.DataFrame, pd.DataFrame],
         return pd.read_pickle(path)
     else:
         df = read_local_submit_data()
-        df = df[filter_function(df)]['code']
+        df = df[filter_function(df)].head(head)['code']
         df.to_pickle(path)
         return df
