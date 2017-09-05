@@ -33,7 +33,9 @@ def train(model_parameters, train_data, val_data, character_set, epoches=15, ski
     sess = tf.Session()
     sess.run(init)
     del model_parameters['Model']
-    writer = tf.summary.FileWriter(logdir='./graphs/{}'.format(util.format_dict_to_string(model_parameters)),
+    train_writer = tf.summary.FileWriter(logdir='./graphs/{}'.format(util.format_dict_to_string(model_parameters)+"_train"),
+                                   graph=sess.graph)
+    validation_writer = tf.summary.FileWriter(logdir='./graphs/{}'.format(util.format_dict_to_string(model_parameters)+"_validation"),
                                    graph=sess.graph)
     losses = []
     val_data = character_set.align_texts_with_same_length(val_data)
@@ -43,14 +45,17 @@ def train(model_parameters, train_data, val_data, character_set, epoches=15, ski
         losses.append(loss)
         if i % skip_steps == 0:
             summary = sess.run(model.summary_op, feed_dict={X_input: codes})
-            writer.add_summary(summary, global_step=global_step.eval(sess))
+            train_writer.add_summary(summary, global_step=global_step.eval(sess))
+            summary = sess.run(model.summary_op, feed_dict={X_input: val_data})
+            validation_writer.add_summary(summary, global_step=global_step.eval(sess))
         if i % print_skip_step == 0:
             print("step {}: loss {}".format(i, np.mean(losses)))
             losses = []
         if i % save_steps == 0:
             saver.save(sess, 'checkpoints/rnn_language_model', global_step.eval(sess))
 
-    writer.close()
+    train_writer.close()
+    validation_writer.close()
 
 if __name__ == '__main__':
     code_list = read_code_list(get_right_C_code, 100)
