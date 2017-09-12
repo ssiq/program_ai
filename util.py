@@ -83,5 +83,13 @@ def disk_cache(basename, directory, method=False):
     return wrapper
 
 
+def overwrite_graph(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        with tf.Graph().as_default():
+            return function(*args, **kwargs)
+    return wrapper
+
+
 if __name__ == '__main__':
     make_dir('data', 'cache_data')
