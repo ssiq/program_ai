@@ -31,17 +31,11 @@ class CodeEnv(gym.Env):
         pos = action[0]
         cha = action[1]
         if pos % 2 == 0:
-            pos = pos/2
-            if pos == 0:
-                code = cha + code
-            elif pos == len(code):
-                code = code + cha
-            else:
-                code = code[:pos] + cha +code[pos+1:]
+            pos = int(pos/2)
+            code = code[:pos] + cha + code[pos:]
         elif pos % 2 == 1:
-            pos = int(pos/2) + 1
-            print(pos)
-            code = code[:pos-1] + cha + code[pos + 1:]
+            pos = int(pos/2)
+            code = code[:pos] + cha + code[pos + 1:]
 
         reward = 0
         info = {}
