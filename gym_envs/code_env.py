@@ -1,11 +1,10 @@
 import gym
-from gym import error, spaces, utils
-from gym.utils import seeding
-from gym.spaces import Discrete, Tuple
 import sys
 import re
-import numpy
+import numpy as np
 import os
+from code_data.constants import cpp_tmp_dir, cpp_tmp_filename, cpp_tmp_path, sign_char_dict, char_sign_dict
+from code_data.read_data import read_cpp_code_list, read_less_cpp_code_list
 
 
 class CodeEnv(gym.Env):
@@ -13,11 +12,14 @@ class CodeEnv(gym.Env):
 
     MAX_STEP = -1
 
+    code_df = None
+    code_df_size = 0
+
     def __init__(self):
         self.max_step = 200
         self.reset()
 
-    def _step(self, action: list) -> Tuple:
+    def _step(self, action: list) -> tuple:
         if not self.last_reward:
             self.last_reward = 0
         if not self.total_rewards:
@@ -29,13 +31,17 @@ class CodeEnv(gym.Env):
         code = self.code_string
 
         pos = action[0]
-        cha = action[1]
+        cha = sign_char_dict[action[1]]
+        if cha == 'plh':
+            cha = ''
+
         if pos % 2 == 0:
             pos = int(pos/2)
             code = code[:pos] + cha + code[pos:]
         elif pos % 2 == 1:
             pos = int(pos/2)
             code = code[:pos] + cha + code[pos + 1:]
+        self.code_string = code
 
         reward = 0
         info = {}
@@ -44,24 +50,27 @@ class CodeEnv(gym.Env):
             reward = -1
         elif self._compile_code():
             done = True
-            reward = 100 - self._diff_between_codes()
+            reward = self._diff_between_codes()
         else:
             done = False
             reward = -1
-        self.code_string = code
         self.last_reward = reward
         self.total_rewards += reward
-        obs = self._get_obs()
+        obs = self._get_sign_obs()
         return (obs, reward, done, info)
 
     def _reset(self) -> str:
-        self.original_code = ''
-        self.code_string = ''
+
+        if self.code_df == None:
+            self.code_df = read_less_cpp_code_list()
+            self.code_df_size = self.code_df.shape[0]
+
+        self.count_steps = 0
+        self.original_code = self._preprocess_code(self._get_next_code())
+        self.code_string = self.original_code
         self.last_action = None
         self.last_reward = None
         self.total_rewards = None
-        self.code_string = self.original_code
-        self.count_steps = 0
         obs = self._render_observation()
         return obs
 
@@ -75,6 +84,11 @@ class CodeEnv(gym.Env):
     def _get_obs(self) -> str:
         return self.code_string
 
+    def _get_sign_obs(self):
+        char_list = list(self.code_string)
+        sign_list = [ char_sign_dict[x] for x in char_list]
+        return sign_list
+
     def _render(self, mode: str='human', close: bool=False):
         outfile = sys.stdout
         outfile.write(self._render_observation())
@@ -87,7 +101,9 @@ class CodeEnv(gym.Env):
         return outfile
 
     def _get_next_code(self):
-        return ""
+        ind = np.random.randint(0, self.code_df_size)
+        code = self.code_df['code'].iloc[ind]
+        return code
 
     def _preprocess_code(self, code):
         pattern = re.compile('''('.*?'|".*?"|[^ \t\r\f\v"']+)''')
@@ -97,9 +113,19 @@ class CodeEnv(gym.Env):
 
     def _diff_between_codes(self):
         lcs = self.find_lcseque(self.original_code, self.code_string)
-        return (len(lcs)*100)/len(self.original_code)
+        if len(self.original_code) == 0:
+            return 0
+        return int((len(lcs)*100)/len(self.original_code))
 
     def _compile_code(self) -> bool:
+        if not os.path.exists(cpp_tmp_dir):
+            os.makedirs(cpp_tmp_dir)
+        f = open(cpp_tmp_path, 'w')
+        f.write(self.code_string)
+        f.close()
+        res = os.system('g++ -O0 -fsyntax-only {} >/dev/null 2>&1'.format(cpp_tmp_path))
+        if res == 0:
+            return True
         return False
 
     def find_lcseque(self, s1, s2):
