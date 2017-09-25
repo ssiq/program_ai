@@ -66,7 +66,15 @@ def read_cpp_code_list() -> pd.DataFrame:
 @util.disk_cache(basename='less_cpp', directory='../data')
 def read_less_cpp_code_list() -> pd.DataFrame:
     all_data = read_local_submit_data()
-    df = all_data.loc[(all_data['status'] == 1) & (all_data['language'] == 3) & (all_data['code'].map(len) > 10), ['id', 'submit_url', 'code']]
+    df = all_data.loc[(all_data['status'] == 7) & (all_data['language'] == 3) & (all_data['code'].map(len) > 10), ['id', 'submit_url', 'code']]
     df['code_len'] = df['code'].map(len)
     df = df.sort_values(by=['code_len']).head(100)
+    return df
+
+@util.disk_cache(basename='length_cpp', directory='../data')
+def read_length_cpp_code_list(code_length) -> pd.DataFrame:
+    all_data = read_local_submit_data()
+    df = all_data.loc[(all_data['status'] == 7) & (all_data['language'] == 3) & (all_data['code'].map(len) > 10) & (all_data['code'].map(len) < code_length), ['id', 'submit_url', 'code']]
+    df['code_len'] = df['code'].map(len)
+    df = df.sort_values(by=['code_len'])
     return df

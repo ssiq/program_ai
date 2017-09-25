@@ -4,7 +4,8 @@ import re
 import numpy as np
 import os
 from code_data.constants import cpp_tmp_dir, cpp_tmp_filename, cpp_tmp_path, sign_char_dict, char_sign_dict
-from code_data.read_data import read_cpp_code_list, read_less_cpp_code_list
+from code_data.read_data import read_cpp_code_list, read_less_cpp_code_list, read_length_cpp_code_list
+import math
 
 
 class CodeEnv(gym.Env):
@@ -15,9 +16,15 @@ class CodeEnv(gym.Env):
     code_df = None
     code_df_size = 0
 
-    def __init__(self):
-        self.max_step = 200
+    def __init__(self, max_step=200, max_code_length=100):
+        self.max_step = max_step
+        self.max_code_length = max_code_length
+        self.esp_count = 0
+        self.count_steps = 0
         self.reset()
+
+    def set_max_code_length(self, max_code_length):
+        self.max_code_length = max_code_length
 
     def _step(self, action: list) -> tuple:
         if not self.last_reward:
@@ -35,7 +42,9 @@ class CodeEnv(gym.Env):
         if cha == 'plh':
             cha = ''
 
-        if pos % 2 == 0:
+        if pos >= (2 * len(code)):
+            code = code + cha
+        elif pos % 2 == 0:
             pos = int(pos/2)
             code = code[:pos] + cha + code[pos:]
         elif pos % 2 == 1:
@@ -59,10 +68,11 @@ class CodeEnv(gym.Env):
         obs = self._get_sign_obs()
         return (obs, reward, done, info)
 
-    def _reset(self) -> str:
-
+    def _reset(self) -> list:
+        self.esp_count += 1
         if self.code_df == None:
-            self.code_df = read_less_cpp_code_list()
+            self.code_df = read_length_cpp_code_list(self.max_code_length)
+
             self.code_df_size = self.code_df.shape[0]
 
         self.count_steps = 0
@@ -71,7 +81,7 @@ class CodeEnv(gym.Env):
         self.last_action = None
         self.last_reward = None
         self.total_rewards = None
-        obs = self._render_observation()
+        obs = self._get_sign_obs()
         return obs
 
     def _render_observation(self) -> str:
@@ -86,7 +96,7 @@ class CodeEnv(gym.Env):
 
     def _get_sign_obs(self):
         char_list = list(self.code_string)
-        sign_list = [ char_sign_dict[x] for x in char_list]
+        sign_list = [char_sign_dict[x] for x in char_list]
         return sign_list
 
     def _render(self, mode: str='human', close: bool=False):
@@ -101,8 +111,12 @@ class CodeEnv(gym.Env):
         return outfile
 
     def _get_next_code(self):
-        ind = np.random.randint(0, self.code_df_size)
-        code = self.code_df['code'].iloc[ind]
+        code_len = math.inf
+        code = ''
+        while code_len > self.max_code_length:
+            ind = np.random.randint(0, self.code_df_size)
+            code = self.code_df['code'].iloc[ind]
+            code_len = len(code)
         return code
 
     def _preprocess_code(self, code):
