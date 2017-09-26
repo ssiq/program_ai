@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
-from code_data.constants import char_sign_dict
+from code_data.constants import char_sign_dict, LOG_PATH, CHECKPOINT_PATH
+import os
 
 class DQNModel(object):
 
@@ -24,6 +25,7 @@ class DQNModel(object):
 
         flags.DEFINE_integer('n_features', 4, '')
         flags.DEFINE_integer('n_actions', 2, '')
+        flags.DEFINE_string('summary_dir', LOG_PATH, '')
 
 
     def __init__(self):
@@ -42,15 +44,18 @@ class DQNModel(object):
         self.replace_network_iter = FLAGS.dqn_replace_network_iter
         self.no_train_step = FLAGS.dqn_no_train_step
 
-        self._build_network()
+        self.global_step = tf.Variable(0, dtype=tf.int32, trainable=False, name='global_step')
 
+        self._build_network()
         self.sess = tf.Session()
+
+        self.init_record()
+
         self.sess.run(tf.global_variables_initializer())
 
         self.memory = []
         self.memory_count = 0
 
-        self.init_record()
         self.reset_count = 0
         self.step_num = 0
         self.step_count = 0
@@ -63,12 +68,11 @@ class DQNModel(object):
 
         self.update_target()
 
-
     def init_record(self):
+        f = tf.flags.FLAGS
         self.merged = tf.summary.merge_all()
-        tf.summary.FileWriter("logs/", self.sess.graph)
-        self.test_writer = tf.summary.FileWriter("logs/")
-        self.test_writer.flush()
+        self.train_writer = tf.summary.FileWriter(f.summary_dir, self.sess.graph)
+        self.test_writer = tf.summary.FileWriter(f.summary_dir)
 
     def reset(self):
         self.reset_count += 1
@@ -113,9 +117,9 @@ class DQNModel(object):
         batch_obs, batch_act, batch_rew, batch_don, batch_new_obs = self.random_memory()
 
         # update length of actions, feature, new_feature
-        with tf.variable_scope('action_vars', reuse=True):
+        # with tf.variable_scope('action_vars', reuse=True):
             #self.n_actions_tf = tf.get_variable('n_actions_tf', shape=[], dtype=tf.int32)
-            update_actions = tf.assign(self.n_actions_tf, 2)
+            # update_actions = tf.assign(self.n_actions_tf, 2)
             #update_actions = tf.assign(self.n_actions_tf, batch_obs.shape[1]*2+1)
 
         #     self.n_features_tf = tf.get_variable('n_features_tf', dtype=tf.int32)
@@ -123,13 +127,25 @@ class DQNModel(object):
         #
         #     self.n_new_features_tf = tf.get_variable('n_new_features_tf', dtype=tf.int32)
         #     update_new_features = tf.assign(self.n_new_features_tf, batch_new_obs.shape[1])
-            self.sess.run([update_actions])
+        #     self.sess.run([update_actions])
 
         self.sess.run(self.nn_train, feed_dict={self.obs_ph: batch_obs,
                                                  self.action_ph: batch_act,
                                                  self.reward_ph: batch_rew,
                                                  self.done_ph: batch_don,
                                                  self.new_obs_ph: batch_new_obs})
+        if self.step_count % 100 == 0:
+            summ = self.sess.run(self.merged, feed_dict={self.obs_ph: batch_obs,
+                                                    self.action_ph: batch_act,
+                                                    self.reward_ph: batch_rew,
+                                                    self.done_ph: batch_don,
+                                                    self.new_obs_ph: batch_new_obs})
+            self.test_writer.add_summary(summ, self.step_count)
+            self.test_writer.flush()
+
+        if self.step_count % 1000 == 0:
+            saver = tf.train.Saver()
+            saver.save(self.sess, os.path.join(CHECKPOINT_PATH, 'dqn'), global_step=self.global_step)
 
     def random_memory(self):
         '''
@@ -183,10 +199,10 @@ class DQNModel(object):
         self.reward_ph = tf.placeholder(tf.float32, shape=[None], name='reward')
         self.done_ph = tf.placeholder(tf.float32, shape=[None], name='done')
 
-        with tf.variable_scope('action_vars'):
-            self.n_actions_tf = tf.get_variable('n_actions_tf', shape=[], dtype=tf.int32, initializer=tf.constant_initializer(2))
-            self.n_features_tf = tf.get_variable('n_features_tf', shape=[], dtype=tf.int32, initializer=tf.constant_initializer(4))
-            self.n_new_features_tf = tf.get_variable('n_new_features_tf', shape=[], dtype=tf.int32, initializer=tf.constant_initializer(4))
+        # with tf.variable_scope('action_vars'):
+        #     self.n_actions_tf = tf.get_variable('n_actions_tf', shape=[], dtype=tf.int32, initializer=tf.constant_initializer(2))
+        #     self.n_features_tf = tf.get_variable('n_features_tf', shape=[], dtype=tf.int32, initializer=tf.constant_initializer(4))
+        #     self.n_new_features_tf = tf.get_variable('n_new_features_tf', shape=[], dtype=tf.int32, initializer=tf.constant_initializer(4))
 
         self.mlp = MLPModel(4, 2, learning_rate=self.learning_rate, gamma=self.gamma)
 
@@ -199,11 +215,11 @@ class DQNModel(object):
             q_target_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_variable_scope().name + '/' + 'q_target_net')
 
         with tf.variable_scope('loss'):
-            action_mask = tf.one_hot(self.action_ph, depth=self.n_actions_tf)
+            action_mask = tf.one_hot(self.action_ph, depth=self.nn_q_eval.shape[1])
             q_eval_masked_action = tf.reduce_sum(self.nn_q_eval * action_mask, 1)
 
             q_tp1_best_using_online_net = tf.arg_max(self.nn_q_target, 1)
-            q_max_target = tf.reduce_sum(self.nn_q_target * tf.one_hot(q_tp1_best_using_online_net, self.n_actions_tf), 1)
+            q_max_target = tf.reduce_sum(self.nn_q_target * tf.one_hot(q_tp1_best_using_online_net, self.nn_q_target.shape[1]), 1)
 
             done_mask = 1.0 - self.done_ph
             q_max_target_masked_done = done_mask * q_max_target
@@ -214,13 +230,14 @@ class DQNModel(object):
             delta = 1.0
             t = tf.where(tf.abs(td_error) < delta, tf.square(td_error) * 0.5, delta * (tf.abs(td_error) - 0.5 * delta))
             self.nn_loss = tf.reduce_mean(t)
+            tf.summary.scalar('loss', self.nn_loss)
 
         with tf.variable_scope('train'):
             gradients = tf.train.AdamOptimizer(learning_rate=self.learning_rate).compute_gradients(self.nn_loss, var_list=q_eval_var)
             for i, (grad, var) in enumerate(gradients):
                 if grad is not None:
                     gradients[i] = (tf.clip_by_norm(grad, 10), var)
-            self.nn_train = tf.train.AdamOptimizer(learning_rate=self.learning_rate).apply_gradients(gradients)
+            self.nn_train = tf.train.AdamOptimizer(learning_rate=self.learning_rate).apply_gradients(gradients, global_step=self.global_step)
 
         with tf.variable_scope('update'):
             update = []

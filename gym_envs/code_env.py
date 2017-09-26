@@ -6,6 +6,8 @@ import os
 from code_data.constants import cpp_tmp_dir, cpp_tmp_filename, cpp_tmp_path, sign_char_dict, char_sign_dict
 from code_data.read_data import read_cpp_code_list, read_less_cpp_code_list, read_length_cpp_code_list
 import math
+import time
+from database.database_util import insertEpisodes, insertStepInfoMany, backup
 
 
 class CodeEnv(gym.Env):
@@ -20,11 +22,16 @@ class CodeEnv(gym.Env):
         self.max_step = max_step
         self.max_code_length = max_code_length
         self.esp_count = 0
-        self.count_steps = 0
+        self.resolved_count = 0
+
+        self.backup_db()
         self.reset()
 
     def set_max_code_length(self, max_code_length):
         self.max_code_length = max_code_length
+
+    def backup_db(self):
+        backup()
 
     def _step(self, action: list) -> tuple:
         if not self.last_reward:
@@ -54,11 +61,13 @@ class CodeEnv(gym.Env):
 
         reward = 0
         info = {}
+        resolved = 0
         if self.count_steps > self.max_step:
             done = True
             reward = -1
         elif self._compile_code():
             done = True
+            resolved = 1
             reward = self._diff_between_codes()
         else:
             done = False
@@ -66,23 +75,66 @@ class CodeEnv(gym.Env):
         self.last_reward = reward
         self.total_rewards += reward
         obs = self._get_sign_obs()
+        donenum = 1 if done else 0
+        step_info_item = self.produce_step_info(action[0], cha, reward, donenum)
+        self.step_memory.append(step_info_item)
+        if done:
+            self.store_esp(resolved)
+            self.deal_resolved(resolved)
         return (obs, reward, done, info)
 
     def _reset(self) -> list:
         self.esp_count += 1
         if self.code_df == None:
-            self.code_df = read_length_cpp_code_list(self.max_code_length)
-
+            # self.code_df = read_length_cpp_code_list(self.max_code_length)
+            self.code_df = read_cpp_code_list()
             self.code_df_size = self.code_df.shape[0]
 
         self.count_steps = 0
-        self.original_code = self._preprocess_code(self._get_next_code())
+        codeid, code = self._get_next_code()
+        self.original_code = self._preprocess_code(code)
         self.code_string = self.original_code
         self.last_action = None
         self.last_reward = None
         self.total_rewards = None
         obs = self._get_sign_obs()
+
+        self.episode = {"episodeid": self.esp_count, "starttime": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())),
+                        "endtime": "", "totalstep": 0, "totalreward": 0, "resolved": 0, "codeid": codeid,
+                        "originalcode": self.original_code, "endcode": ""}
+        self.step_memory = []
+
         return obs
+
+    def deal_resolved(self, resolved):
+        if resolved == 1:
+            self.resolved_count += 1
+            if self.resolved_count > 20:
+                self.max_code_length += 10
+        else:
+            self.resolved_count = 0
+
+    def produce_step_info(self, actionpos, actioncha, rew, don):
+        step_info = []
+        step_info.append(self.esp_count)
+        step_info.append(self.count_steps)
+        step_info.append(actionpos)
+        step_info.append(actioncha)
+        step_info.append(rew)
+        step_info.append(don)
+        return step_info
+
+    def store_esp(self, compile):
+        self.episode["endtime"] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        self.episode["totalstep"] = self.count_steps
+        self.episode["totalreward"] = self.total_rewards
+        self.episode["resolved"] = compile
+        self.episode["endcode"] = self.code_string
+
+        insertEpisodes(None, str(self.episode["episodeid"]), self.episode["starttime"], self.episode["endtime"],
+                       str(self.episode["totalstep"]), str(self.episode["totalreward"]), str(self.episode["resolved"]),
+                       str(self.episode["codeid"]), self.episode["originalcode"], self.episode["endcode"])
+        insertStepInfoMany(self.step_memory)
 
     def _render_observation(self) -> str:
         header = "------------------- Step {} -------------------\n".format(self.count_steps)
@@ -113,11 +165,13 @@ class CodeEnv(gym.Env):
     def _get_next_code(self):
         code_len = math.inf
         code = ''
+        id = ''
         while code_len > self.max_code_length:
             ind = np.random.randint(0, self.code_df_size)
+            id = self.code_df['id'].iloc[ind]
             code = self.code_df['code'].iloc[ind]
             code_len = len(code)
-        return code
+        return id, code
 
     def _preprocess_code(self, code):
         pattern = re.compile('''('.*?'|".*?"|[^ \t\r\f\v"']+)''')

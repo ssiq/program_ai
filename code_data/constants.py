@@ -1,5 +1,12 @@
 import os
 
+ROOT_PATH = '/home/lf/Project/program_ai'
+DATABASE_PATH = os.path.join(ROOT_PATH, 'data/train.db')
+BACKUP_PATH = os.path.join(ROOT_PATH, 'backup/')
+LOG_PATH = os.path.join(ROOT_PATH, 'logs/')
+CHECKPOINT_PATH = os.path.join(ROOT_PATH, 'checkpoint/')
+EPISODES = 'episodes'
+STEP_INFO = 'step_info'
 
 spider_key_path = 'key/id_rsa_spider'
 remote_db_path = '/home/lf/DataCrawl/scrapy_OJ/release_data/scrapyOJ.db'

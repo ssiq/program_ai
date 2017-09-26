@@ -7,3 +7,6 @@
 *.pid
 /test/*
 .ipynb_checkpoints/
+/backup/*
+/logs/*
+/checkpoint/*

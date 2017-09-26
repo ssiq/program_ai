@@ -58,7 +58,7 @@ def read_code_list(filter_function: typing.Callable[[pd.DataFrame], pd.Series], 
 @util.disk_cache(basename='cpp', directory='../data')
 def read_cpp_code_list() -> pd.DataFrame:
     all_data = read_local_submit_data()
-    df = all_data.loc[(all_data['status'] == 1) & (all_data['language'] == 3) & (all_data['code'].map(len) > 10), ['id', 'submit_url', 'code']]
+    df = all_data.loc[(all_data['status'] == 7) & (all_data['language'] == 3) & (all_data['code'].map(len) > 30), ['id', 'submit_url', 'code']]
     df['code_len'] = df['code'].map(len)
     df.sort_values(by=['code_len'])
     return df
