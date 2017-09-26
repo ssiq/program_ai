@@ -41,7 +41,7 @@ class CharacterSet(object):
         :return:
         """
         max_length = len(functools.reduce(lambda x,y: x if len(x)> len(y) else y, ids, []))
-        return list(map(lambda x: x + [0]*(max_length - len(x)), ids))
+        return list(map(lambda x: x + [-1]*(max_length - len(x)), ids))
 
 
     def character_to_id(self, c: str) -> int:
