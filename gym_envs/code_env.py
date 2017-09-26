@@ -15,14 +15,14 @@ class CodeEnv(gym.Env):
 
     MAX_STEP = -1
 
-    code_df = None
-    code_df_size = 0
-
     def __init__(self, max_step=200, max_code_length=100):
         self.max_step = max_step
         self.max_code_length = max_code_length
         self.esp_count = 0
         self.resolved_count = 0
+
+        self.code_df = None
+        self.code_df_size = 0
 
         self.backup_db()
         self.reset()
@@ -33,7 +33,7 @@ class CodeEnv(gym.Env):
     def backup_db(self):
         backup()
 
-    def _step(self, action: list) -> tuple:
+    def _step(self, action: int) -> tuple:
         if not self.last_reward:
             self.last_reward = 0
         if not self.total_rewards:
@@ -44,8 +44,9 @@ class CodeEnv(gym.Env):
 
         code = self.code_string
 
-        pos = action[0]
-        cha = sign_char_dict[action[1]]
+        pos_a = int(action/len(char_sign_dict))
+        pos = pos_a
+        cha = sign_char_dict[action%len(char_sign_dict)]
         if cha == 'plh':
             cha = ''
 
@@ -76,7 +77,7 @@ class CodeEnv(gym.Env):
         self.total_rewards += reward
         obs = self._get_sign_obs()
         donenum = 1 if done else 0
-        step_info_item = self.produce_step_info(action[0], cha, reward, donenum)
+        step_info_item = self.produce_step_info(pos_a, cha, reward, donenum)
         self.step_memory.append(step_info_item)
         if done:
             self.store_esp(resolved)
@@ -85,7 +86,7 @@ class CodeEnv(gym.Env):
 
     def _reset(self) -> list:
         self.esp_count += 1
-        if self.code_df == None:
+        if self.code_df is None:
             # self.code_df = read_length_cpp_code_list(self.max_code_length)
             self.code_df = read_cpp_code_list()
             self.code_df_size = self.code_df.shape[0]
