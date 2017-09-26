@@ -1,3 +1,5 @@
+import math
+
 import tensorflow as tf
 
 from . import util
@@ -36,10 +38,14 @@ def build_bi_rnn(state_size, embedding_matrix, action_num):
     def cond(code, i):
         return tf.less(i, tf.shape(output_bw)[1])
 
+    negtive_inf = tf.fill(util.get_shape(reshape_init_state(output_fw[:, 0, :])), -math.inf)
+    def zero_or_negative_inf(t, m):
+        return tf.where(m, t, negtive_inf)
+
     def body(code, i):
-        h0_f = reshape_init_state(output_fw[:, i, :])
-        h0_b = reshape_init_state(output_bw[:, i, :])
-        hm1_b = reshape_init_state(output_bw[:, i - 1, :])
+        h0_f = zero_or_negative_inf(reshape_init_state(output_fw[:, i, :]), i<length_of_x)
+        h0_b = zero_or_negative_inf(reshape_init_state(output_bw[:, i, :]), i<length_of_x)
+        hm1_b = zero_or_negative_inf(reshape_init_state(output_bw[:, i - 1, :]), (i-1)<length_of_x)
         code = tf.concat([code, tf.concat([h0_f, hm1_b], axis=2)], axis=1)
         code = tf.concat([code, tf.concat([h0_f, h0_b], axis=2)], axis=1)
         return code, tf.add(i, 1)
