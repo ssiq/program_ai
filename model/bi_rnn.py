@@ -5,8 +5,7 @@ import tensorflow as tf
 from . import util
 
 
-def build_bi_rnn(state_size, embedding_matrix, action_num):
-    x = tf.placeholder(dtype=tf.int32, shape=(None, None), name='x')
+def build_bi_rnn(x, state_size, embedding_matrix, action_num):
     embedding_matrix = tf.Variable(initial_value=embedding_matrix, name='embedding', dtype=tf.float32)
     embedding_m = tf.nn.embedding_lookup(embedding_matrix, x)
     length_of_x = util.length(tf.one_hot(x, embedding_matrix.shape[0], dtype=tf.int32))
@@ -38,14 +37,10 @@ def build_bi_rnn(state_size, embedding_matrix, action_num):
     def cond(code, i):
         return tf.less(i, tf.shape(output_bw)[1])
 
-    negtive_inf = tf.fill(util.get_shape(reshape_init_state(output_fw[:, 0, :])), -math.inf)
-    def zero_or_negative_inf(t, m):
-        return tf.where(m, t, negtive_inf)
-
     def body(code, i):
-        h0_f = zero_or_negative_inf(reshape_init_state(output_fw[:, i, :]), i<length_of_x)
-        h0_b = zero_or_negative_inf(reshape_init_state(output_bw[:, i, :]), i<length_of_x)
-        hm1_b = zero_or_negative_inf(reshape_init_state(output_bw[:, i - 1, :]), (i-1)<length_of_x)
+        h0_f = reshape_init_state(output_fw[:, i, :])
+        h0_b = reshape_init_state(output_bw[:, i, :])
+        hm1_b = reshape_init_state(output_bw[:, i - 1, :])
         code = tf.concat([code, tf.concat([h0_f, hm1_b], axis=2)], axis=1)
         code = tf.concat([code, tf.concat([h0_f, h0_b], axis=2)], axis=1)
         return code, tf.add(i, 1)
@@ -61,4 +56,10 @@ def build_bi_rnn(state_size, embedding_matrix, action_num):
 
     output = tf.contrib.layers.fully_connected(embedding_code, num_outputs=action_num, activation_fn=None)
 
-    return x, output_fw, output_bw, length_of_x, embedding_code, output
+    output_shape = util.get_shape(output)
+    indices = tf.reshape(tf.range(0, output_shape[1], dtype=tf.int32), (1, -1, 1))
+    indices = tf.tile(indices, [output_shape[0], 1, output_shape[2]])
+    length_indices = tf.tile(tf.reshape(2*length_of_x+1, (-1, 1, 1)), [1, output_shape[1], output_shape[2]])
+    output = tf.where(indices<length_indices, output, tf.fill(util.get_shape(output), -math.inf))
+
+    return output
