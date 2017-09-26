@@ -171,7 +171,15 @@ class CodeEnv(gym.Env):
             id = self.code_df['id'].iloc[ind]
             code = self.code_df['code'].iloc[ind]
             code_len = len(code)
+            if self.check_vaild(code) == 0:
+                code_len = math.inf
         return id, code
+
+    def check_vaild(self, code):
+        for c in code:
+            if c not in char_sign_dict:
+                return 0
+        return 1
 
     def _preprocess_code(self, code):
         pattern = re.compile('''('.*?'|".*?"|[^ \t\r\f\v"']+)''')

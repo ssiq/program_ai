@@ -206,6 +206,8 @@ class DQNModel(object):
 
         self.mlp = MLPModel(4, 2, learning_rate=self.learning_rate, gamma=self.gamma)
 
+        self.weight = tf.random_normal(shape=[len(char_sign_dict), 1000], dtype=tf.float32)
+
         with tf.variable_scope('build_q_eval_network'):
             self.nn_q_eval = self.mlp.build_mlp(self.obs_ph, [64], scope='q_eval_net')
             q_eval_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_variable_scope().name + '/' + 'q_eval_net')
