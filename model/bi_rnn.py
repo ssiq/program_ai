@@ -61,5 +61,6 @@ def build_bi_rnn(x, state_size, embedding_matrix, action_num):
     indices = tf.tile(indices, [output_shape[0], 1, output_shape[2]])
     length_indices = tf.tile(tf.reshape(2*length_of_x+1, (-1, 1, 1)), [1, output_shape[1], output_shape[2]])
     output = tf.where(indices<length_indices, output, tf.fill(util.get_shape(output), -math.inf))
+    output = tf.reshape(output, (output_shape[0], -1))
 
     return output
