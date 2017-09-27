@@ -1,5 +1,8 @@
 from gym_envs import code_env
 from model.dqn import DQNModel
+import os
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
+
 
 DQNModel.init_para()
 dqn = DQNModel()

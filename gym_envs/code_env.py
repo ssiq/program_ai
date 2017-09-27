@@ -131,6 +131,8 @@ class CodeEnv(gym.Env):
         self.episode["totalreward"] = self.total_rewards
         self.episode["resolved"] = compile
         self.episode["endcode"] = self.code_string
+        if self.episode['episodeid'] % 10 == 0:
+            print('{} episode id:{}, step:{}, total reward:{} '.format(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())), self.episode['episodeid'], self.episode['totalstep'], self.episode['totalreward']))
 
         insertEpisodes(None, str(self.episode["episodeid"]), self.episode["starttime"], self.episode["endtime"],
                        str(self.episode["totalstep"]), str(self.episode["totalreward"]), str(self.episode["resolved"]),
