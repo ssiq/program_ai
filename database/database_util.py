@@ -68,7 +68,6 @@ def insertStepInfoMany(param):
     conn = initSubmit()
 
     cur = conn.cursor()
-    print("len", len(param))
     cmd = 'INSERT OR IGNORE INTO '+STEP_INFO+' (episodeid, stepid, actionpos, actioncha, reward, done)' \
         'VALUES (?, ?, ?, ?, ?, ?) '
     cur.executemany(cmd, param)

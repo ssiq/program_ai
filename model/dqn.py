@@ -2,6 +2,8 @@ import tensorflow as tf
 import numpy as np
 from code_data.constants import char_sign_dict, LOG_PATH, CHECKPOINT_PATH
 import os
+from model.util import get_shape
+from model.bi_rnn import build_bi_rnn
 
 class DQNModel(object):
 
@@ -11,28 +13,23 @@ class DQNModel(object):
         flags = tf.app.flags
         flags.DEFINE_float('dqn_learning_rate', 0.001, '')
         flags.DEFINE_integer('dqn_e_greedy_start', 1, '')
-        flags.DEFINE_integer('dqn_e_greedy_end', 0.01, '')
+        flags.DEFINE_integer('dqn_e_greedy_end', 0.0, '')
         flags.DEFINE_integer("dqn_e_greedy_update_iter", 50, '')
-        flags.DEFINE_float('dqn_e_greedy_update_step', 0.01, '')
+        flags.DEFINE_float('dqn_e_greedy_update_step', 0.001, '')
         flags.DEFINE_float('dqn_gamma', 0.75, '')
         flags.DEFINE_integer('dqn_batch_size', 32, '')
         flags.DEFINE_integer('dqn_memory_size', 50000, '')
         flags.DEFINE_integer('dqn_replace_network_iter', 50, '')
-        flags.DEFINE_integer('dqn_no_train_step', 1000, '')
+        flags.DEFINE_integer('dqn_no_train_step', 10, '')
         flags.DEFINE_integer('char_dict_len', 97, '')
-        # flags.DEFINE_integer('n_features', 500, '')
-        # flags.DEFINE_integer('n_actions', flags.FLAGS.dqn_features * flags.FLAGS.char_dict_len, '')
+        flags.DEFINE_integer('hidden_state', 64, '')
 
-        flags.DEFINE_integer('n_features', 4, '')
-        flags.DEFINE_integer('n_actions', 2, '')
         flags.DEFINE_string('summary_dir', LOG_PATH, '')
 
 
     def __init__(self):
         FLAGS = tf.app.flags.FLAGS
 
-        self.n_actions = FLAGS.n_actions
-        self.n_features = FLAGS.n_features
         self.learning_rate = FLAGS.dqn_learning_rate
         self.e_greedy = FLAGS.dqn_e_greedy_start
         self.e_greedy_end = FLAGS.dqn_e_greedy_end
@@ -43,6 +40,7 @@ class DQNModel(object):
         self.memory_size = FLAGS.dqn_memory_size
         self.replace_network_iter = FLAGS.dqn_replace_network_iter
         self.no_train_step = FLAGS.dqn_no_train_step
+        self.hidden_state = FLAGS.hidden_state
 
         self.global_step = tf.Variable(0, dtype=tf.int32, trainable=False, name='global_step')
 
@@ -83,7 +81,7 @@ class DQNModel(object):
         if not self.memory_count:
             self.memory_count = 0
         ind = self.memory_count % self.memory_size
-        da = (obs, act, rew, don, new_obs)
+        da = (list(obs), act, rew, don, list(new_obs))
         if self.memory_count < self.memory_size:
             self.memory.append(da)
         else:
@@ -96,16 +94,14 @@ class DQNModel(object):
             q_eval = self.sess.run(self.nn_q_eval, feed_dict={self.obs_ph: obs})
             ind = np.argmax(q_eval)
         else:
-            ind = np.random.randint(0, self.n_actions)
-            #ind = np.random.randint(0, obs.shape[1]*2)
+            ind = np.random.randint(0, obs.shape[1]*2)
 
-        action = ind
-        #dict_len = len(char_sign_dict)
-        #action = [int(ind/dict_len), ind%dict_len]
+        # dict_len = len(char_sign_dict)
+        # action = [int(ind/dict_len), ind%dict_len]
         if self.e_greedy > self.e_greedy_end and self.step_count % self.e_greedy_update_iter == 0 and self.step_num == 0:
             self.e_greedy -= self.e_greedy_update_step
         self.step_count += 1
-        return action
+        return ind
 
     def train(self):
         if self.step_count % self.replace_network_iter == 0:
@@ -115,20 +111,6 @@ class DQNModel(object):
             return
 
         batch_obs, batch_act, batch_rew, batch_don, batch_new_obs = self.random_memory()
-
-        # update length of actions, feature, new_feature
-        # with tf.variable_scope('action_vars', reuse=True):
-            #self.n_actions_tf = tf.get_variable('n_actions_tf', shape=[], dtype=tf.int32)
-            # update_actions = tf.assign(self.n_actions_tf, 2)
-            #update_actions = tf.assign(self.n_actions_tf, batch_obs.shape[1]*2+1)
-
-        #     self.n_features_tf = tf.get_variable('n_features_tf', dtype=tf.int32)
-        #     update_features = tf.assign(self.n_features_tf, batch_obs.shape[1])
-        #
-        #     self.n_new_features_tf = tf.get_variable('n_new_features_tf', dtype=tf.int32)
-        #     update_new_features = tf.assign(self.n_new_features_tf, batch_new_obs.shape[1])
-        #     self.sess.run([update_actions])
-
         self.sess.run(self.nn_train, feed_dict={self.obs_ph: batch_obs,
                                                  self.action_ph: batch_act,
                                                  self.reward_ph: batch_rew,
@@ -166,8 +148,8 @@ class DQNModel(object):
         max_new_obs_len = 0
         for i in sample_index:
             (obs, act, rew, don, new_obs) = self.memory[i]
-            max_obs_len = len(obs) if len(obs) > max_obs_len else max_obs_len
-            max_new_obs_len = len(new_obs) if len(new_obs) > max_new_obs_len else max_new_obs_len
+            max_obs_len = len(obs) if (len(obs) > max_obs_len) else max_obs_len
+            max_new_obs_len = len(new_obs) if (len(new_obs) > max_new_obs_len) else max_new_obs_len
 
             batch_obs.append(obs)
             batch_act.append(np.array(act))
@@ -177,9 +159,9 @@ class DQNModel(object):
         for o in batch_obs:
             while len(o) < max_obs_len:
                 o.append(-1)
-        for o in batch_new_obs:
-            while len(o) < max_new_obs_len:
-                o.append(-1)
+        for t in batch_new_obs:
+            while len(t) < max_new_obs_len:
+                t.append(-1)
         batch_obs = np.array(batch_obs)
         batch_act = np.array(batch_act)
         batch_rew = np.array(batch_rew)
@@ -191,35 +173,31 @@ class DQNModel(object):
         self.sess.run(self.nn_update)
 
     def _build_network(self):
-        self.obs_ph = tf.placeholder(tf.float32, shape=[None, 4], name='obs')
-        self.new_obs_ph = tf.placeholder(tf.float32, shape=[None, 4], name='new_obs')
-        # self.obs_ph = tf.placeholder(tf.float32, shape=[None, None], name='obs')
-        # self.new_obs_ph = tf.placeholder(tf.float32, shape=[None, None], name='new_obs')
+        self.obs_ph = tf.placeholder(tf.int32, shape=[None, None], name='obs')
+        self.new_obs_ph = tf.placeholder(tf.int32, shape=[None, None], name='new_obs')
         self.action_ph = tf.placeholder(tf.int32, shape=[None], name='action')
         self.reward_ph = tf.placeholder(tf.float32, shape=[None], name='reward')
         self.done_ph = tf.placeholder(tf.float32, shape=[None], name='done')
 
-        # with tf.variable_scope('action_vars'):
-        #     self.n_actions_tf = tf.get_variable('n_actions_tf', shape=[], dtype=tf.int32, initializer=tf.constant_initializer(2))
-        #     self.n_features_tf = tf.get_variable('n_features_tf', shape=[], dtype=tf.int32, initializer=tf.constant_initializer(4))
-        #     self.n_new_features_tf = tf.get_variable('n_new_features_tf', shape=[], dtype=tf.int32, initializer=tf.constant_initializer(4))
-
-        self.mlp = MLPModel(4, 2, learning_rate=self.learning_rate, gamma=self.gamma)
 
         with tf.variable_scope('build_q_eval_network'):
-            self.nn_q_eval = self.mlp.build_mlp(self.obs_ph, [64], scope='q_eval_net')
-            q_eval_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_variable_scope().name + '/' + 'q_eval_net')
+            self.weight_eval = tf.random_normal(shape=[len(char_sign_dict), 1000], dtype=tf.float32)
+            self.nn_q_eval = build_bi_rnn(self.obs_ph, self.hidden_state, self.weight_eval, len(char_sign_dict))
+            q_eval_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_variable_scope().name)
 
         with tf.variable_scope('build_q_target_network'):
-            self.nn_q_target = self.mlp.build_mlp(self.new_obs_ph, [64], scope='q_target_net')
-            q_target_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_variable_scope().name + '/' + 'q_target_net')
+            self.weight_target = tf.random_normal(shape=[len(char_sign_dict), 1000], dtype=tf.float32)
+            self.nn_q_target = build_bi_rnn(self.new_obs_ph, self.hidden_state, self.weight_target, len(char_sign_dict))
+            q_target_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_variable_scope().name)
 
         with tf.variable_scope('loss'):
-            action_mask = tf.one_hot(self.action_ph, depth=self.nn_q_eval.shape[1])
+            act_shape = get_shape(self.nn_q_eval)
+            action_mask = tf.one_hot(self.action_ph, depth=act_shape[1])
             q_eval_masked_action = tf.reduce_sum(self.nn_q_eval * action_mask, 1)
 
+            act_new_shape = get_shape(self.nn_q_target)
             q_tp1_best_using_online_net = tf.arg_max(self.nn_q_target, 1)
-            q_max_target = tf.reduce_sum(self.nn_q_target * tf.one_hot(q_tp1_best_using_online_net, self.nn_q_target.shape[1]), 1)
+            q_max_target = tf.reduce_sum(self.nn_q_target * tf.one_hot(q_tp1_best_using_online_net, depth=act_new_shape[1]), 1)
 
             done_mask = 1.0 - self.done_ph
             q_max_target_masked_done = done_mask * q_max_target
