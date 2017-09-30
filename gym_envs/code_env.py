@@ -4,7 +4,7 @@ import re
 import numpy as np
 import os
 from code_data.constants import cpp_tmp_dir, cpp_tmp_filename, cpp_tmp_path, sign_char_dict, char_sign_dict
-from code_data.read_data import read_cpp_code_list, read_less_cpp_code_list, read_length_cpp_code_list
+from code_data.read_data import read_cpp_error_code_list, read_less_cpp_code_list, read_length_cpp_code_list
 import math
 import time
 from database.database_util import insertEpisodes, insertStepInfoMany, backup
@@ -88,7 +88,7 @@ class CodeEnv(gym.Env):
         self.esp_count += 1
         if self.code_df is None:
             # self.code_df = read_length_cpp_code_list(self.max_code_length)
-            self.code_df = read_cpp_code_list()
+            self.code_df = read_cpp_error_code_list()
             self.code_df_size = self.code_df.shape[0]
 
         self.count_steps = 0
