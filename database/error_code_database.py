@@ -1,8 +1,8 @@
 import sqlite3
-from code_data.constants import DATABASE_PATH, FAKE_ERROR_CODE
+from code_data.constants import FAKE_ERROR_CODE, local_db_path
 
 def initFakeCodeTable():
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = sqlite3.connect(local_db_path)
     checkExist(conn)
     return conn
 
