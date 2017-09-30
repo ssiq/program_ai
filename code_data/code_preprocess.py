@@ -13,8 +13,9 @@ import time
 
 def preprocess():
     initLogging()
+    logging.info("Start Read Code Data")
     code_df = read_cpp_code_list()
-
+    logging.info("Code Data Read Finish. Total: {}".format(code_df.shape[0]))
     que_read = mp.Queue()
     que_write = mp.Queue()
 
