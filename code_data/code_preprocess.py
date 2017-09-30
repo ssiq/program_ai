@@ -54,7 +54,7 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
             break
 
         try:
-            item = que_read.get(timeout=6)
+            item = que_read.get(timeout=60)
         except queue.Empty:
             timeout_count += 1
             continue
