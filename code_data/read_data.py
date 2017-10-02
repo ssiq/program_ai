@@ -29,11 +29,21 @@ def read_submit_data(conn: sqlite3.Connection) -> pd.DataFrame:
 
     return submit_joined_df
 
+def read_cpp_fake_data(conn: sqlite3.Connection) -> pd.DataFrame:
+    fake_df = pd.read_sql('select * from {}'.format('fake_error_code'), conn)
+    return fake_df
+
 def read_local_submit_data() -> pd.DataFrame:
     from code_data.constants import local_db_path
     import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
     return read_submit_data(con)
+
+def read_local_fake_data() -> pd.DataFrame:
+    from code_data.constants import local_db_path
+    import sqlite3
+    con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
+    return read_cpp_fake_data(con)
 
 def read_code_list(filter_function: typing.Callable[[pd.DataFrame], pd.Series], head: int) -> pd.DataFrame:
     """
@@ -88,3 +98,12 @@ def read_cpp_code_list(status=1, language=3, code_length=math.inf) -> pd.DataFra
     df['code_len'] = df['code'].map(len)
     df = df.sort_values(by=['code_len'])
     return df
+
+@util.disk_cache(basename='fake_cpp_code', directory='data')
+def read_cpp_fake_code_list() -> pd.DataFrame:
+    all_data = read_local_fake_data()
+    all_data['code_len'] = all_data['code'].map(len)
+    all_data = all_data.sort_values(by=['code_len'])
+    return all_data
+
+

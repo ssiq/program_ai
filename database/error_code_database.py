@@ -36,3 +36,13 @@ def insert_fake_error(param):
     cur.executemany(cmd, param)
     conn.commit()
     conn.close()
+
+
+def find_submit_by_problem_user(param_problem_user):
+    conn = initFakeCodeTable()
+    cur = conn.cursor()
+    cmd = 'SELECT id FROM ' + FAKE_ERROR_CODE + ' WHERE id in ( '+ ",".join(param_problem_user) +' )'
+    cur.execute(cmd)
+    res = cur.fetchall()
+    conn.close()
+    return res

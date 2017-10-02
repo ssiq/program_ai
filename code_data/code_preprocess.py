@@ -1,7 +1,7 @@
 import re
 from code_data.read_data import read_cpp_code_list
 from code_data.constants import cpp_tmp_dir, cpp_tmp_path, char_sign_dict, sign_char_dict
-from database.error_code_database import insert_fake_error
+from database.error_code_database import insert_fake_error, find_submit_by_problem_user
 from scripts.scripts_util import initLogging
 import logging
 import random
@@ -20,27 +20,55 @@ def preprocess():
     que_write = mp.Queue()
 
     pros = []
-    for i in range(6):
+    for i in range(8):
         pro = mp.Process(target=make_fake_code, args=(que_read, que_write, i))
         pro.start()
         pros.append(pro)
     save_pro = mp.Process(target=save_fake_code, args=(que_write, code_df.shape[0]))
     save_pro.start()
 
+    count = 0
+    ids = []
+    items = []
     for index, row in code_df.iterrows():
-        item = {'try_count': 0}
+        count += 1
 
+        item = {'try_count': 0}
         item['id'] = row['problem_id'] + '_' + row['user_id']
         item['submitid'] = row['id']
         item['problemid'] = row['problem_id']
         item['userid'] = row['user_id']
         item['originalcode'] = row['code']
-        que_read.put(item)
+        items.append(item)
+
+        ids.append(item['id'])
+
+        if len(ids) == 10000:
+            push_code_to_queue(que_read, ids, items)
+            logging.info('Total Preprocess {}'.format(count))
+            ids = []
+            items = []
+
+    push_code_to_queue(que_read, ids, items)
+    logging.info('Total Preprocess {}'.format(count))
 
     for p in pros:
         p.join()
     save_pro.join()
 
+
+def push_code_to_queue(que, ids, items):
+    ids = ["'" + t + "'" for t in ids]
+    result_list = find_submit_by_problem_user(ids)
+    ids_repeat = [row[0] for row in result_list]
+    count = 0
+    for it in items:
+        if it['id'] not in ids_repeat:
+            count += 1
+            que.put(it)
+        else:
+            que.put(None)
+    logging.info('Preprocess {} code in {}'.format(count, len(ids)))
 
 def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
     logging.info('Start Make Fake Code Process {}'.format(ind))
@@ -50,12 +78,16 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
     success_count = 0
     err_count = 0
     fail_count = 0
+    repeat_count = 0
     while True:
         if timeout_count >= 5:
             break
 
+        if count % 1000 == 0:
+            logging.info("Process {} | count: {} | error_count: {} | fail_count: {}".format(ind, count, err_count, fail_count))
+
         try:
-            item = que_read.get(timeout=60)
+            item = que_read.get(timeout=600)
         except queue.Empty:
             timeout_count += 1
             continue
@@ -64,6 +96,14 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
             continue
 
         timeout_count = 0
+        count += 1
+        if not item:
+            repeat_count += 1
+            que_write.put(None)
+            continue
+
+        item['originalcode'] = item['originalcode'].replace('\ufeff', '').replace('\u3000', ' ')
+
         before_code, after_code, act_type, act_pos, act_sign, error_count = preprocess_code(item['originalcode'], cpp_file_path=tmp_code_file_path)
         count += 1
         if before_code:
@@ -83,9 +123,8 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
             else:
                 fail_count += 1
                 que_write.put(None)
-        if count % 1000 == 0:
-            logging.info("Process {} | count: {} | error_count: {} | fail_count: {}".format(ind, count, err_count, fail_count))
 
+    logging.info("Process {} | count: {} | error_count: {} | fail_count: {}".format(ind, count, err_count, fail_count))
     logging.info('End Make Fake Code Process {}'.format(ind))
 
 def save_fake_code(que:mp.Queue, all_data_count):
@@ -174,6 +213,8 @@ def create_error(code, error_type_list=(1, 1, 1)):
         pos = random.randint(0, code_len-1)
         new_code = new_code[:pos] + new_code[(pos + 1):]
         act_pos = pos * 2
+        if code[pos] not in char_sign_dict.keys():
+            return None, None, None, None, None
         act_cha_sign = char_sign_dict[code[pos]]
     elif act_type == 1:
         pos = random.randint(0, code_len)
@@ -186,6 +227,8 @@ def create_error(code, error_type_list=(1, 1, 1)):
         cha = sign_char_dict[random.randint(0, len(sign_char_dict)-2)]
         new_code = new_code[:pos] + cha +new_code[(pos + 1):]
         act_pos = pos * 2 + 1
+        if code[pos] not in char_sign_dict.keys():
+            return None, None, None, None, None
         act_cha_sign = char_sign_dict[code[pos]]
 
     return code, new_code, act_type, act_pos, act_cha_sign
