@@ -106,4 +106,14 @@ def read_cpp_fake_code_list() -> pd.DataFrame:
     all_data = all_data.sort_values(by=['code_len'])
     return all_data
 
+@util.disk_cache(basename='fake_cpp_code_set', directory='data')
+def read_cpp_fake_code_set() -> tuple:
+    df = read_cpp_fake_code_list()
+    test = df.sample(10000, random_state=666)
+    df = df.drop(test.index)
+    vaild = df.sample(10000, random_state=888)
+    train = df.drop(vaild.index)
+    return (train, test, vaild)
+
+
 

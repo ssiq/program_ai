@@ -1,0 +1,12 @@
+fake_error_code表一共10个字段
+
+id：fake_error_code的id，由problemid_userid构成，保证一题一人只选取一次提交
+submitid: 此次记录的提交编号
+problemid: 题目编号
+userid: 用户id
+originalcode: 原始的正确代码
+code: 修改一个字符后的错误代码
+errorcount: 错误个数，目前全部为1
+actiontype: 模型需要进行的动作类型，0：插入，1：删除，2：替换
+actionpos: 模型应当选择的修改位置（此为计算了插入间隔后的坐标）
+actionsign: 模型应当选择的字符的sign编号，为int类型
