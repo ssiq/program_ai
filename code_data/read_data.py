@@ -3,6 +3,7 @@ import typing
 import sqlite3
 import util
 import math
+from code_data.constants import cache_data_path
 
 def read_submit_data(conn: sqlite3.Connection) -> pd.DataFrame:
     problems_df = pd.read_sql('select problem_name, tags from {}'.format('problem'), conn)
@@ -53,7 +54,6 @@ def read_code_list(filter_function: typing.Callable[[pd.DataFrame], pd.Series], 
     :return:
     """
     import os
-    from code_data.constants import cache_data_path
     from util import make_dir
     name = filter_function.__name__ + '_' + str(head)
     make_dir(cache_data_path)
@@ -66,7 +66,7 @@ def read_code_list(filter_function: typing.Callable[[pd.DataFrame], pd.Series], 
         df.to_pickle(path)
         return df
 
-@util.disk_cache(basename='cpp', directory='data')
+@util.disk_cache(basename='cpp', directory=cache_data_path)
 def read_cpp_error_code_list() -> pd.DataFrame:
     print('start read cpp data from database')
     all_data = read_local_submit_data()
@@ -75,7 +75,7 @@ def read_cpp_error_code_list() -> pd.DataFrame:
     df.sort_values(by=['code_len'])
     return df
 
-@util.disk_cache(basename='less_cpp', directory='data')
+@util.disk_cache(basename='less_cpp', directory=cache_data_path)
 def read_less_cpp_code_list() -> pd.DataFrame:
     all_data = read_local_submit_data()
     df = all_data.loc[(all_data['status'] == 7) & (all_data['language'] == 3) & (all_data['code'].map(len) > 50), ['id', 'submit_url', 'code']]
@@ -83,7 +83,7 @@ def read_less_cpp_code_list() -> pd.DataFrame:
     df = df.sort_values(by=['code_len']).head(100)
     return df
 
-@util.disk_cache(basename='length_cpp', directory='data')
+@util.disk_cache(basename='length_cpp', directory=cache_data_path)
 def read_length_cpp_code_list(code_length) -> pd.DataFrame:
     all_data = read_local_submit_data()
     df = all_data.loc[(all_data['status'] == 7) & (all_data['language'] == 3) & (all_data['code'].map(len) > 50) & (all_data['code'].map(len) < code_length), ['id', 'submit_url', 'code']]
@@ -91,7 +91,7 @@ def read_length_cpp_code_list(code_length) -> pd.DataFrame:
     df = df.sort_values(by=['code_len'])
     return df
 
-@util.disk_cache(basename='code_cpp', directory='data')
+@util.disk_cache(basename='code_cpp', directory=cache_data_path)
 def read_cpp_code_list(status=1, language=3, code_length=math.inf) -> pd.DataFrame:
     all_data = read_local_submit_data()
     df = all_data.loc[(all_data['status'] == status) & (all_data['language'] == language) & (all_data['code'].map(len) > 50) & (all_data['code'].map(len) < code_length)]
@@ -99,14 +99,14 @@ def read_cpp_code_list(status=1, language=3, code_length=math.inf) -> pd.DataFra
     df = df.sort_values(by=['code_len'])
     return df
 
-@util.disk_cache(basename='fake_cpp_code', directory='data')
+@util.disk_cache(basename='fake_cpp_code', directory=cache_data_path)
 def read_cpp_fake_code_list() -> pd.DataFrame:
     all_data = read_local_fake_data()
     all_data['code_len'] = all_data['code'].map(len)
     all_data = all_data.sort_values(by=['code_len'])
     return all_data
 
-@util.disk_cache(basename='fake_cpp_code_set', directory='data')
+@util.disk_cache(basename='fake_cpp_code_set', directory=cache_data_path)
 def read_cpp_fake_code_set() -> tuple:
     df = read_cpp_fake_code_list()
     test = df.sample(10000, random_state=666)
