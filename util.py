@@ -91,5 +91,32 @@ def overwrite_graph(function):
     return wrapper
 
 
+def padded_code(batch_code):
+    '''
+    padded code string to the same length.
+    :param batch_code: a list of code string. batch obs list contains several code list.
+     each code list consist of sign charactor. sign' type is int. char_sign_dict see constants.char_to_sign and sign_to_char
+    :return:
+    '''
+    max_obs_len = 0
+    for obs in batch_code:
+        max_obs_len = len(obs) if (len(obs) > max_obs_len) else max_obs_len
+    for o in batch_code:
+        while len(o) < max_obs_len:
+            o.append(-1)
+    return batch_code
+
+
+def get_sign_list(code_string):
+    from code_data.constants import char_sign_dict
+    char_list = list(code_string)
+    try:
+        sign_list = [char_sign_dict[x] for x in char_list]
+    except KeyError:
+        return None
+
+    return sign_list
+
+
 if __name__ == '__main__':
     make_dir('data', 'cache_data')

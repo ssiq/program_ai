@@ -139,35 +139,39 @@ class DQNModel(object):
         else:
             sample_index = np.random.choice(self.memory_count, size=self.batch_size)
 
+        from util import padded_code
+
         batch_obs = []
         batch_act = []
         batch_rew = []
         batch_don = []
         batch_new_obs = []
-        max_obs_len = 0
-        max_new_obs_len = 0
         for i in sample_index:
             (obs, act, rew, don, new_obs) = self.memory[i]
-            max_obs_len = len(obs) if (len(obs) > max_obs_len) else max_obs_len
-            max_new_obs_len = len(new_obs) if (len(new_obs) > max_new_obs_len) else max_new_obs_len
-
             batch_obs.append(obs)
             batch_act.append(np.array(act))
             batch_rew.append(np.array(rew))
             batch_don.append(np.array(don))
             batch_new_obs.append(new_obs)
-        for o in batch_obs:
-            while len(o) < max_obs_len:
-                o.append(-1)
-        for t in batch_new_obs:
-            while len(t) < max_new_obs_len:
-                t.append(-1)
+        padded_code(batch_obs)
+        padded_code(batch_new_obs)
+
         batch_obs = np.array(batch_obs)
         batch_act = np.array(batch_act)
         batch_rew = np.array(batch_rew)
         batch_don = np.array(batch_don)
         batch_new_obs = np.array(batch_new_obs)
         return batch_obs, batch_act, batch_rew, batch_don, batch_new_obs
+
+    @staticmethod
+    def padded_code(batch_obs):
+        max_obs_len = 0
+        for obs in batch_obs:
+            max_obs_len = len(obs) if (len(obs) > max_obs_len) else max_obs_len
+        for o in batch_obs:
+            while len(o) < max_obs_len:
+                o.append(-1)
+        return batch_obs
 
     def update_target(self):
         self.sess.run(self.nn_update)
