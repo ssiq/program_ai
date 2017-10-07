@@ -5,7 +5,6 @@
 *.db
 /key/*
 *.pid
-/test/*
 .ipynb_checkpoints/
 /backup/*
 /logs/*

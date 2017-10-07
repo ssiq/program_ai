@@ -1,6 +1,10 @@
+import sklearn
 import tensorflow as tf
 import typing
 import functools
+import itertools
+import more_itertools
+import cytoolz as toolz
 import pickle
 import errno
 import os
@@ -98,13 +102,13 @@ def padded_code(batch_code):
      each code list consist of sign charactor. sign' type is int. char_sign_dict see constants.char_to_sign and sign_to_char
     :return:
     '''
-    max_obs_len = 0
-    for obs in batch_code:
-        max_obs_len = len(obs) if (len(obs) > max_obs_len) else max_obs_len
-    for o in batch_code:
-        while len(o) < max_obs_len:
-            o.append(-1)
-    return batch_code
+    if not isinstance(batch_code, list):
+        return batch_code
+    elif not isinstance(batch_code[0], list):
+        return batch_code
+    max_len = max(map(len, batch_code))
+    # print("max_len:{}".format(max_len))
+    return list(map(lambda x:list(more_itertools.padded(x, fillvalue=-1, n=max_len)), batch_code))
 
 
 def get_sign_list(code_string):
@@ -114,8 +118,40 @@ def get_sign_list(code_string):
         sign_list = [char_sign_dict[x] for x in char_list]
     except KeyError:
         return None
-
+    assert len(code_string) == len(sign_list)
     return sign_list
+
+
+def batch_holder(*data: typing.List, batch_size=32, epoches=10):
+    """
+    :param data:
+    :return:
+    """
+    def iterator():
+        def padded(x):
+            if not isinstance(x, list):
+                return x
+            elif isinstance(x[0], list):
+                return padded_code(x)
+            else:
+                return x
+
+
+        def one_epoch():
+            i_data = sklearn.utils.shuffle(*data)
+            i_data = list(map(lambda x:map(padded, more_itertools.chunked(x, batch_size)), i_data))
+            return zip(*i_data)
+        for m in more_itertools.repeatfunc(one_epoch, times=epoches):
+            for t in m:
+                yield t
+
+    return iterator
+
+
+def dataset_holder(*args):
+    def f():
+        return args
+    return f
 
 
 if __name__ == '__main__':

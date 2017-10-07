@@ -1,6 +1,8 @@
 import functools
 import tensorflow as tf
 import typing
+import itertools
+from common import tf_util
 
 
 def doublewrap(function):
@@ -82,6 +84,38 @@ def get_shape(tensor: tf.Tensor) -> typing.List:
   dims = [s[1] if s[0] is None else s[0]
           for s in zip(static_shape, dynamic_shape)]
   return dims
+
+
+class Summary(object):
+    def __init__(self):
+        self._summary_scalar_op_list = []
+        self._summary_histogram_list = []
+
+    def _add_summary_scalar(self, name, tensor):
+        self._summary_scalar_op_list.append((name, tensor))
+
+    def _add_summary_histogram(self, name, tensor):
+        self._summary_histogram_list.append((name, tensor))
+
+    def _merge_all(self):
+        with tf.variable_scope("summary"):
+            list(itertools.starmap(tf.summary.scalar, self._summary_scalar_op_list))
+            list(itertools.starmap(tf.summary.histogram, self._summary_histogram_list))
+            _summary = tf.summary.merge_all()
+            setattr(self, 'summary_op', _summary)
+
+
+def variable_length_softmax(logit, in_length):
+    """
+    :param logit: [batch, time, other]
+    :param in_length: [batch]
+    :return:
+    """
+    in_length = tf.cast(in_length, tf.int32)
+    mask = tf_util.lengths_to_mask(in_length, get_shape(logit)[1])
+    mask = tf.cast(mask, tf.float32)
+    softmax = tf.exp(logit) / tf.reduce_sum(tf.exp(logit)*mask, axis=-1, keep_dims=True)
+    return softmax
 
 
 if __name__ == '__main__':
