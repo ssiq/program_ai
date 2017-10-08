@@ -26,6 +26,7 @@ def train_model(model_fn,
                 model_parameters,
                 ):
     sess = tf_util.get_session()
+    model = model_fn(**model_parameters)
     train_writer = tf.summary.FileWriter(
         logdir='./graphs/bi_rnn_on_fake_cpp_data_model/{}'.format(util.format_dict_to_string(model_parameters) + "_train"),
         graph=sess.graph)
@@ -37,7 +38,6 @@ def train_model(model_fn,
     print_skip_step = 100
     losses = []
     accuracies = []
-    model = model_fn(**model_parameters)
     saver = tf.train.Saver()
     validation_data_itr = validation_data()
     util.make_dir('checkpoints', 'bi_rnn_on_fake_cpp_data_model_{}'.format(util.format_dict_to_string(model_parameters)))

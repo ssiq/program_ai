@@ -174,6 +174,11 @@ class BiRnnClassifyModel(util.Summary):
         util.init_all_op(self)
         self._add_summary_scalar("loss", self.loss_op)
         self._add_summary_scalar("accuracy", self.accuracy_op)
+        self._add_summary_histogram("softmax", self.softmax_op[0, :])
+        self._add_summary_scalar("predict", self.predict_op[0])
+        self._add_summary_scalar("label", self._Y_label[0])
+        self._add_summary_scalar("predict_and_label_distance",
+                                 tf.abs(tf.cast(self.predict_op[0], tf.int32)-self._Y_label[0]))
         self._merge_all()
         init_op = tf.global_variables_initializer()
         tf_util.get_session().run(init_op)
