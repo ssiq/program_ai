@@ -183,7 +183,6 @@ class BiRnnClassifyModel(util.Summary):
         setattr(self, "summary", tf_util.function([self._X_label, self._Y_label], self.summary_op))
         setattr(self, "rnn", tf_util.function([self._X_label], self.rnn_op))
         setattr(self, "accuracy", tf_util.function([self._X_label, self._Y_label], self.accuracy_op))
-        self.global_step = self._global_step_variable.eval(tf_util.get_session())
 
     @util.define_scope(scope="bi_rnn")
     def rnn_op(self):
@@ -215,3 +214,6 @@ class BiRnnClassifyModel(util.Summary):
         train = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
         return tf_util.minimize_and_clip(train, self.loss_op, tf.trainable_variables(), self._global_step_variable)
 
+    @property
+    def global_step(self):
+        return self._global_step_variable.eval(tf_util.get_session())
