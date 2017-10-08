@@ -65,6 +65,7 @@ def train_model(model_fn,
 
 
 if __name__ == '__main__':
+    util.set_cuda_devices()
     train, test, vaild = read_cpp_fake_code_set()
     train_batch_iterator = util.batch_holder(*parse_xy(train), batch_size=4)
     # validation_data = util.dataset_holder(*list(map(util.padded_code, parse_xy(vaild))))

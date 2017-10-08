@@ -154,5 +154,14 @@ def dataset_holder(*args):
     return f
 
 
+def set_cuda_devices(deviceid:int=0):
+    '''
+    set video card which cuda uses. if you want to use both card, do not call this function.
+    :param deviceid: video card id. default is 0
+    :return:
+    '''
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(deviceid)
+
+
 if __name__ == '__main__':
     make_dir('data', 'cache_data')
