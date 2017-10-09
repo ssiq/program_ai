@@ -212,7 +212,7 @@ class BiRnnClassifyModel(util.Summary):
 
     @util.define_scope(scope="metrics")
     def accuracy_op(self):
-        return tf.reduce_mean(tf.cast(self._Y_label==self.predict_op, tf.float32))
+        return tf.reduce_mean(tf.cast(tf.equal(self._Y_label, tf.cast(self.predict_op, tf.int32)), tf.float32))
 
     @util.define_scope(scope="train")
     def train_op(self):

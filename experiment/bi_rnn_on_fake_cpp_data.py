@@ -67,11 +67,11 @@ def train_model(model_fn,
 if __name__ == '__main__':
     util.set_cuda_devices()
     train, test, vaild = read_cpp_fake_code_set()
-    train_batch_iterator = util.batch_holder(*parse_xy(train), batch_size=4)
+    train_batch_iterator = util.batch_holder(*parse_xy(train), batch_size=16)
     # validation_data = util.dataset_holder(*list(map(util.padded_code, parse_xy(vaild))))
     # test_data = util.dataset_holder(*list(map(util.padded_code, parse_xy(test))))
-    validation_data = util.batch_holder(*parse_xy(vaild), batch_size=4)
-    test_data = util.batch_holder(*parse_xy(test), batch_size=4, epoches=1)
+    validation_data = util.batch_holder(*parse_xy(vaild), batch_size=16)
+    test_data = util.batch_holder(*parse_xy(test), batch_size=16, epoches=1)
     param_generator = random_parameters_generator(random_param={"learning_rate": [-5, -1]},
                                                   choice_param={"state_size": [100]},
                                                   constant_param={"character_number": len(char_sign_dict),
