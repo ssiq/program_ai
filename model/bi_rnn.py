@@ -216,7 +216,9 @@ class BiRnnClassifyModel(util.Summary):
 
     @util.define_scope(scope="train")
     def train_op(self):
-        train = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+        train = tf.train.AdamOptimizer(
+            learning_rate=tf.constant(self.learning_rate, dtype=tf.float32) / tf.exp(
+                tf.cast(self._global_step_variable, tf.float32) / 1000.0))
         return tf_util.minimize_and_clip(train, self.loss_op, tf.trainable_variables(), self._global_step_variable)
 
     @property
