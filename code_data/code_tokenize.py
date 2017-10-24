@@ -251,7 +251,7 @@ def fake_name(name):
 def create_fake_cpp_code(source):
     token_list = list(GetTokens(source))
     token_name_list = [t.name for t in token_list]
-    print("token_name_list:{}".format(" ".join(token_name_list)))
+    # print("token_name_list:{}".format(" ".join(token_name_list)))
     token_name_set = list(set(token_name_list))
     CHANGE = 0
     INSERT = 1
