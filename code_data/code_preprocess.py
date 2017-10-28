@@ -85,7 +85,7 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
             break
 
         if count % 1000 == 0:
-            logging.info("Process {} | count: {} | error_count: {} | fail_count: {}".format(ind, count, err_count, fail_count))
+            logging.info("Process {} | count: {} | error_count: {} | fail_count: {} | repeat_count: {}".format(ind, count, err_count, fail_count, repeat_count))
 
         try:
             item = que_read.get(timeout=600)
@@ -105,7 +105,16 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
 
         item['originalcode'] = item['originalcode'].replace('\ufeff', '').replace('\u3000', ' ')
 
-        before_code, after_code, act_type, act_pos, act_sign, error_count = preprocess_code(item['originalcode'], cpp_file_path=tmp_code_file_path)
+        try:
+            before_code, after_code, act_type, act_pos, act_sign, error_count = preprocess_code(item['originalcode'], cpp_file_path=tmp_code_file_path)
+        except:
+            before_code = None
+            after_code = None
+            act_type = None
+            act_pos = None
+            act_sign = None
+            error_count = 1
+
         count += 1
         if before_code:
             success_count += 1
@@ -125,8 +134,9 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
                 fail_count += 1
                 que_write.put(None)
 
-    logging.info("Process {} | count: {} | error_count: {} | fail_count: {}".format(ind, count, err_count, fail_count))
+    logging.info("Process {} | count: {} | error_count: {} | fail_count: {} | repeat_count: {}".format(ind, count, err_count, fail_count,  repeat_count))
     logging.info('End Make Fake Code Process {}'.format(ind))
+
 
 def save_fake_code(que:mp.Queue, all_data_count):
     logging.info('Start Save Fake Code Process')
@@ -243,7 +253,7 @@ def compile_code(code, file_path) -> bool:
     f.write(code)
     f.flush()
     f.close()
-    res = os.system('g++ -O0 -fsyntax-only {} >/dev/null 2>&1'.format(file_path))
+    res = os.system('g++ -O0 {} >/dev/null 2>&1'.format(file_path))
     if res == 0:
         return True
     return False
