@@ -1,9 +1,12 @@
-import pandas as pd
-import typing
-import sqlite3
-import util
 import math
+import sqlite3
+import typing
+
+import pandas as pd
+
 from code_data.constants import cache_data_path
+from common import util
+
 
 def read_submit_data(conn: sqlite3.Connection) -> pd.DataFrame:
     problems_df = pd.read_sql('select problem_name, tags from {}'.format('problem'), conn)
@@ -54,7 +57,7 @@ def read_code_list(filter_function: typing.Callable[[pd.DataFrame], pd.Series], 
     :return:
     """
     import os
-    from util import make_dir
+    from common.util import make_dir
     name = filter_function.__name__ + '_' + str(head)
     make_dir(cache_data_path)
     path = os.path.join(cache_data_path, name)

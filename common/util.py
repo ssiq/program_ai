@@ -163,5 +163,37 @@ def set_cuda_devices(deviceid:int=0):
     os.environ["CUDA_VISIBLE_DEVICES"] = str(deviceid)
 
 
+# ================================================================
+# sequence function
+# ================================================================
+
+def is_sequence(s):
+    try:
+        iterator = iter(s)
+    except TypeError:
+        return False
+    else:
+        return True
+
+
+def convert_to_list(s):
+    if is_sequence(s):
+        return list(s)
+    else:
+        return [s]
+
+
+def sequence_sum(itr):
+    return sum(itr)
+
+def train_test_split(data, test_size):
+    from sklearn.model_selection import train_test_split
+    data = train_test_split(*data, test_size=test_size)
+
+    d_len = len(data)
+    train_data = [data[i] for i in range(0, d_len, 2)]
+    test_data = [data[i] for i in range(1, d_len, 2)]
+    return train_data, test_data
+
 if __name__ == '__main__':
     make_dir('data', 'cache_data')

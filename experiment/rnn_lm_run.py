@@ -1,16 +1,16 @@
 import typing
 
+import numpy as np
 import pandas as pd
 import sklearn
-from sklearn.model_selection import train_test_split
 import tensorflow as tf
-import numpy as np
+from sklearn.model_selection import train_test_split
 
 from code_data.preprocess import CharacterSet, StringSeq, IdList
 from code_data.read_data import read_code_list
+from common import util
 from model.lm import CharacterLanguageModel, build_model
 from train.random_search import random_parameters_generator
-import util
 
 
 def get_right_C_code(df: pd.DataFrame) -> pd.Series:

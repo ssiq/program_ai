@@ -1,9 +1,12 @@
-import tensorflow as tf
-import numpy as np
-from code_data.constants import char_sign_dict, LOG_PATH, CHECKPOINT_PATH
 import os
-from model.util import get_shape
+
+import numpy as np
+import tensorflow as tf
+
+from code_data.constants import char_sign_dict, LOG_PATH, CHECKPOINT_PATH
 from model.bi_rnn import build_bi_rnn
+from common.tf_util import get_shape
+
 
 class DQNModel(object):
 
@@ -139,7 +142,7 @@ class DQNModel(object):
         else:
             sample_index = np.random.choice(self.memory_count, size=self.batch_size)
 
-        from util import padded_code
+        from common.util import padded_code
 
         batch_obs = []
         batch_act = []

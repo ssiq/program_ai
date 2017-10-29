@@ -1,12 +1,11 @@
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 
-import util
-from common import tf_util
-from code_data.read_data import read_cpp_fake_code_set
-from train.random_search import random_parameters_generator
 from code_data.constants import char_sign_dict
+from code_data.read_data import read_cpp_fake_code_set
+from common import tf_util, util
 from model.bi_rnn import BiRnnClassifyModel
+from train.random_search import random_parameters_generator
 
 
 def parse_xy(df):
@@ -28,10 +27,12 @@ def train_model(model_fn,
     sess = tf_util.get_session()
     model = model_fn(**model_parameters)
     train_writer = tf.summary.FileWriter(
-        logdir='./graphs/bi_rnn_on_fake_cpp_data_model/{}'.format(util.format_dict_to_string(model_parameters) + "_train"),
+        logdir='./graphs/bi_rnn_on_fake_cpp_data_model/{}'.format(
+            util.format_dict_to_string(model_parameters) + "_train"),
         graph=sess.graph)
     validation_writer = tf.summary.FileWriter(
-        logdir='./graphs/bi_rnn_on_fake_cpp_data_model/{}'.format(util.format_dict_to_string(model_parameters) + "_validation"),
+        logdir='./graphs/bi_rnn_on_fake_cpp_data_model/{}'.format(
+            util.format_dict_to_string(model_parameters) + "_validation"),
         graph=sess.graph)
     save_steps = 1000
     skip_steps = 100
@@ -40,7 +41,8 @@ def train_model(model_fn,
     accuracies = []
     saver = tf.train.Saver()
     validation_data_itr = validation_data()
-    util.make_dir('checkpoints', 'bi_rnn_on_fake_cpp_data_model_{}'.format(util.format_dict_to_string(model_parameters)))
+    util.make_dir('checkpoints', 'bi_rnn_on_fake_cpp_data_model_{}'.format(
+        util.format_dict_to_string(model_parameters)))
     for i, data in enumerate(train_data_iterator()):
         loss, accuracy, _ = model.train(*data)
         losses.append(loss)
@@ -55,10 +57,12 @@ def train_model(model_fn,
             losses = []
             accuracies = []
         if i % save_steps == 0:
-            saver.save(sess, 'checkpoints/bi_rnn_on_fake_cpp_data_model_{}/bi_rnn'.format(util.format_dict_to_string(model_parameters)),
+            saver.save(sess, 'checkpoints/bi_rnn_on_fake_cpp_data_model_{}/bi_rnn'.format(
+                util.format_dict_to_string(model_parameters)),
                        model.global_step)
     saver.save(sess,
-               'checkpoints/bi_rnn_on_fake_cpp_data_model_{}/bi_rnn'.format(util.format_dict_to_string(model_parameters)),
+               'checkpoints/bi_rnn_on_fake_cpp_data_model_{}/bi_rnn'.format(
+                   util.format_dict_to_string(model_parameters)),
                model.global_step)
 
     return np.mean([model.accuracy(*p) for p in test_data()])

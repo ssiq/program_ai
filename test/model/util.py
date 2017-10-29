@@ -1,4 +1,4 @@
-from model import util
+import common.tf_util
 import unittest
 import tensorflow as tf
 import numpy as np
@@ -9,7 +9,7 @@ class Test(unittest.TestCase):
         tf.reset_default_graph()
         x = tf.placeholder(shape=(None, None), dtype=tf.float32)
         length = tf.placeholder(shape=(None,), dtype=tf.int32)
-        o = util.variable_length_softmax(x, length)
+        o = common.tf_util.variable_length_softmax(x, length)
         ix = np.array([[5.0, 5.0, 5.0], [1.0, 1.0, 0.0]])
         il = np.array([3, 2])
         sess = tf.Session()

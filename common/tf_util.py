@@ -1,3 +1,6 @@
+import itertools
+import typing
+
 import numpy as np
 import tensorflow as tf  # pylint: ignore-module
 import builtins
@@ -211,6 +214,29 @@ def minimize_and_clip(optimizer, objective, var_list, global_step=None, clip_val
             gradients[i] = (tf.clip_by_norm(grad, clip_val), var)
     return optimizer.apply_gradients(gradients, global_step=global_step)
 
+
+def sequence_mask_with_length(score, sequence_length, score_mask_value = -1e8):
+    score_mask = tf.sequence_mask(
+        sequence_length, maxlen=get_shape(score)[1])
+    score_mask_values = score_mask_value * tf.ones_like(score)
+    return tf.where(score_mask, score, score_mask_values)
+
+
+def weight_multiply(name, tensor, projected_size):
+    """
+    This function is used to create the weight ant project the tensor to the projected_size.
+    :param name: the name used to create the weight matrix
+    :param tensor: a tf.Tensor object used to multiply the created weight
+    :param projected_size: the projected size
+    :return: the weighted tensor
+    """
+    t_shape = get_shape(tensor)
+    weigth_matrix = tf.get_variable(name,
+                                    shape=(t_shape[-1], projected_size),
+                                    dtype=tf.float32)
+    t = tf.reshape(tensor, (-1, t_shape[-1]))
+    return tf.reshape(tf.matmul(t, weigth_matrix),
+                      t_shape[:-1] + [projected_size])
 
 # ================================================================
 # Global session
@@ -753,3 +779,121 @@ def reset():
     _PLACEHOLDER_CACHE = {}
     VARIABLES = {}
     tf.reset_default_graph()
+
+
+def get_shape(tensor: tf.Tensor) -> typing.List:
+  """Returns static shape if available and dynamic shape otherwise."""
+  static_shape = tensor.shape.as_list()
+  dynamic_shape = tf.unstack(tf.shape(tensor))
+  dims = [s[1] if s[0] is None else s[0]
+          for s in zip(static_shape, dynamic_shape)]
+  return dims
+
+
+class Summary(object):
+    def __init__(self):
+        self._global_step_variable = tf.Variable(0, trainable=False, dtype=tf.int32)
+        self._summary_scalar_op_list = []
+        self._summary_histogram_list = []
+
+    def _add_summary_scalar(self, name, tensor):
+        self._summary_scalar_op_list.append((name, tensor))
+
+    def _add_summary_histogram(self, name, tensor):
+        self._summary_histogram_list.append((name, tensor))
+
+    def _merge_all(self):
+        with tf.variable_scope("summary"):
+            list(itertools.starmap(tf.summary.scalar, self._summary_scalar_op_list))
+            list(itertools.starmap(tf.summary.histogram, self._summary_histogram_list))
+            _summary = tf.summary.merge_all()
+            setattr(self, 'summary_op', _summary)
+
+    @property
+    def global_step(self):
+        return self._global_step_variable.eval(get_session())
+
+
+def doublewrap(function):
+    """
+    A decorator decorator, allowing to use the decorator to be used without
+    parentheses if not arguments are provided. All arguments must be optional.
+    """
+
+    @functools.wraps(function)
+    def decorator(*args, **kwargs):
+        if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
+            return function(args[0])
+        else:
+            return lambda wrapee: function(wrapee, *args, **kwargs)
+
+    return decorator
+
+
+@doublewrap
+def define_scope(function, scope=None, *args, **kwargs):
+    """
+    A decorator for functions that define TensorFlow operations. The wrapped
+    function will only be executed once. Subsequent calls to it will directly
+    return the result so that operations are added to the graph only once.
+    The operations added by the function live within a tf.variable_scope(). If
+    this decorator is used with arguments, they will be forwarded to the
+    variable scope. The scope name defaults to the name of the wrapped
+    function.
+    """
+    attribute = '_cache_' + function.__name__
+    name = scope or function.__name__
+
+    @property
+    @functools.wraps(function)
+    def decorator(self):
+        if not hasattr(self, attribute):
+            with tf.variable_scope(name, *args, **kwargs):
+                setattr(self, attribute, function(self))
+        return getattr(self, attribute)
+
+    return decorator
+
+
+def init_all_op(self: typing.Any) -> None:
+    """
+    The function is used to add all op in the model to the default tensorflow graph.
+    """
+    for i in dir(self):
+        if i.endswith('op'):
+            getattr(self, i)
+
+
+def length(seq: tf.Tensor) -> tf.Tensor:
+    """
+    :param seq: a tenser of sequence [batch, time, ....]
+    :return: the length of the sequence
+    """
+    return tf.reduce_sum(tf.reduce_max(tf.sign(seq), 2), 1)
+
+
+def perplexity(logits: tf.Tensor, one_hot_labels: tf.Tensor):
+    """
+    :param logits: the logits which has the size [batch, time, label_size]
+    :param one_hot_labels: the one_hot_labels with the size [batch, time, label_size]
+    :return: the perplexity
+    """
+    length_of_series = length(one_hot_labels)
+    pp = tf.nn.softmax(logits, )
+    pp_one_product = tf.log(pp) * one_hot_labels
+    exponent_sum = -tf.reduce_sum(pp_one_product, axis=tf.range(1, get_shape(tf.shape(pp))[0]))
+    return tf.reduce_mean(tf.pow(tf.constant(2.0, dtype=tf.float32),
+                                 exponent_sum / length_of_series))
+
+
+def variable_length_softmax(logit, in_length):
+    """
+    :param logit: [batch, time, other]
+    :param in_length: [batch]
+    :return:
+    """
+    in_length = tf.cast(in_length, tf.int32)
+    mask = tf_util.lengths_to_mask(in_length, get_shape(logit)[1])
+    mask = tf.cast(mask, tf.float32)
+    softmax = tf.exp(logit) / tf.reduce_sum(tf.exp(logit)*mask, axis=-1, keep_dims=True)
+    return softmax

@@ -1,9 +1,9 @@
 import math
-import numpy as np
 
+import numpy as np
 import tensorflow as tf
 
-from . import util
+import common.tf_util
 from common import tf_util
 
 
@@ -73,7 +73,7 @@ def bi_rnn(action_num, embedding_matrix, state_size, x):
     embedding_matrix = tf.Variable(initial_value=embedding_matrix, name='embedding', dtype=tf.float32)
     embedding_m = tf.nn.embedding_lookup(embedding_matrix, x)
     # embedding_m = tf.expand_dims(x, axis=2)
-    length_of_x = util.length(tf.one_hot(x, embedding_matrix.shape[0], dtype=tf.int32))
+    length_of_x = common.tf_util.length(tf.one_hot(x, embedding_matrix.shape[0], dtype=tf.int32))
     cell_bw = tf.nn.rnn_cell.GRUCell(state_size)
     cell_fw = tf.nn.rnn_cell.GRUCell(state_size)
     # cell_fw = EmbeddingWrapper(tf.nn.rnn_cell.GRUCell(state_size), embedding_classes=embedding_matrix.shape[0],
@@ -92,7 +92,7 @@ def bi_rnn(action_num, embedding_matrix, state_size, x):
                                                  swap_memory=True)
     print(outputs)
     output_fw, output_bw = outputs
-    reshape_init_state = lambda t: tf.reshape(t, [util.get_shape(t)[0], 1, util.get_shape(t)[1]])
+    reshape_init_state = lambda t: tf.reshape(t, [common.tf_util.get_shape(t)[0], 1, common.tf_util.get_shape(t)[1]])
     output_fw = tf.concat([reshape_init_state(fw_init_state), output_fw], axis=1)
     # output_fw = tf.concat([tf.zeros((util.get_shape(x)[0], action_num), dtype=tf.float32), output_fw], axis=1)
     output_bw = tf.reverse_sequence(output_bw, seq_lengths=length_of_x, seq_axis=1, batch_axis=0)
@@ -130,7 +130,7 @@ def bi_rnn(action_num, embedding_matrix, state_size, x):
 
     output = tf.concat((output_fw, output_bw), axis=2)
     output_in = tf.concat((output_bw[:, :-1, :], output_fw[:, 1:, :]), axis=2)
-    output_in_shape = util.get_shape(output_in)
+    output_in_shape = common.tf_util.get_shape(output_in)
     output_in = tf.concat((output_in, tf.zeros((output_in_shape[0], 1, output_in_shape[2]), dtype=tf.float32)), axis=1)
     output = tf.concat((output, output_in), axis=2)
     output = tf.reshape(output, (output_in_shape[0], -1, output_in_shape[2]))
@@ -146,17 +146,17 @@ def fill_out_of_length_sequence(length_of_x, output, fill_number):
     :param fill_number: a scalar
     :return:
     """
-    output_shape = util.get_shape(output)
+    output_shape = common.tf_util.get_shape(output)
     indices = tf.reshape(tf.range(0, output_shape[1], dtype=tf.int32), (1, -1, 1))
     indices = tf.tile(indices, [output_shape[0], 1, output_shape[2]])
     length_indices = tf.tile(tf.reshape(2 * length_of_x + 1, (-1, 1, 1)), [1, output_shape[1], output_shape[2]])
-    output = tf.where(indices < length_indices, output, tf.fill(util.get_shape(output), fill_number))
+    output = tf.where(indices < length_indices, output, tf.fill(common.tf_util.get_shape(output), fill_number))
     output = tf.reshape(output, (output_shape[0], -1))
     return output
 
 
 
-class BiRnnClassifyModel(util.Summary):
+class BiRnnClassifyModel(common.tf_util.Summary):
     def __init__(self,
                  state_size,
                  action_number,
@@ -170,8 +170,7 @@ class BiRnnClassifyModel(util.Summary):
         self._Y_label = tf.placeholder(dtype=tf.int32, shape=(None, ), name="y_label")
         self.embedding_matrix = np.random.randn(character_number, 500)
         print("embedding_matrix.shape:{}".format(self.embedding_matrix.shape))
-        self._global_step_variable = tf.Variable(0, trainable=False, dtype=tf.int32)
-        util.init_all_op(self)
+        common.tf_util.init_all_op(self)
         self._add_summary_scalar("loss", self.loss_op)
         self._add_summary_scalar("accuracy", self.accuracy_op)
         self._add_summary_histogram("softmax", self.softmax_op[0, :])
@@ -189,38 +188,34 @@ class BiRnnClassifyModel(util.Summary):
         setattr(self, "rnn", tf_util.function([self._X_label], self.rnn_op))
         setattr(self, "accuracy", tf_util.function([self._X_label, self._Y_label], self.accuracy_op))
 
-    @util.define_scope(scope="bi_rnn")
+    @common.tf_util.define_scope(scope="bi_rnn")
     def rnn_op(self):
         length, output = bi_rnn(self.action_number, self.embedding_matrix, self.state_size, self._X_label)
-        return length, tf.reshape(output, (util.get_shape(output)[0], -1))
+        return length, tf.reshape(output, (common.tf_util.get_shape(output)[0], -1))
 
-    @util.define_scope(scope="logit")
+    @common.tf_util.define_scope(scope="logit")
     def logit_op(self):
-        return tf.reshape(self.rnn_op[1], (util.get_shape(self._X_label)[0], -1))
+        return tf.reshape(self.rnn_op[1], (common.tf_util.get_shape(self._X_label)[0], -1))
 
-    @util.define_scope(scope="softmax")
+    @common.tf_util.define_scope(scope="softmax")
     def softmax_op(self):
         return tf.nn.softmax(self.logit_op)
 
-    @util.define_scope(scope="loss")
+    @common.tf_util.define_scope(scope="loss")
     def loss_op(self):
         return tf.losses.sparse_softmax_cross_entropy(self._Y_label, self.logit_op)
 
-    @util.define_scope(scope="predict")
+    @common.tf_util.define_scope(scope="predict")
     def predict_op(self):
         return tf.argmax(self.softmax_op, axis=1)
 
-    @util.define_scope(scope="metrics")
+    @common.tf_util.define_scope(scope="metrics")
     def accuracy_op(self):
         return tf.reduce_mean(tf.cast(tf.equal(self._Y_label, tf.cast(self.predict_op, tf.int32)), tf.float32))
 
-    @util.define_scope(scope="train")
+    @common.tf_util.define_scope(scope="train")
     def train_op(self):
         train = tf.train.AdamOptimizer(
             learning_rate=tf.constant(self.learning_rate, dtype=tf.float32) / tf.exp(
                 tf.cast(self._global_step_variable, tf.float32) / 1000.0))
         return tf_util.minimize_and_clip(train, self.loss_op, tf.trainable_variables(), self._global_step_variable)
-
-    @property
-    def global_step(self):
-        return self._global_step_variable.eval(tf_util.get_session())
