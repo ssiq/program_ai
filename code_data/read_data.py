@@ -37,6 +37,11 @@ def read_cpp_fake_data(conn: sqlite3.Connection) -> pd.DataFrame:
     fake_df = pd.read_sql('select * from {}'.format('fake_error_code'), conn)
     return fake_df
 
+def read_cpp_token_fake_data(conn: sqlite3.Connection) -> pd.DataFrame:
+    from code_data.constants import FAKE_ERROR_TOKEN_CODE
+    fake_df = pd.read_sql('select * from {}'.format(FAKE_ERROR_TOKEN_CODE), conn)
+    return fake_df
+
 def read_local_submit_data() -> pd.DataFrame:
     from code_data.constants import local_db_path
     import sqlite3
@@ -48,6 +53,12 @@ def read_local_fake_data() -> pd.DataFrame:
     import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
     return read_cpp_fake_data(con)
+
+def read_local_token_fake_data() -> pd.DataFrame:
+    from code_data.constants import local_db_path
+    import sqlite3
+    con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
+    return read_cpp_token_fake_data(con)
 
 def read_code_list(filter_function: typing.Callable[[pd.DataFrame], pd.Series], head: int) -> pd.DataFrame:
     """
@@ -109,9 +120,25 @@ def read_cpp_fake_code_list() -> pd.DataFrame:
     all_data = all_data.sort_values(by=['code_len'])
     return all_data
 
+@util.disk_cache(basename='fake_cpp_token_code', directory=cache_data_path)
+def read_cpp_token_fake_code_list() -> pd.DataFrame:
+    all_data = read_local_token_fake_data()
+    all_data['code_len'] = all_data['code'].map(len)
+    all_data = all_data.sort_values(by=['code_len'])
+    return all_data
+
 @util.disk_cache(basename='fake_cpp_code_set', directory=cache_data_path)
 def read_cpp_fake_code_set() -> tuple:
     df = read_cpp_fake_code_list()
+    test = df.sample(10000, random_state=666)
+    df = df.drop(test.index)
+    vaild = df.sample(10000, random_state=888)
+    train = df.drop(vaild.index)
+    return (train, test, vaild)
+
+@util.disk_cache(basename='fake_cpp_token_code_set', directory=cache_data_path)
+def read_cpp_token_fake_code_set() -> pd.DataFrame:
+    df = read_local_token_fake_data()
     test = df.sample(10000, random_state=666)
     df = df.drop(test.index)
     vaild = df.sample(10000, random_state=888)

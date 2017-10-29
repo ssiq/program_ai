@@ -1,8 +1,9 @@
 import re
 from code_data.read_data import read_cpp_code_list
 from code_data.constants import cpp_tmp_dir, cpp_tmp_path, char_sign_dict, sign_char_dict
-from database.error_code_database import insert_fake_error, find_submit_by_problem_user
+from database.error_code_database import insert_fake_error, find_submit_by_problem_user, insert_fake_token_error, find_token_submit_by_problem_user
 from scripts.scripts_util import initLogging
+from code_data.code_tokenize import create_fake_cpp_code
 import logging
 import random
 import multiprocessing as mp
@@ -59,7 +60,7 @@ def preprocess():
 
 def push_code_to_queue(que, ids, items):
     ids = ["'" + t + "'" for t in ids]
-    result_list = find_submit_by_problem_user(ids)
+    result_list = find_token_submit_by_problem_user(ids)
     ids_repeat = [row[0] for row in result_list]
     count = 0
     for it in items:
@@ -84,7 +85,7 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
             break
 
         if count % 1000 == 0:
-            logging.info("Process {} | count: {} | error_count: {} | fail_count: {}".format(ind, count, err_count, fail_count))
+            logging.info("Process {} | count: {} | error_count: {} | fail_count: {} | repeat_count: {}".format(ind, count, err_count, fail_count, repeat_count))
 
         try:
             item = que_read.get(timeout=600)
@@ -104,7 +105,16 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
 
         item['originalcode'] = item['originalcode'].replace('\ufeff', '').replace('\u3000', ' ')
 
-        before_code, after_code, act_type, act_pos, act_sign, error_count = preprocess_code(item['originalcode'], cpp_file_path=tmp_code_file_path)
+        try:
+            before_code, after_code, act_type, act_pos, act_sign, error_count = preprocess_code(item['originalcode'], cpp_file_path=tmp_code_file_path)
+        except:
+            before_code = None
+            after_code = None
+            act_type = None
+            act_pos = None
+            act_sign = None
+            error_count = 1
+
         count += 1
         if before_code:
             success_count += 1
@@ -124,8 +134,9 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
                 fail_count += 1
                 que_write.put(None)
 
-    logging.info("Process {} | count: {} | error_count: {} | fail_count: {}".format(ind, count, err_count, fail_count))
+    logging.info("Process {} | count: {} | error_count: {} | fail_count: {} | repeat_count: {}".format(ind, count, err_count, fail_count,  repeat_count))
     logging.info('End Make Fake Code Process {}'.format(ind))
+
 
 def save_fake_code(que:mp.Queue, all_data_count):
     logging.info('Start Save Fake Code Process')
@@ -140,14 +151,14 @@ def save_fake_code(que:mp.Queue, all_data_count):
             param.append(item)
             if len(param) > 1000:
                 logging.info('Save {} recode. Total record: {}'.format(len(param), count))
-                insert_fake_error(dict_to_list(param))
+                insert_fake_token_error(dict_to_list(param))
                 param = []
         elif que.empty() and count >= all_data_count:
             break
         else:
             time.sleep(10)
     logging.info('Save {} recode. Total record: {}'.format(len(param), count))
-    insert_fake_error(dict_to_list(param))
+    insert_fake_token_error(dict_to_list(param))
     logging.info('End Save Fake Code Process')
 
 
@@ -185,7 +196,8 @@ def preprocess_code(code, error_count=1, cpp_file_path=cpp_tmp_path):
         cod = remove_comments(cod)
         cod = remove_blank_line(cod)
         count += 1
-        cod, after_code, act_type, act_pos, act_sign = create_error(cod)
+        before_code = cod
+        after_code, act_type, act_pos, act_sign = create_fake_cpp_code(cod)
         if count > 10:
             return None, None, None, None, None, None
 
@@ -241,7 +253,7 @@ def compile_code(code, file_path) -> bool:
     f.write(code)
     f.flush()
     f.close()
-    res = os.system('g++ -O0 -fsyntax-only {} >/dev/null 2>&1'.format(file_path))
+    res = os.system('g++ -O0 {} >/dev/null 2>&1'.format(file_path))
     if res == 0:
         return True
     return False
