@@ -3,7 +3,7 @@ from code_data.read_data import read_cpp_code_list
 from code_data.constants import cpp_tmp_dir, cpp_tmp_path, char_sign_dict, sign_char_dict
 from database.error_code_database import insert_fake_error, find_submit_by_problem_user, insert_fake_token_error, find_token_submit_by_problem_user
 from scripts.scripts_util import initLogging
-from code_data.code_tokenize import create_fake_cpp_code
+from code_data.token_level_fake_code import create_fake_cpp_code
 import logging
 import random
 import multiprocessing as mp

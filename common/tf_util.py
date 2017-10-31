@@ -691,6 +691,17 @@ def fancy_slice_2d(X, inds0, inds1):
 # Scopes
 # ================================================================
 
+def l2_regularizer(scale, scope=None):
+    """
+    The same as the tf.contrib.layers.l2_regularizer
+    """
+    return tf.contrib.layers.l2_regularizer(scale, scope)
+
+
+def regularizer_loss():
+    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    return tf.add_n(reg_losses)
+
 
 def scope_vars(scope, trainable_only=False):
     """

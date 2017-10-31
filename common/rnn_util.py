@@ -21,12 +21,31 @@ def bi_rnn(cell, inputs, length_of_input):
                                            cell_bw=cell_bw,
                                            inputs=inputs,
                                            sequence_length=length_of_input,
-                                           dtype=tf.float32)
+                                           dtype=tf.float32,
+                                           swap_memory=True)
+
+
+def rnn(cell, inputs, length_of_inputs, initial_state=None):
+    """
+    a dynamic rnn
+    :param cell: a function to create the rnn cell object
+    :param inputs: the input of [batch, time, dim]
+    :param length_of_inputs: the length of the inputs [batch]
+    :param initial_state: initial state of rnn
+    :return: outputs, output_states
+    """
+    rnn_cell = cell()
+    return tf.nn.dynamic_rnn(cell=rnn_cell,
+                             inputs=inputs,
+                             sequence_length=length_of_inputs,
+                             initial_state=initial_state,
+                             dtype=tf.float32,
+                             swap_memory=True)
 
 
 def soft_attention_reduce_sum(memory, inputs, attention_size, memory_length):
     """
-    :param memory:  a memory which is paied attention to.[batch, time, dim] or a tuple of this shape
+    :param memory:  a memory which is paid attention to.[batch, time, dim] or a tuple of this shape
     :param inputs: a tensor of shape [batch, dim] or a list of tensor with the same shape
     :param attention_size: the hidden state of attention
     :param memory_length: the sequence length of the memory
@@ -35,11 +54,15 @@ def soft_attention_reduce_sum(memory, inputs, attention_size, memory_length):
     with tf.variable_scope("soft_attention_reduce_sum"):
         output = soft_attention_logit(attention_size, inputs, memory, memory_length)
         output = tf.nn.softmax(output)
-        if not is_sequence(memory):
-            memory = [memory]
-        memory = more_itertools.collapse(memory)
-        output = tf.expand_dims(output, axis=2)
-        return [tf.reduce_sum(m * output, axis=1) for m in memory]
+        return reduce_sum_with_attention_softmax(memory, output)
+
+
+def reduce_sum_with_attention_softmax(memory, attention_softmax):
+    if not is_sequence(memory):
+        memory = [memory]
+    memory = more_itertools.collapse(memory)
+    attention_softmax = tf.expand_dims(attention_softmax, axis=2)
+    return [tf.reduce_sum(m * attention_softmax, axis=1) for m in memory]
 
 
 def soft_attention_logit(attention_size, inputs, memory, memory_length):
