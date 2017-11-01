@@ -128,15 +128,20 @@ def bi_rnn(action_num, embedding_matrix, state_size, x):
     # output_array = output_array.stack()
     # print(util.get_shape(output_array))
 
+    output = position_embedding(output_bw, output_fw)
+
+    output = tf.contrib.layers.fully_connected(output, num_outputs=action_num, activation_fn=None)
+    return length_of_x, output
+
+
+def position_embedding(output_bw, output_fw):
     output = tf.concat((output_fw, output_bw), axis=2)
     output_in = tf.concat((output_bw[:, :-1, :], output_fw[:, 1:, :]), axis=2)
     output_in_shape = common.tf_util.get_shape(output_in)
     output_in = tf.concat((output_in, tf.zeros((output_in_shape[0], 1, output_in_shape[2]), dtype=tf.float32)), axis=1)
     output = tf.concat((output, output_in), axis=2)
     output = tf.reshape(output, (output_in_shape[0], -1, output_in_shape[2]))
-
-    output = tf.contrib.layers.fully_connected(output, num_outputs=action_num, activation_fn=None)
-    return length_of_x, output
+    return output
 
 
 def fill_out_of_length_sequence(length_of_x, output, fill_number):
