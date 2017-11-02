@@ -20,8 +20,9 @@ class KeyWordMap(WordMap):
     def __init__(self):
         from code_data.constants import pre_defined_cpp_token
         super().__init__()
-        self._keyword = pre_defined_cpp_token + [self._start_label, self._end_label]
-        self._keyword_to_id = dict(list(enumerate(self._keyword_to_id)))
+        self._keyword = pre_defined_cpp_token | {self._start_label, self._end_label}
+        self._keyword_to_id = dict(list(enumerate(self._keyword)))
+        self._keyword_to_id = {value:key for key, value in self._keyword_to_id.items()}
 
     def __len__(self):
         return len(self._keyword) + 1
@@ -77,7 +78,7 @@ class Vocabulary(object):
         :return: the padded texts
         """
         if position_label:
-            texts = map(lambda x: [self.word_id_map.start_label] + texts + [self.word_id_map.end_label] , texts)
+            texts = map(lambda x: [self.word_id_map.start_label] + x + [self.word_id_map.end_label] , texts)
         texts = [[self.word_to_id(token) for token in text] for text in texts]
         return texts
 
