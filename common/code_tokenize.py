@@ -1,7 +1,6 @@
 import sys
 
-from code_data.token_level_fake_code import WHENCE_STREAM
-
+WHENCE_STREAM, WHENCE_QUEUE = range(2)
 __author__ = 'nnorwitz@google.com (Neal Norwitz)'
 _letters = 'abcdefghijklmnopqrstuvwxyz'
 VALID_IDENTIFIER_CHARS = set(_letters + _letters.upper() + '_0123456789$')

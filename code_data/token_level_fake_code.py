@@ -26,7 +26,7 @@ from common.code_tokenize import CONSTANT, GetTokens
 
 # Where the token originated from.  This can be used for backtracking.
 # It is always set to WHENCE_STREAM in this code.
-WHENCE_STREAM, WHENCE_QUEUE = range(2)
+
 
 
 def fake_name(name):
