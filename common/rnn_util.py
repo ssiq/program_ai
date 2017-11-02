@@ -106,19 +106,14 @@ def create_decoder_initialize_fn(start_label, batch_size):
     return initialize_fn
 
 
-def create_decode(initialize_fn,
-                  sample_fn,
-                  sample_next_input_fn,
-                  training_next_input_fn,
+def create_decode(sample_helper_fn,
+                  training_helper_fn,
                   decode_cell,
                   initial_state,
                   max_decode_iterator_num=None):
-    training_helper = seq2seq.CustomHelper(initialize_fn,
-                                           sample_fn,
-                                           training_next_input_fn)
-    sample_helper = seq2seq.CustomHelper(initialize_fn,
-                                         sample_fn,
-                                         sample_next_input_fn)
+
+    training_helper = seq2seq.CustomHelper(*training_helper_fn)
+    sample_helper = seq2seq.CustomHelper(*sample_helper_fn)
     train_decoder = seq2seq.BasicDecoder(decode_cell, training_helper, initial_state)
     train_decode = seq2seq.dynamic_decode(train_decoder, maximum_iterations=max_decode_iterator_num,
                                           swap_memory=True)
@@ -131,9 +126,13 @@ def create_decode(initialize_fn,
 
 def gather_sequence(param, indices):
     batch_size = get_shape(param)[0]
+    batch_index = tf.range(0, batch_size)
+    for _ in range(len(get_shape(indices))):
+        batch_index = tf.expand_dims(batch_index, axis=-1)
+    indices = tf.expand_dims(indices, axis=-1)
+    batch_index = tf.tile(batch_index, get_shape(indices))
     return tf.gather_nd(param,
                         tf.concat(
-                            (tf.expand_dims(tf.range(0, batch_size), axis=1),
-                             tf.expand_dims(indices, axis=1)),
-                            axis=1)
+                            (indices, batch_index),
+                            axis=-1)
                         )

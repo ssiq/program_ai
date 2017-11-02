@@ -285,7 +285,8 @@ class TokenLevelRnnModel(tf_util.Summary):
                                                              self.position_embedding_op,
                                                              self.code_embedding_op,
                                                              self.batch_size_op)
-        return create_decode(initialize_fn, sample_fn, sample_next_input_fn, training_next_input_fn, self.decode_cell_op,
+        return create_decode((initialize_fn, sample_fn, sample_next_input_fn),
+                             (initialize_fn, sample_fn, training_next_input_fn), self.decode_cell_op,
                              self.result_initial_state_op, self.max_decode_iterator_num)
 
     @tf_util.define_scope("gru_decode_op")
