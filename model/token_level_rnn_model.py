@@ -1,10 +1,9 @@
 import tensorflow as tf
-import more_itertools
-import cytoolz as toolz
 from tensorflow.python.util import nest
-from tensorflow.contrib import seq2seq
 
 from common import tf_util, rnn_cell, rnn_util, code_util
+from common.rnn_util import create_decoder_initialize_fn, create_decode
+
 
 def _rnn_cell(hidden_size):
     return tf.nn.rnn_cell.GRUCell(hidden_size)
@@ -90,13 +89,6 @@ class OutputAttentionWrapper(rnn_cell.RNNWrapper):
             copy_word_logit = rnn_util.soft_attention_logit(self._attention_size, replace_ouput, self._memory, self._memory_length)
 
         return (position_logit, is_copy_logit, key_word_logit, copy_word_logit,), next_hidden_state
-
-
-def create_initialize_fn(start_label, batch_size):
-    def initialize_fn():
-        """Returns `(initial_finished, initial_inputs)`."""
-        return tf.tile([False], batch_size), tf.tile(start_label, [batch_size, 1])
-    return initialize_fn
 
 
 def create_sample_fn():
@@ -276,7 +268,7 @@ class TokenLevelRnnModel(tf_util.Summary):
 
     @tf_util.define_scope("decode")
     def decode_op(self):
-        initialize_fn = create_initialize_fn(self.start_label_op , self.batch_size_op)
+        initialize_fn = create_decoder_initialize_fn(self.start_label_op, self.batch_size_op)
         sample_fn = create_sample_fn()
         sample_next_input_fn = create_next_input_fn(self.position_embedding_op,
                                                       self.word_embedding_layer_fn,
@@ -293,19 +285,8 @@ class TokenLevelRnnModel(tf_util.Summary):
                                                              self.position_embedding_op,
                                                              self.code_embedding_op,
                                                              self.batch_size_op)
-        training_helper = seq2seq.CustomHelper(initialize_fn,
-                                               sample_fn,
-                                               training_next_input_fn)
-        sample_helper = seq2seq.CustomHelper(initialize_fn,
-                                             sample_fn,
-                                             sample_next_input_fn)
-        train_decoder = seq2seq.BasicDecoder(self.decode_cell_op, training_helper, self.result_initial_state_op)
-        train_decode = seq2seq.dynamic_decode(train_decoder, maximum_iterations=self.max_decode_iterator_num, swap_memory=True)
-        self.decode_cell_op.build()
-        sample_decoder = seq2seq.BasicDecoder(self.decode_cell_op, sample_helper, self.result_initial_state_op)
-        sample_decode = seq2seq.dynamic_decode(sample_decoder, maximum_iterations=self.max_decode_iterator_num, swap_memory=True)
-        return train_decode, sample_decode
-
+        return create_decode(initialize_fn, sample_fn, sample_next_input_fn, training_next_input_fn, self.decode_cell_op,
+                             self.result_initial_state_op, self.max_decode_iterator_num)
 
     @tf_util.define_scope("gru_decode_op")
     def gru_decode_op(self):

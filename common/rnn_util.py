@@ -1,5 +1,6 @@
 import more_itertools
 import tensorflow as tf
+from tensorflow.contrib import seq2seq
 
 from common.tf_util import weight_multiply, get_shape, sequence_mask_with_length
 from common.util import is_sequence, sequence_sum
@@ -96,3 +97,43 @@ def concat_bi_rnn_output(o):
 def concat_bi_rnn_final_state(o):
     o = list(more_itertools.collapse(o[1]))
     return tf.concat(o, axis=1)
+
+
+def create_decoder_initialize_fn(start_label, batch_size):
+    def initialize_fn():
+        """Returns `(initial_finished, initial_inputs)`."""
+        return tf.tile([False], batch_size), tf.tile(start_label, [batch_size, 1])
+    return initialize_fn
+
+
+def create_decode(initialize_fn,
+                  sample_fn,
+                  sample_next_input_fn,
+                  training_next_input_fn,
+                  decode_cell,
+                  initial_state,
+                  max_decode_iterator_num=None):
+    training_helper = seq2seq.CustomHelper(initialize_fn,
+                                           sample_fn,
+                                           training_next_input_fn)
+    sample_helper = seq2seq.CustomHelper(initialize_fn,
+                                         sample_fn,
+                                         sample_next_input_fn)
+    train_decoder = seq2seq.BasicDecoder(decode_cell, training_helper, initial_state)
+    train_decode = seq2seq.dynamic_decode(train_decoder, maximum_iterations=max_decode_iterator_num,
+                                          swap_memory=True)
+    decode_cell.build()
+    sample_decoder = seq2seq.BasicDecoder(decode_cell, sample_helper, initial_state)
+    sample_decode = seq2seq.dynamic_decode(sample_decoder, maximum_iterations=max_decode_iterator_num,
+                                           swap_memory=True)
+    return train_decode, sample_decode
+
+
+def gather_sequence(param, indices):
+    batch_size = get_shape(param)[0]
+    return tf.gather_nd(param,
+                        tf.concat(
+                            (tf.expand_dims(tf.range(0, batch_size), axis=1),
+                             tf.expand_dims(indices, axis=1)),
+                            axis=1)
+                        )

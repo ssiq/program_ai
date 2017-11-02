@@ -11,3 +11,7 @@ def position_embedding(output_fw, output_bw, length):
     output = tf.reshape(output, (output_in_shape[0], -1, output_in_shape[2]))
     output = tf_util.sequence_mask_with_length(output, length, score_mask_value=0.0)
     return output
+
+def code_embedding(token_embedding, character_embedding, input_seq, identifier_token):
+    mask = tf.equal(input_seq, identifier_token)
+    return tf.where(mask, character_embedding, token_embedding)
