@@ -904,7 +904,7 @@ def variable_length_softmax(logit, in_length):
     :return:
     """
     in_length = tf.cast(in_length, tf.int32)
-    mask = tf_util.lengths_to_mask(in_length, get_shape(logit)[1])
+    mask = lengths_to_mask(in_length, get_shape(logit)[1])
     mask = tf.cast(mask, tf.float32)
     softmax = tf.exp(logit) / tf.reduce_sum(tf.exp(logit)*mask, axis=-1, keep_dims=True)
     return softmax
