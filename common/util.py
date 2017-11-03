@@ -111,6 +111,34 @@ def padded_code(batch_code):
     return list(map(lambda x:list(more_itertools.padded(x, fillvalue=-1, n=max_len)), batch_code))
 
 
+def padded_code_new(batch_code):
+    if not isinstance(batch_code, list):
+        return batch_code
+    elif not isinstance(batch_code[0], list):
+        return batch_code
+
+    batch_root = batch_code
+    while True:
+        if not isinstance(batch_root, list):
+            return batch_code
+        elif not isinstance(batch_root[0], list):
+            return batch_code
+        fill_value = -1
+        if isinstance(batch_root[0][0], list):
+            fill_value = []
+        max_len = max(map(len, batch_root))
+        for b in batch_root:
+            while len(b) < max_len:
+                b.append(fill_value)
+        # list(map(lambda x: list(more_itertools.padded(x, fillvalue=fill_value, n=max_len)), batch_root))
+
+        tmp = []
+        for son in batch_root:
+            for s in son:
+                tmp.append(s)
+        batch_root = tmp
+
+
 def get_sign_list(code_string):
     from code_data.constants import char_sign_dict
     char_list = list(code_string)
@@ -132,7 +160,7 @@ def batch_holder(*data: typing.List, batch_size=32, epoches=10):
             if not isinstance(x, list):
                 return x
             elif isinstance(x[0], list):
-                return padded_code(x)
+                return padded_code_new(x)
             else:
                 return x
 

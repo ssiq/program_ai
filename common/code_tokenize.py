@@ -204,7 +204,7 @@ def GetTokens(source):
             raise RuntimeError('unexpected token')
         if i <= 0:
             print('Invalid index, exiting now.')
-            return
+            return None
         yield Token(token_type, source[start:i], start, i)
 
 

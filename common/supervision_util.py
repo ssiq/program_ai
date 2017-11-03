@@ -5,7 +5,7 @@ from common import util
 from common import tf_util
 
 
-def create_supervision_experiment(train, test, vaild, parse_xy_fn, batch_complete_fn, experiment_name='default', batch_size=64):
+def create_supervision_experiment(train, test, vaild, parse_xy_fn, experiment_name='default', batch_size=32):
     '''
     create a supervision experiment method. you can train supervision in model by calling the returned methon.
     :param train: all of train data
@@ -24,7 +24,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, batch_complet
             tf.reset_default_graph()
             train_model_fn = create_model_train_fn(model_fn, model_parm)
             with tf.Session():
-                accuracy = train_model_fn(train_batch_iterator, validation_data_iterator, test_data_iterator, batch_complete_fn, experiment_name)
+                accuracy = train_model_fn(train_batch_iterator, validation_data_iterator, test_data_iterator, experiment_name)
                 if best_accuracy is None:
                     best_accuracy = accuracy
                     best_parameter = model_parm
@@ -53,7 +53,6 @@ def create_model_train_fn(model_fn, model_parameters):
     def train_model(train_data_iterator,
                     validation_data_iterator,
                     test_data_iterator,
-                    batch_complete_fn,
                     experiment_name='default'
                     ):
         print("parameter:{}".format(util.format_dict_to_string(model_parameters)))
@@ -77,14 +76,13 @@ def create_model_train_fn(model_fn, model_parameters):
         util.make_dir('checkpoints', '{}_{}'.format(
             experiment_name + '_model', util.format_dict_to_string(model_parameters)))
         for i, data in enumerate(train_data_iterator()):
-            data = batch_complete_fn(*data)
             loss, accuracy, _ = model.train(*data)
             losses.append(loss)
             accuracies.append(accuracy)
             if i % skip_steps == 0:
                 train_summary = model.summary(*data)
                 train_writer.add_summary(train_summary, global_step=model.global_step)
-                validation_summary = model.summary(*batch_complete_fn(*next(validation_data_itr)))
+                validation_summary = model.summary(*next(validation_data_itr))
                 validation_writer.add_summary(validation_summary, global_step=model.global_step)
             if i % print_skip_step == 0:
                 print("iteration {} with loss {} and accuracy {}".format(i, np.mean(losses), np.mean(accuracies)))
@@ -98,6 +96,6 @@ def create_model_train_fn(model_fn, model_parameters):
                     experiment_name + '_model', util.format_dict_to_string(model_parameters)),
                    model.global_step)
 
-        return np.mean([model.accuracy(*batch_complete_fn(*p)) for p in test_data_iterator()])
+        return np.mean([model.accuracy(*p) for p in test_data_iterator()])
 
     return train_model

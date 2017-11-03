@@ -48,6 +48,15 @@ class CharacterEmbedding(object):
         string_list = [l+list(itertools.repeat(empty_token, times=max_text_len-len(l))) for l in string_list]
         return string_list
 
+    def parse_string_without_padding(self, string_list):
+        '''
+        parse string list to a char list
+        :param string_list: a list of list of tokens
+        :return: a list of list of list of characters of tokens
+        '''
+        string_list = [[list(x) for x in l] for l in string_list]
+        return string_list
+
     @abc.abstractmethod
     def create_embedding_layer(self):
         """
