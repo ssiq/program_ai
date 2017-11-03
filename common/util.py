@@ -195,5 +195,16 @@ def train_test_split(data, test_size):
     test_data = [data[i] for i in range(1, d_len, 2)]
     return train_data, test_data
 
+# ================================================================
+# dict function
+# ================================================================
+
+def reverse_dict(d: dict) -> dict:
+    """
+    swap key and value of a dict
+    dict(key->value) => dict(value->key)
+    """
+    return dict(map(reversed, d.items()))
+
 if __name__ == '__main__':
     make_dir('data', 'cache_data')
