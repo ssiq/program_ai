@@ -188,9 +188,23 @@ def t_MULTILINE_COMMENT(t):
 def t_WHITESPACE(t):
     pass
 
-@TOKEN(r"\#include\<.+\>")
+@TOKEN(r"\#include\<?({}+)\>?".format(NOTNL))
 def t_INCLUDE(t):
-    t.value = ['#include', '<', t.value[9:-1], '>']
+    value = ['#include', ]
+    if t.value[8] == '<':
+        value += '<'
+        begin = 9
+    else:
+        begin = 8
+
+    if t.value[-1] == '>':
+        value += [t.value[begin:-1]]
+        value += '>'
+    else:
+        value += [t.value[begin:]]
+
+    t.value = value
+
     return t
 
 def t_error(t):
@@ -216,4 +230,5 @@ def tokenize(s):
 if __name__ == '__main__':
     with open(sys.argv[1]) as f:
         source = f.read()
-    print(tokenize(source))
+    for t in tokenize(source):
+        print(t)
