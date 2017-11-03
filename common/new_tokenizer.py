@@ -220,7 +220,6 @@ def tokenize(s):
     def token():
         while True:
             tok = lexer.token()
-            print(tok)
             if not tok:
                 break
             else:
