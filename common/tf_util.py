@@ -908,3 +908,18 @@ def variable_length_softmax(logit, in_length):
     mask = tf.cast(mask, tf.float32)
     softmax = tf.exp(logit) / tf.reduce_sum(tf.exp(logit)*mask, axis=-1, keep_dims=True)
     return softmax
+
+def expand_dims_and_tile(tensor, add_dims, multiplies):
+    """
+    This function first calls tf.expand_dims to add dims for the tensor along the add_dims parameter then
+    use tf.tile multiply some dims
+    :param tensor:
+    :param add_dims:
+    :param multiplies:
+    :return:
+    """
+    for t in add_dims:
+        tensor = tf.expand_dims(t)
+
+    tensor = tf.tile(tensor, multiplies)
+    return tensor

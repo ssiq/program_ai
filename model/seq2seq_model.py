@@ -23,17 +23,18 @@ class OutputAttentionWrapper(rnn_cell.GatedAttentionWrapper):
         super().__init__(cell, memory, memory_length, attention_size, reuse)
         self._keyword_num = keyword_num
 
-    def build(self, _):
-        self.built = True
-        self._cell.built = True
-
     @property
     def output_size(self):
-        return tuple([tf.TensorShape([]), self._keyword_num, tf_util.get_shape(self._memory)[2]])
+        if isinstance(self._memory, tuple):
+            m = self._memory[0]
+        else:
+            m = self._memory
+        return tuple([tf.TensorShape([]), self._keyword_num, tf.expand_dims(tf_util.get_shape(m)[1], axis=0)])
 
     def call(self, inputs, state):
         output, next_state = super().call(inputs, state)
         is_copy = tf.sigmoid(tf_util.weight_multiply("is_copy_weight", output, 1))
+        is_copy = is_copy[:, 0]
         keyword_logit = tf_util.weight_multiply("keyword_weight", output, self._keyword_num)
         with tf.variable_scope("copy_word_logit"):
             copy_word_logit = rnn_util.soft_attention_logit(
@@ -50,8 +51,8 @@ def create_sample_fn():
         """Returns `sample_ids`."""
         is_copy_logit, key_word_logit, copy_word_logit = outputs
         is_copy = tf.greater(tf.nn.sigmoid(is_copy_logit), tf.constant(0.5, dtype=tf.float32))
-        keyword_id =  tf.argmax(key_word_logit, axis=1)
-        copy_word_id = tf.argmax(key_word_logit, axis=1)
+        keyword_id =  tf.argmax(key_word_logit, axis=1, output_type=tf.int32)
+        copy_word_id = tf.argmax(key_word_logit, axis=1, output_type=tf.int32)
         zeros_id = tf.zeros_like(keyword_id)
         keyword_id, copy_word_id = tf.where(is_copy, zeros_id, keyword_id), tf.where(is_copy, copy_word_id, zeros_id)
         return is_copy, keyword_id, copy_word_id
@@ -68,7 +69,7 @@ def create_train_helper_function(sample_fn,
         finished = tf.greater_equal(time+2, output_length)
         next_inputs = output_embedding[:, time+1, :]
         return finished, next_inputs, state
-    return initialize_fn, sample_fn, next_input_fn
+    return (initialize_fn, sample_fn, next_input_fn), (tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]))
 
 
 def create_sample_helper_function(sample_fn,
@@ -86,8 +87,10 @@ def create_sample_helper_function(sample_fn,
         keyword_embedding = token_embedding_fn(keyword_id)
         copy_word_embedding = rnn_util.gather_sequence(intput_embedding_seq, copy_word_id)
         next_inputs = tf.where(is_copy, copy_word_embedding, keyword_embedding)
+        print("is_copy:{}".format(is_copy))
+        print("sample_finished:{}".format(finished))
         return finished, next_inputs, state
-    return initialize_fn, sample_fn, next_input_fn
+    return (initialize_fn, sample_fn, next_input_fn), (tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]))
 
 
 
@@ -204,24 +207,25 @@ class Seq2SeqModel(tf_util.Summary):
     @tf_util.define_scope("result_initial_state")
     def result_initial_state_op(self):
         cell = self.decode_cell_op
-        return nest.map_structure(lambda x: tf.Variable(initial_value=x, ),
-                                  cell.zero_state(self.batch_size_op, tf.float32))
+        return tf.tile(tf.Variable(cell.zero_state(1, tf.float32)), [self.batch_size_op, 1])
 
     @tf_util.define_scope("decode_op")
     def decode_op(self):
-        sample_helper_fn = create_sample_helper_function(create_sample_fn(),
-                                                         self.start_label_op,
-                                                         self.end_token_id,
-                                                         self.batch_size_op,
-                                                         self.code_embedding_op,
-                                                         self.word_embedding_layer_fn)
-        training_helper_fn = create_train_helper_function(create_sample_fn(),
-                                                          self.output_length,
-                                                          self.output_embedding_op,
-                                                          self.batch_size_op)
+        sample_helper_fn, sample_sample_output_shape = create_sample_helper_function(create_sample_fn(),
+                                                                                     self.start_label_op,
+                                                                                     self.end_token_id,
+                                                                                     self.batch_size_op,
+                                                                                     self.code_embedding_op,
+                                                                                     self.word_embedding_layer_fn)
+        training_helper_fn, training_sample_output_shape = create_train_helper_function(create_sample_fn(),
+                                                                                        self.output_length,
+                                                                                        self.output_embedding_op,
+                                                                                        self.batch_size_op)
         return rnn_util.create_decode(
             sample_helper_fn,
+            sample_sample_output_shape,
             training_helper_fn,
+            training_sample_output_shape,
             self.decode_cell_op,
             self.result_initial_state_op,
             max_decode_iterator_num=self.max_decode_iterator_num
