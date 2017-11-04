@@ -136,21 +136,21 @@ class Seq2SeqModel(tf_util.Summary):
                                self.output_keyword_id,
                                self.output_copy_word_id]
 
-        self._add_summary_scalar("loss", self.loss_op)
-        self._add_summary_scalar("metrics", self.metrics_op)
-        self._merge_all()
-        tf_util.init_all_op(self)
-        init = tf.global_variables_initializer()
-        sess = tf_util.get_session()
-        sess.run(init)
-
-        self.train = tf_util.function(
-            input_placeholders + output_placeholders,
-            [self.loss_op, self.metrics_op, self.train_op]
-        )
-
-        self.metrics_op = tf_util.function(output_placeholders, self.metrics_op)
-        self.summary = tf_util.function(input_placeholders + output_placeholders, self.summary_op)
+        # self._add_summary_scalar("loss", self.loss_op)
+        # self._add_summary_scalar("metrics", self.metrics_op)
+        # self._merge_all()
+        # tf_util.init_all_op(self)
+        # init = tf.global_variables_initializer()
+        # sess = tf_util.get_session()
+        # sess.run(init)
+        #
+        # self.train = tf_util.function(
+        #     input_placeholders + output_placeholders,
+        #     [self.loss_op, self.metrics_op, self.train_op]
+        # )
+        #
+        # self.metrics_op = tf_util.function(output_placeholders, self.metrics_op)
+        # self.summary = tf_util.function(input_placeholders + output_placeholders, self.summary_op)
 
     @tf_util.define_scope("batch_size")
     def batch_size_op(self):

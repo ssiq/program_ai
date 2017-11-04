@@ -6,6 +6,7 @@ class WordMap(object):
     def __init__(self):
         self._end_label = "<END>"
         self._start_label = "<START>"
+        self._identifier_label = "<IDENTIFIER>"
 
     @property
     def end_label(self):
@@ -15,12 +16,16 @@ class WordMap(object):
     def start_label(self):
         return self._start_label
 
+    @property
+    def identifier_label(self):
+        return self._identifier_label
+
 
 class KeyWordMap(WordMap):
     def __init__(self):
         from code_data.constants import pre_defined_cpp_token
         super().__init__()
-        self._keyword = pre_defined_cpp_token | {self._start_label, self._end_label}
+        self._keyword = pre_defined_cpp_token | {self._start_label, self._end_label, self._identifier_label}
         self._keyword_to_id = dict(list(enumerate(self._keyword)))
         self._keyword_to_id = {value:key for key, value in self._keyword_to_id.items()}
 
@@ -31,7 +36,7 @@ class KeyWordMap(WordMap):
         if item in self._keyword_to_id:
             return self._keyword_to_id[item]
         else:
-            return self.__len__() - 1
+            return self._keyword_to_id[self.identifier_label]
 
 
 class Vocabulary(object):
@@ -41,6 +46,18 @@ class Vocabulary(object):
 
     def word_to_id(self, word):
         return self.word_id_map[word]
+
+    @property
+    def start_label(self):
+        return self.word_id_map.start_label
+
+    @property
+    def end_label(self):
+        return self.word_id_map.end_label
+
+    @property
+    def identifier_label(self):
+        return self.word_id_map.identifier_label
 
     @property
     def embedding_matrix(self):
