@@ -196,7 +196,10 @@ class Seq2SeqModel(tf_util.Summary):
     def output_embedding_op(self):
         keyword_embedding = self.word_embedding_layer_fn(self.output_keyword_id)
         copyword_embedding = rnn_util.gather_sequence(self.code_embedding_op, self.output_copy_word_id)
-        return tf.where(self.output_is_copy, copyword_embedding, keyword_embedding)
+        mask = tf.cast(self.output_is_copy, tf.bool)
+        mask = tf.expand_dims(mask, axis=2)
+        mask = tf.tile(mask, multiples=[1, 1, tf_util.get_shape(copyword_embedding)[2]])
+        return tf.where(mask, copyword_embedding, keyword_embedding)
 
     @tf_util.define_scope("result_initial_state")
     def result_initial_state_op(self):
