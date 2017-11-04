@@ -143,9 +143,8 @@ def create_decode(sample_helper_fn,
     training_helper = seq2seq.CustomHelper(*training_helper_fn)
     sample_helper = seq2seq.CustomHelper(*sample_helper_fn)
     train_decoder = BasicDecoder(decode_cell, training_helper, initial_state, training_sample_output_shape)
-    # train_decode = seq2seq.dynamic_decode(train_decoder, maximum_iterations=max_decode_iterator_num,
-    #                                       swap_memory=True)
-    train_decode = None
+    train_decode = seq2seq.dynamic_decode(train_decoder, maximum_iterations=max_decode_iterator_num,
+                                          swap_memory=True)
     # decode_cell.build()
     sample_decoder = BasicDecoder(decode_cell, sample_helper, initial_state, sample_sample_output_shape)
     sample_decode = seq2seq.dynamic_decode(sample_decoder, maximum_iterations=max_decode_iterator_num,

@@ -316,6 +316,6 @@ class TokenLevelRnnModel(tf_util.Summary):
         return tf_util.minimize_and_clip(optimizer=optimiizer,
                                          objective=self.loss_op,
                                          var_list=tf.trainable_variables(),
-                                         global_step=self.global_step)
+                                         global_step=self.global_step_variable)
 
 

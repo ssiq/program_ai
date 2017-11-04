@@ -821,6 +821,10 @@ class Summary(object):
             setattr(self, 'summary_op', _summary)
 
     @property
+    def global_step_variable(self):
+        return self._global_step_variable
+
+    @property
     def global_step(self):
         return self._global_step_variable.eval(get_session())
 

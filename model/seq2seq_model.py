@@ -139,21 +139,22 @@ class Seq2SeqModel(tf_util.Summary):
                                self.output_keyword_id,
                                self.output_copy_word_id]
 
-        # self._add_summary_scalar("loss", self.loss_op)
-        # self._add_summary_scalar("metrics", self.metrics_op)
-        # self._merge_all()
-        # tf_util.init_all_op(self)
-        # init = tf.global_variables_initializer()
-        # sess = tf_util.get_session()
-        # sess.run(init)
-        #
-        # self.train = tf_util.function(
-        #     input_placeholders + output_placeholders,
-        #     [self.loss_op, self.metrics_op, self.train_op]
-        # )
-        #
-        # self.metrics_op = tf_util.function(output_placeholders, self.metrics_op)
-        # self.summary = tf_util.function(input_placeholders + output_placeholders, self.summary_op)
+        self._add_summary_scalar("loss", self.loss_op)
+        self._add_summary_scalar("metrics", self.metrics_op)
+        self._merge_all()
+        tf_util.init_all_op(self)
+        init = tf.global_variables_initializer()
+        sess = tf_util.get_session()
+        sess.run(init)
+
+        self.train = tf_util.function(
+            input_placeholders + output_placeholders,
+            [self.loss_op, self.metrics_op, self.train_op]
+        )
+
+        self.metrics = tf_util.function( input_placeholders + output_placeholders, self.metrics_op)
+        self.predict = tf_util.function(input_placeholders, self.predict_op)
+        self.summary = tf_util.function(input_placeholders + output_placeholders, self.summary_op)
 
     @tf_util.define_scope("batch_size")
     def batch_size_op(self):
@@ -245,7 +246,7 @@ class Seq2SeqModel(tf_util.Summary):
         output_logit, _ = output_logit
         is_copy_logit, key_word_logit, copy_word_logit = output_logit
         loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
-                                                       labels=self.output_is_copy))
+                                                       labels=tf.cast(self.output_is_copy, tf.float32)))
         sparse_softmax_loss = lambda x, y: tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y))
         loss += sparse_softmax_loss(self.output_keyword_id, key_word_logit)
         loss += sparse_softmax_loss(self.output_copy_word_id, copy_word_logit)
@@ -257,7 +258,7 @@ class Seq2SeqModel(tf_util.Summary):
         return tf_util.minimize_and_clip(optimizer=optimiizer,
                                          objective=self.loss_op,
                                          var_list=tf.trainable_variables(),
-                                         global_step=self.global_step)
+                                         global_step=self.global_step_variable)
 
     @tf_util.define_scope("predict_op")
     def predict_op(self):
