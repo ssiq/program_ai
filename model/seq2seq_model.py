@@ -51,8 +51,8 @@ def create_sample_fn():
         """Returns `sample_ids`."""
         is_copy_logit, key_word_logit, copy_word_logit = outputs
         is_copy = tf.greater(tf.nn.sigmoid(is_copy_logit), tf.constant(0.5, dtype=tf.float32))
-        keyword_id =  tf.argmax(key_word_logit, axis=1, output_type=tf.int32)
-        copy_word_id = tf.argmax(key_word_logit, axis=1, output_type=tf.int32)
+        keyword_id =  tf.cast(tf.argmax(key_word_logit, axis=1), dtype=tf.int32)
+        copy_word_id = tf.cast(tf.argmax(key_word_logit, axis=1), dtype=tf.int32)
         zeros_id = tf.zeros_like(keyword_id)
         keyword_id, copy_word_id = tf.where(is_copy, zeros_id, keyword_id), tf.where(is_copy, copy_word_id, zeros_id)
         return is_copy, keyword_id, copy_word_id

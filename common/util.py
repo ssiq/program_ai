@@ -42,7 +42,7 @@ def format_dict_to_string(to_format_dict: dict) -> str:
     :return:
     """
 
-    return '__'.join(str(a)+str(b) for a, b in to_format_dict.items())
+    return ('__'.join(str(a)+str(b) for a, b in to_format_dict.items()))[0:64]
 
 
 def ensure_directory(directory):
@@ -123,7 +123,7 @@ def padded_code_new(batch_code):
             return batch_code
         elif not isinstance(batch_root[0], list):
             return batch_code
-        fill_value = -1
+        fill_value = 0
         if isinstance(batch_root[0][0], list):
             fill_value = []
         max_len = max(map(len, batch_root))

@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.contrib.framework import nest
+from tensorflow.python.util import nest
 
 import common.rnn_util
 from . import tf_util, util

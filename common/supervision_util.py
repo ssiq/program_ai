@@ -5,7 +5,7 @@ from common import util
 from common import tf_util
 
 
-def create_supervision_experiment(train, test, vaild, parse_xy_fn, experiment_name='default', batch_size=32):
+def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_param, experiment_name='default', batch_size=32):
     '''
     create a supervision experiment method. you can train supervision in model by calling the returned methon.
     :param train: all of train data
@@ -22,6 +22,9 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, experiment_na
         best_accuracy = None
         for model_parm in param_generator(generator_times):
             tf.reset_default_graph()
+            model_parm['word_embedding_layer_fn'] = model_parm['word_embedding_layer_fn']()
+            model_parm['character_embedding_layer_fn'] = model_parm['character_embedding_layer_fn']()
+
             train_model_fn = create_model_train_fn(model_fn, model_parm)
             with tf.Session():
                 accuracy = train_model_fn(train_batch_iterator, validation_data_iterator, test_data_iterator, experiment_name)
@@ -35,9 +38,9 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, experiment_na
 
         print("best accuracy:{}, best parameter:{}".format(best_accuracy, best_parameter))
 
-    train_batch_iterator = util.batch_holder(*parse_xy_fn(train), batch_size=batch_size)
-    validation_data_iterator = util.batch_holder(*parse_xy_fn(vaild), batch_size=batch_size)
-    test_data_iterator = util.batch_holder(*parse_xy_fn(test), batch_size=batch_size, epoches=1)
+    train_batch_iterator = util.batch_holder(*parse_xy_fn(train, *parse_xy_param), batch_size=batch_size)
+    validation_data_iterator = util.batch_holder(*parse_xy_fn(vaild, *parse_xy_param), batch_size=batch_size)
+    test_data_iterator = util.batch_holder(*parse_xy_fn(test, *parse_xy_param), batch_size=batch_size, epoches=1)
 
     return train_supervision
 
@@ -61,10 +64,12 @@ def create_model_train_fn(model_fn, model_parameters):
         train_writer = tf.summary.FileWriter(
             logdir='./graphs/{}/{}'.format(
                 experiment_name+'_model', util.format_dict_to_string(model_parameters) + "_train"),
+                # experiment_name+'_model',  "_train"),
             graph=sess.graph)
         validation_writer = tf.summary.FileWriter(
             logdir='./graphs/{}/{}'.format(
                 experiment_name + '_model', util.format_dict_to_string(model_parameters) + "_validation"),
+                # experiment_name + '_model',  "_validation"),
             graph=sess.graph)
         save_steps = 1000
         skip_steps = 100
@@ -76,6 +81,7 @@ def create_model_train_fn(model_fn, model_parameters):
         util.make_dir('checkpoints', '{}_{}'.format(
             experiment_name + '_model', util.format_dict_to_string(model_parameters)))
         for i, data in enumerate(train_data_iterator()):
+            # print(len(*data))
             loss, accuracy, _ = model.train(*data)
             losses.append(loss)
             accuracies.append(accuracy)

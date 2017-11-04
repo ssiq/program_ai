@@ -26,11 +26,12 @@ class KeyWordMap(WordMap):
         from code_data.constants import pre_defined_cpp_token
         super().__init__()
         self._keyword = pre_defined_cpp_token | {self._start_label, self._end_label, self._identifier_label}
+        self._keyword = sorted(self._keyword)
         self._keyword_to_id = dict(list(enumerate(self._keyword)))
         self._keyword_to_id = {value:key for key, value in self._keyword_to_id.items()}
 
     def __len__(self):
-        return len(self._keyword) + 1
+        return len(self._keyword)
 
     def __getitem__(self, item):
         if item in self._keyword_to_id:

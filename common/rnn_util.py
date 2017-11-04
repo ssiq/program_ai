@@ -147,6 +147,7 @@ def create_decode(sample_helper_fn,
                                           swap_memory=True)
     # decode_cell.build()
     sample_decoder = BasicDecoder(decode_cell, sample_helper, initial_state, sample_sample_output_shape)
+    print("decoder dtype:", sample_decoder.output_dtype)
     sample_decode = seq2seq.dynamic_decode(sample_decoder, maximum_iterations=max_decode_iterator_num,
                                            swap_memory=True)
     return train_decode, sample_decode
@@ -154,11 +155,16 @@ def create_decode(sample_helper_fn,
 
 def gather_sequence(param, indices):
     batch_size = get_shape(param)[0]
-    batch_index = tf.range(0, batch_size)
+    batch_index = tf.range(0, batch_size, dtype=tf.int32)
     for _ in range(len(get_shape(indices))):
         batch_index = tf.expand_dims(batch_index, axis=-1)
     indices = tf.expand_dims(indices, axis=-1)
-    batch_index = tf.tile(batch_index, get_shape(indices))
+
+    indices_shape = get_shape(indices)
+    indices_shape[0] = 1
+    batch_index = tf.tile(batch_index, indices_shape)
+    # batch_index = tf.tile(batch_index, get_shape(indices))
+
     return tf.gather_nd(param,
                         tf.concat(
                             (indices, batch_index),

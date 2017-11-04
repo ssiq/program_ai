@@ -54,7 +54,14 @@ class CharacterEmbedding(object):
         :param string_list: a list of list of tokens
         :return: a list of list of list of characters of tokens
         '''
-        string_list = [[list(x) for x in l] for l in string_list]
+        def parse_token(token):
+            token = self.preprocess_token(token)
+            token = [self.character_to_id_dict[c] for c in token]
+            return token
+        string_list = [[parse_token(token) for token in l] for l in string_list]
+        for s in string_list:
+            s.insert(0, [self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
+            s.append([self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
         return string_list
 
     @abc.abstractmethod
@@ -81,14 +88,13 @@ class AbstractRNNCharacterEmbedding(CharacterEmbedding):
     def create_embedding_layer(self):
         def embedding_layer(input_op, input_length_op):
             input_shape = tf_util.get_shape(input_op)
-            input_op = tf.reshape(input_shape, (-1, input_shape[2]))
+            input_op = tf.reshape(input_op, (-1, input_shape[2]))
             # length = tf_util.length(tf.one_hot(input_op, len(self.id_to_character_dict)))
             length = tf.reshape(input_length_op, (-1, ))
             length = tf.where(length==0, x=length, y=length+2)
             input_op = tf.nn.embedding_lookup(self._create_embedding_matrix(), input_op)
             output = self._rnn(input_op, length)
             output = tf.reshape(output, (input_shape[0], input_shape[1], self.embedding_shape*2))
-            print("character_embedding_output:{}".format(output))
             return output
         return embedding_layer
 
