@@ -102,12 +102,13 @@ def parse_xy(df, keyword_voc, char_voc):
         if ori_len >= err_len:
             if is_copys[actionpos] == 0:
                 keywords[actionpos] = keyword_voc.word_to_id(one['actionsign'])
+        keywords.insert(0, keyword_voc.word_to_id(keyword_voc.start_label))
+        keywords.append(keyword_voc.word_to_id(keyword_voc.end_label))
         return keywords
 
 
-
     def find_copy_id(one):
-        is_copys = one['is_copy']
+        is_copys = one['is_copy'][1:-1]
         copys = []
         actionpos = int(one['actionpos'])
         ori_len = one['parse_original_token_len']
@@ -143,6 +144,9 @@ def parse_xy(df, keyword_voc, char_voc):
             ori_i += 1
             err_i += 1
 
+        copys.insert(0, 0)
+        copys.append(0)
+
         return copys
 
     def create_iscopy(one):
@@ -158,6 +162,8 @@ def parse_xy(df, keyword_voc, char_voc):
         if ori_len >= err_len:
             if keyword_voc.word_to_id(actionsign) != keyword_voc.word_to_id(keyword_voc.identifier_label):
                 is_copys[actionpos] = 0
+        is_copys.insert(0, 0)
+        is_copys.append(0)
         return is_copys
 
 
@@ -198,12 +204,13 @@ def parse_xy(df, keyword_voc, char_voc):
 
     # df['sign_id'] = df['actionsign'].map(keyword_voc.word_to_id)
     df['is_copy'] = df.apply(create_iscopy, axis=1, raw=True)
+    df['output_len'] = df['is_copy'].map(lambda x: len(x))
 
     df['keyword_id'] = df.apply(find_keyword_id, axis=1, raw=True)
     df['copy_id'] = df.apply(find_copy_id, axis=1, raw=True)
     df = df[df['copy_id'].map(lambda x: x is not None)].copy()
 
-    return df['parse_error_token_id'], df['parse_error_token_len'], df['parse_error_char_list'], df['parse_error_char_len'], df['parse_original_token_len'], df['is_copy'], df['keyword_id'], df['copy_id']
+    return df['parse_error_token_id'], df['parse_error_token_len'], df['parse_error_char_list'], df['parse_error_char_len'], df['output_len'], df['is_copy'], df['keyword_id'], df['copy_id']
 
 
 from code_data.constants import cache_data_path
@@ -257,7 +264,7 @@ if __name__ == '__main__':
     #                         pass
     #     isPrint += 1
 
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='seq2seq_test')
+    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='seq2seq_test', batch_size=16)
     param_generator = random_parameters_generator(random_param={"learning_rate": [-5, 0]},
                                                   choice_param={ },
                                                   constant_param={"hidden_size": 100,

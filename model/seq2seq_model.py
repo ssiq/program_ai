@@ -248,10 +248,10 @@ class Seq2SeqModel(tf_util.Summary):
         output_logit, _ = output_logit
         is_copy_logit, key_word_logit, copy_word_logit = output_logit
         loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
-                                                       labels=tf.cast(self.output_is_copy, tf.float32)))
+                                                       labels=tf.cast(self.output_is_copy[:, 1:], tf.float32)))
         sparse_softmax_loss = lambda x, y: tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y))
-        loss += sparse_softmax_loss(self.output_keyword_id, key_word_logit)
-        loss += sparse_softmax_loss(self.output_copy_word_id, copy_word_logit)
+        loss += sparse_softmax_loss(self.output_keyword_id[:, 1:], key_word_logit)
+        loss += sparse_softmax_loss(self.output_copy_word_id[:, 1:], copy_word_logit)
         return loss
 
     @tf_util.define_scope("train_op")
@@ -271,12 +271,13 @@ class Seq2SeqModel(tf_util.Summary):
 
     @tf_util.define_scope("metrics_op")
     def metrics_op(self):
-        output_length, is_copy, keyword_id, copy_word_id = self.predict_op
-        true_mask = tf.equal(output_length, self.output_length)
-        new_maks_fn = lambda x, y: tf.logical_and(true_mask, tf.reduce_all(tf.equal(x, y), axis=1))
-        is_copy = tf.cast(is_copy, tf.int32)
-        true_mask = new_maks_fn(is_copy, self.output_is_copy)
-        true_mask = new_maks_fn(keyword_id, self.output_keyword_id)
-        true_mask = new_maks_fn(copy_word_id, self.output_copy_word_id)
-        return tf.reduce_mean(tf.cast(true_mask, tf.float32))
+        # output_length, is_copy, keyword_id, copy_word_id = self.predict_op
+        # true_mask = tf.equal(output_length, self.output_length-1)
+        # new_maks_fn = lambda x, y: tf.logical_and(true_mask, tf.reduce_all(tf.equal(x, y), axis=1))
+        # is_copy = tf.cast(is_copy, tf.int32)
+        # true_mask = new_maks_fn(is_copy, self.output_is_copy)
+        # true_mask = new_maks_fn(keyword_id, self.output_keyword_id)
+        # true_mask = new_maks_fn(copy_word_id, self.output_copy_word_id)
+        # return tf.reduce_mean(tf.cast(true_mask, tf.float32))
+        return self.loss_op
 

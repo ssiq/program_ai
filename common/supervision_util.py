@@ -84,6 +84,8 @@ def create_model_train_fn(model_fn, model_parameters):
             # print(len(*data))
             for tt in data:
                 print(np.array(tt).shape)
+            print(data[4])
+
             loss, accuracy, _ = model.train(*data)
             losses.append(loss)
             accuracies.append(accuracy)
