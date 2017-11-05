@@ -8,6 +8,7 @@ import cytoolz as toolz
 import pickle
 import errno
 import os
+import logging
 
 
 def make_dir(*path: str) -> None:
@@ -190,6 +191,11 @@ def set_cuda_devices(deviceid:int=0):
     :return:
     '''
     os.environ["CUDA_VISIBLE_DEVICES"] = str(deviceid)
+
+
+def initlogging(filepath, level=logging.INFO):
+    logging.basicConfig(filename=filepath, level=level, format='%(asctime)s [%(levelname)s] %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
 
 
 # ================================================================

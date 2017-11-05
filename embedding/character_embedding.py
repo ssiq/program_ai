@@ -60,11 +60,22 @@ class CharacterEmbedding(object):
             token = self.preprocess_token(token)
             token = [self.character_to_id_dict[c] for c in token]
             return token
-        string_list = [[parse_token(token) for token in l] for l in string_list]
-        for s in string_list:
+        # string_list = [[parse_token(token) for token in l] for l in string_list]
+        new_string_list = []
+        for l in string_list:
+            token_list = []
+            try:
+                for token in l:
+                    token_list.append(parse_token(token))
+            except Exception as e:
+                token_list = None
+            new_string_list.append(token_list)
+        for s in new_string_list:
+            if s == None:
+                continue
             s.insert(0, [self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
             s.append([self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
-        return string_list
+        return new_string_list
 
     @abc.abstractmethod
     def create_embedding_layer(self):

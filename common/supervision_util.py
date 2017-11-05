@@ -3,6 +3,7 @@ import numpy as np
 
 from common import util
 from common import tf_util
+import logging
 
 
 def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_param, experiment_name='default', batch_size=32):
@@ -84,22 +85,28 @@ def create_model_train_fn(model_fn, model_parameters):
         util.make_dir('checkpoints', '{}_{}'.format(
             experiment_name + '_model', util.format_dict_to_string(model_parameters)))
         for i, data in enumerate(train_data_iterator()):
-            loss, metrics, _ = model.train_model(*data)
-            losses.append(loss)
-            accuracies.append(metrics)
-            if i % skip_steps == 0:
-                train_summary = model.summary(*data)
-                train_writer.add_summary(train_summary, global_step=model.global_step)
-                validation_summary = model.summary(*next(validation_data_itr))
-                validation_writer.add_summary(validation_summary, global_step=model.global_step)
-            if i % print_skip_step == 0:
-                print("iteration {} with loss {} and accuracy {}".format(i, np.mean(losses), np.mean(accuracies)))
-                losses = []
-                accuracies = []
-            if i % save_steps == 0:
-                saver.save(sess, 'checkpoints/{}_{}/bi_rnn'.format(
-                    experiment_name + '_model', util.format_dict_to_string(model_parameters)),
-                           model.global_step)
+            try:
+                loss, metrics, _ = model.train_model(*data)
+                losses.append(loss)
+                accuracies.append(metrics)
+                if i % skip_steps == 0:
+                    train_summary = model.summary(*data)
+                    train_writer.add_summary(train_summary, global_step=model.global_step)
+                    validation_summary = model.summary(*next(validation_data_itr))
+                    validation_writer.add_summary(validation_summary, global_step=model.global_step)
+                if i % print_skip_step == 0:
+                    print("iteration {} with loss {} and accuracy {}".format(i, np.mean(losses), np.mean(accuracies)))
+                    losses = []
+                    accuracies = []
+                if i % save_steps == 0:
+                    saver.save(sess, 'checkpoints/{}_{}/bi_rnn'.format(
+                        experiment_name + '_model', util.format_dict_to_string(model_parameters)),
+                               model.global_step)
+            except Exception as e:
+                import traceback
+                mess = traceback.format_exc()
+                print(mess)
+                logging.error(mess)
         saver.save(sess, 'checkpoints/{}_{}/bi_rnn'.format(
                     experiment_name + '_model', util.format_dict_to_string(model_parameters)),
                    model.global_step)

@@ -98,8 +98,17 @@ class Vocabulary(object):
         """
         if position_label:
             texts = map(lambda x: [self.word_id_map.start_label] + x + [self.word_id_map.end_label] , texts)
-        texts = [[self.word_to_id(token) for token in text] for text in texts]
-        return texts
+        # texts = [[self.word_to_id(token) for token in text] for text in texts]
+        new_string_list = []
+        for l in texts:
+            token_list = []
+            try:
+                for token in l:
+                    token_list.append(self.word_to_id(token))
+            except Exception as e:
+                token_list = None
+            new_string_list.append(token_list)
+        return new_string_list
 
 
 def load_vocabulary(word_vector_name, embedding_size) -> Vocabulary:

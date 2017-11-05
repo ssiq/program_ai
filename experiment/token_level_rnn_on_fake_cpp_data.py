@@ -1,12 +1,10 @@
 from common import util
 from code_data.read_data import read_cpp_token_fake_code_set
-from embedding.wordembedding import load_vocabulary, Vocabulary
-from embedding.character_embedding import load_character_vocabulary
 from common.code_tokenize import GetTokens
 from common.supervision_util import create_supervision_experiment
 from model.seq2seq_model import Seq2SeqModel
 from train.random_search import random_parameters_generator
-import pandas as pd
+import logging
 
 
 def get_token_list(code):
@@ -188,16 +186,19 @@ def parse_xy(df, keyword_voc, char_voc):
 
     df['parse_original_token_name'] = df['parse_original_token_obj'].map(token_to_name_list)
     df['parse_original_token_id'] = keyword_voc.parse_text_without_pad(df['parse_original_token_name'], True)
+    df = df[df['parse_original_token_id'].map(lambda x: x is not None)].copy()
     df['parse_original_token_len'] = df['parse_original_token_id'].map(len)
 
     df['parse_error_token_name'] = df.apply(create_error_token, axis=1, raw=True)
     df = df[df['parse_error_token_name'].map(lambda x: x is not None)].copy()
     df['parse_error_token_id'] = keyword_voc.parse_text_without_pad(df['parse_error_token_name'], True)
+    df = df[df['parse_error_token_id'].map(lambda x: x is not None)].copy()
     df['parse_error_token_len'] = df['parse_error_token_id'].map(len)
 
     # char_voc = load_character_vocabulary('bigru', n_gram=2, embedding_shape=150, token_list=df['parse_error_token_name'])
 
     df['parse_error_char_list'] = char_voc.parse_string_without_padding(df['parse_error_token_name'])
+    df = df[df['parse_error_char_list'].map(lambda x: x is not None)].copy()
     df['parse_error_char_len'] = df['parse_error_char_list'].map(charlist_to_len_list)
 
     # df['modify_action_type'] = df.apply(ensure_action_type, axis=1, raw=True)
@@ -232,13 +233,16 @@ def create_embedding():
     return key_val, char_voc
 
 if __name__ == '__main__':
+    FILE_PATH = '/home/lf/Project/program_ai/log/seq2seq.log'
+    util.initlogging(FILE_PATH)
     util.set_cuda_devices(1)
-    # train, test, vaild = read_cpp_token_fake_code_set()
+    train, test, vaild = read_cpp_token_fake_code_set()
+    # train = train.sample(200000)
 
     from embedding.wordembedding import load_vocabulary
     from embedding.character_embedding import load_character_vocabulary
 
-    train, test, vaild = sample()
+    # train, test, vaild = sample()
 
     key_val, char_voc = create_embedding()
 
@@ -260,7 +264,7 @@ if __name__ == '__main__':
     #                         pass
     #     isPrint += 1
 
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='seq2seq_test', batch_size=16)
+    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='seq2seq', batch_size=16)
     param_generator = random_parameters_generator(random_param={"learning_rate": [-5, 0]},
                                                   choice_param={ },
                                                   constant_param={"hidden_size": 100,
