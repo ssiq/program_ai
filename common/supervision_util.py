@@ -29,7 +29,8 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
             config = tf.ConfigProto()
             config.gpu_options.allow_growth = True
             with tf.Session(config=config):
-                accuracy = train_model_fn(train_batch_iterator, validation_data_iterator, test_data_iterator, experiment_name)
+                with tf_util.summary_scope():
+                    accuracy = train_model_fn(train_batch_iterator, validation_data_iterator, test_data_iterator, experiment_name)
                 if best_accuracy is None:
                     best_accuracy = accuracy
                     best_parameter = model_parm

@@ -8,6 +8,7 @@ import functools
 import copy
 import os
 import collections
+from contextlib import contextmanager
 
 
 # ================================================================
@@ -841,6 +842,8 @@ def _create_summary_function():
 
     def _merge_placeholder():
         with tf.variable_scope("summary"):
+            print("_summary_scalar_input_list:{}".format(_summary_scalar_input_list))
+            print("_summary_histogram_input_list:{}".format(_summary_histogram_input_list))
             _input = tf.placeholder(dtype=tf.string, name="summary_input")
             _merge_input_summary = tf.summary.merge(
                 [_input] + list(itertools.starmap(tf.summary.scalar, _summary_scalar_input_list)) +
@@ -851,9 +854,19 @@ def _create_summary_function():
                 return f_i(summary_input, *args)
             return f
 
-    return _add_summary_scalar, _add_summary_histogram, _merge_op, _merge_placeholder
+    @contextmanager
+    def _summary():
+        nonlocal _summary_scalar_op_list
+        nonlocal _summary_scalar_input_list
+        nonlocal _summary_histogram_list
+        nonlocal _summary_histogram_input_list
+        old_ = copy.deepcopy([_summary_scalar_op_list, _summary_scalar_input_list, _summary_histogram_list, _summary_histogram_input_list])
+        yield
+        _summary_scalar_op_list, _summary_scalar_input_list, _summary_histogram_list, _summary_histogram_input_list = old_
 
-add_summary_scalar, add_summary_histogram, merge_op, placeholder_summary_merge = _create_summary_function()
+    return _add_summary_scalar, _add_summary_histogram, _merge_op, _merge_placeholder, _summary
+
+add_summary_scalar, add_summary_histogram, merge_op, placeholder_summary_merge, summary_scope = _create_summary_function()
 
 
 def doublewrap(function):
