@@ -281,3 +281,34 @@ class Seq2SeqModel(tf_util.Summary):
         # return tf.reduce_mean(tf.cast(true_mask, tf.float32))
         return self.loss_op
 
+    def train_model(self, *data):
+        loss, _, train_op_res = self.train(*data)
+        metrics_value = self.metrics_model(*data)
+        return loss, metrics_value, train_op_res
+
+    def metrics_model(self, *data):
+        input_data = data[0:4]
+        output_data = data[4:8]
+        predict_data = self.predict(*input_data)
+        metrics_value = self.cal_metrics(output_data, predict_data)
+        return metrics_value
+
+    def cal_metrics(self, output_data, predict_data):
+        import numpy as np
+
+        output_new_data = []
+        output_new_data.append(list(map(lambda x: x - 1, output_data[0])))
+        output_new_data.append(list(map(lambda x: x[1:], output_data[1])))
+        output_new_data.append(list(map(lambda x: x[1:], output_data[2])))
+        output_new_data.append(list(map(lambda x: x[1:], output_data[3])))
+
+        res = []
+        for i in range(0, len(predict_data)):
+            true_mask = 0
+            predict_idata = np.array(predict_data[i])
+            output_idata = np.array(output_new_data[i])
+            if predict_idata.shape == output_idata.shape and np.array_equal(predict_idata, output_idata):
+                true_mask = 1
+            res.append(true_mask)
+
+        return np.mean(res)
