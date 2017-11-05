@@ -26,7 +26,9 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
             model_parm['character_embedding_layer_fn'] = model_parm['character_embedding_layer_fn']()
 
             train_model_fn = create_model_train_fn(model_fn, model_parm)
-            with tf.Session():
+            config = tf.ConfigProto()
+            config.gpu_options.allow_growth = True
+            with tf.Session(config=config):
                 accuracy = train_model_fn(train_batch_iterator, validation_data_iterator, test_data_iterator, experiment_name)
                 if best_accuracy is None:
                     best_accuracy = accuracy
