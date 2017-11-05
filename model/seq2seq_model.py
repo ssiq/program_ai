@@ -69,7 +69,7 @@ def create_train_helper_function(sample_fn,
         finished = tf.greater_equal(time+2, output_length)
         next_inputs = output_embedding[:, time+1, :]
         return finished, next_inputs, state
-    return (initialize_fn, sample_fn, next_input_fn), (tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]))
+    return (initialize_fn, sample_fn, next_input_fn), (tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([])), (tf.bool, tf.int32, tf.int32)
 
 
 def create_sample_helper_function(sample_fn,
@@ -90,7 +90,7 @@ def create_sample_helper_function(sample_fn,
         print("is_copy:{}".format(is_copy))
         print("sample_finished:{}".format(finished))
         return finished, next_inputs, state
-    return (initialize_fn, sample_fn, next_input_fn), (tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]))
+    return (initialize_fn, sample_fn, next_input_fn), (tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([])), (tf.bool, tf.int32, tf.int32)
 
 
 
@@ -212,21 +212,23 @@ class Seq2SeqModel(tf_util.Summary):
 
     @tf_util.define_scope("decode_op")
     def decode_op(self):
-        sample_helper_fn, sample_sample_output_shape = create_sample_helper_function(create_sample_fn(),
+        sample_helper_fn, sample_sample_output_shape, sample_sample_dtype = create_sample_helper_function(create_sample_fn(),
                                                                                      self.start_label_op,
                                                                                      self.end_token_id,
                                                                                      self.batch_size_op,
                                                                                      self.code_embedding_op,
                                                                                      self.word_embedding_layer_fn)
-        training_helper_fn, training_sample_output_shape = create_train_helper_function(create_sample_fn(),
+        training_helper_fn, training_sample_output_shape, training_sample_dtype= create_train_helper_function(create_sample_fn(),
                                                                                         self.output_length,
                                                                                         self.output_embedding_op,
                                                                                         self.batch_size_op)
         return rnn_util.create_decode(
             sample_helper_fn,
             sample_sample_output_shape,
+            sample_sample_dtype,
             training_helper_fn,
             training_sample_output_shape,
+            training_sample_dtype,
             self.decode_cell_op,
             self.result_initial_state_op,
             max_decode_iterator_num=self.max_decode_iterator_num
@@ -272,6 +274,7 @@ class Seq2SeqModel(tf_util.Summary):
         output_length, is_copy, keyword_id, copy_word_id = self.predict_op
         true_mask = tf.equal(output_length, self.output_length)
         new_maks_fn = lambda x, y: tf.logical_and(true_mask, tf.reduce_all(tf.equal(x, y), axis=1))
+        is_copy = tf.cast(is_copy, tf.int32)
         true_mask = new_maks_fn(is_copy, self.output_is_copy)
         true_mask = new_maks_fn(keyword_id, self.output_keyword_id)
         true_mask = new_maks_fn(copy_word_id, self.output_copy_word_id)

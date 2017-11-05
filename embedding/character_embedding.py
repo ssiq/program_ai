@@ -24,9 +24,11 @@ class CharacterEmbedding(object):
 
     def _create_embedding_matrix(self):
         with tf.variable_scope("character_embedding_op"):
-            return tf.Variable(np.random.randn(len(self.id_to_character_dict), self.embedding_shape),
-                                                name="embedding",
-                                                dtype=tf.float32)
+            m = tf.Variable(np.random.randn(len(self.id_to_character_dict), self.embedding_shape),
+                            name="embedding",
+                            dtype=tf.float32)
+            print("character_embedding_matrix:{}".format(m))
+            return m
 
     def parse_string(self, string_list):
         """

@@ -114,39 +114,41 @@ def create_decoder_initialize_fn(start_label, batch_size):
     return initialize_fn
 
 class BasicDecoder(seq2seq.BasicDecoder):
-    def __init__(self, cell, helper, initial_state, output_shape, output_layer=None):
+    def __init__(self, cell, helper, initial_state, sample_shape, sample_dtype, output_layer=None):
         super().__init__(cell, helper, initial_state, output_layer)
-        self._output_shape = output_shape
+        self._sample_shape = sample_shape
+        self._sample_dtype = sample_dtype
+        nest.assert_same_structure(self._sample_dtype, self._sample_shape, check_types=False)
 
     @property
     def output_size(self):
         return seq2seq.BasicDecoderOutput(
             rnn_output=self._rnn_output_size(),
-            sample_id=self._output_shape)
+            sample_id=self._sample_shape)
 
     @property
     def output_dtype(self):
         dtype = nest.flatten(self._initial_state)[0].dtype
         return seq2seq.BasicDecoderOutput(
-            nest.map_structure(lambda _: dtype, self._rnn_output_size()),
-            nest.map_structure(lambda _: tf.int32, self._output_shape))
-
+            nest.map_structure(lambda _: dtype, self._rnn_output_size()), self._sample_dtype)
 
 def create_decode(sample_helper_fn,
                   sample_sample_output_shape,
+                  sample_dtype,
                   training_helper_fn,
                   training_sample_output_shape,
+                  training_dtype,
                   decode_cell,
                   initial_state,
                   max_decode_iterator_num=None):
 
     training_helper = seq2seq.CustomHelper(*training_helper_fn)
     sample_helper = seq2seq.CustomHelper(*sample_helper_fn)
-    train_decoder = BasicDecoder(decode_cell, training_helper, initial_state, training_sample_output_shape)
+    train_decoder = BasicDecoder(decode_cell, training_helper, initial_state, training_sample_output_shape, training_dtype)
     train_decode = seq2seq.dynamic_decode(train_decoder, maximum_iterations=max_decode_iterator_num,
                                           swap_memory=True)
     # decode_cell.build()
-    sample_decoder = BasicDecoder(decode_cell, sample_helper, initial_state, sample_sample_output_shape)
+    sample_decoder = BasicDecoder(decode_cell, sample_helper, initial_state, sample_sample_output_shape, sample_dtype)
     print("decoder dtype:", sample_decoder.output_dtype)
     sample_decode = seq2seq.dynamic_decode(sample_decoder, maximum_iterations=max_decode_iterator_num,
                                            swap_memory=True)

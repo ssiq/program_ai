@@ -82,6 +82,8 @@ def create_model_train_fn(model_fn, model_parameters):
             experiment_name + '_model', util.format_dict_to_string(model_parameters)))
         for i, data in enumerate(train_data_iterator()):
             # print(len(*data))
+            for tt in data:
+                print(np.array(tt).shape)
             loss, accuracy, _ = model.train(*data)
             losses.append(loss)
             accuracies.append(accuracy)

@@ -67,7 +67,7 @@ class Vocabulary(object):
     def create_embedding_layer(self):
         with tf.variable_scope("word_embedding_op"):
             _tf_embedding = tf.Variable(name="embedding", initial_value=self._embedding_matrix,
-                                             dtype=tf.float32, trainable=False)
+                                        dtype=tf.float32, trainable=False)
         def embedding_layer(input_op):
             """
             :param input_op: a tensorflow tensor with shape [batch, max_length] and type tf.int32
@@ -75,6 +75,7 @@ class Vocabulary(object):
             """
             output = tf.nn.embedding_lookup(_tf_embedding, input_op)
             print("word embedding:{}".format(output))
+            print("word_embedding_matrix:{}".format(_tf_embedding))
             return output
 
         return embedding_layer
