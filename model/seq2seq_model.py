@@ -94,7 +94,7 @@ def create_sample_helper_function(sample_fn,
 
 
 
-class Seq2SeqModel(tf_util.Summary):
+class Seq2SeqModel(tf_util.BaseModel):
     def __init__(self,
                  word_embedding_layer_fn,
                  character_embedding_layer_fn,
@@ -139,9 +139,11 @@ class Seq2SeqModel(tf_util.Summary):
                                self.output_keyword_id,
                                self.output_copy_word_id]
 
-        self._add_summary_scalar("loss", self.loss_op)
-        self._add_summary_scalar("metrics", self.metrics_op)
-        self._merge_all()
+        loss_input_placeholder = tf.placeholder(tf.float32, shape=[], name="loss_input")
+        metrics_input_placeholder = tf.placeholder(tf.float32, shape=[], name="metrics_input")
+        tf_util.add_summary_scalar("loss", loss_input_placeholder)
+        tf_util.add_summary_scalar("metrics", metrics_input_placeholder)
+        self._summary_fn = tf_util.placeholder_summary_merge()
         tf_util.init_all_op(self)
         init = tf.global_variables_initializer()
         sess = tf_util.get_session()
@@ -154,7 +156,9 @@ class Seq2SeqModel(tf_util.Summary):
 
         self.metrics = tf_util.function( input_placeholders + output_placeholders, self.metrics_op)
         self.predict = tf_util.function(input_placeholders, self.predict_op)
-        self.summary = tf_util.function(input_placeholders + output_placeholders, self.summary_op)
+        self._loss_and_predict_fn = tf_util.function(input_placeholders + output_placeholders, [self.loss_op,
+                                                                                                self.predict_op])
+
 
     @tf_util.define_scope("batch_size")
     def batch_size_op(self):
@@ -312,3 +316,10 @@ class Seq2SeqModel(tf_util.Summary):
             res.append(true_mask)
 
         return np.mean(res)
+
+    def summary(self, *data):
+        input_data = data[0:4]
+        output_data = data[4:8]
+        loss, predict_result = self._loss_and_predict_fn(*data)
+        metrics = self.cal_metrics(output_data, predict_result)
+        return self._summary_fn({"loss": loss, "metrics": metrics})

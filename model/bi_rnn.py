@@ -161,7 +161,7 @@ def fill_out_of_length_sequence(length_of_x, output, fill_number):
 
 
 
-class BiRnnClassifyModel(common.tf_util.Summary):
+class BiRnnClassifyModel(common.tf_util.BaseModel):
     def __init__(self,
                  state_size,
                  action_number,
@@ -176,20 +176,20 @@ class BiRnnClassifyModel(common.tf_util.Summary):
         self.embedding_matrix = np.random.randn(character_number, 500)
         print("embedding_matrix.shape:{}".format(self.embedding_matrix.shape))
         common.tf_util.init_all_op(self)
-        self._add_summary_scalar("loss", self.loss_op)
-        self._add_summary_scalar("accuracy", self.accuracy_op)
-        self._add_summary_histogram("softmax", self.softmax_op[0, :])
-        self._add_summary_scalar("predict", self.predict_op[0])
-        self._add_summary_scalar("label", self._Y_label[0])
-        self._add_summary_scalar("predict_and_label_distance",
+        tf_util.add_summary_scalar("loss", self.loss_op)
+        tf_util.add_summary_scalar("accuracy", self.accuracy_op)
+        tf_util.add_summary_histogram("softmax", self.softmax_op[0, :])
+        tf_util.add_summary_scalar("predict", self.predict_op[0])
+        tf_util.add_summary_scalar("label", self._Y_label[0])
+        tf_util.add_summary_scalar("predict_and_label_distance",
                                  tf.abs(tf.cast(self.predict_op[0], tf.int32)-self._Y_label[0]))
-        self._merge_all()
+        summary_op = tf_util.merge_all()
         init_op = tf.global_variables_initializer()
         tf_util.get_session().run(init_op)
         setattr(self, "train", tf_util.function([self._X_label, self._Y_label], [self.loss_op, self.accuracy_op,
                                                                                  self.train_op]))
-        print("summary_op:{}".format(self.summary_op))
-        setattr(self, "summary", tf_util.function([self._X_label, self._Y_label], self.summary_op))
+        print("summary_op:{}".format(summary_op))
+        setattr(self, "summary", tf_util.function([self._X_label, self._Y_label], summary_op))
         setattr(self, "rnn", tf_util.function([self._X_label], self.rnn_op))
         setattr(self, "accuracy", tf_util.function([self._X_label, self._Y_label], self.accuracy_op))
 

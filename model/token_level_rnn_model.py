@@ -166,7 +166,7 @@ def create_train_next_input_fn(output_label, #a tuple (position, is_copy, key_wo
     return next_input_fn
 
 
-class TokenLevelRnnModel(tf_util.Summary):
+class TokenLevelRnnModel(tf_util.BaseModel):
     def __init__(self,
                  word_embedding_layer_fn,
                  character_embedding_layer_fn,

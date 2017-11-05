@@ -801,24 +801,9 @@ def get_shape(tensor: tf.Tensor) -> typing.List:
   return dims
 
 
-class Summary(object):
+class BaseModel(object):
     def __init__(self):
         self._global_step_variable = tf.Variable(0, trainable=False, dtype=tf.int32)
-        self._summary_scalar_op_list = []
-        self._summary_histogram_list = []
-
-    def _add_summary_scalar(self, name, tensor):
-        self._summary_scalar_op_list.append((name, tensor))
-
-    def _add_summary_histogram(self, name, tensor):
-        self._summary_histogram_list.append((name, tensor))
-
-    def _merge_all(self):
-        with tf.variable_scope("summary"):
-            list(itertools.starmap(tf.summary.scalar, self._summary_scalar_op_list))
-            list(itertools.starmap(tf.summary.histogram, self._summary_histogram_list))
-            _summary = tf.summary.merge_all()
-            setattr(self, 'summary_op', _summary)
 
     @property
     def global_step_variable(self):
@@ -827,6 +812,49 @@ class Summary(object):
     @property
     def global_step(self):
         return self._global_step_variable.eval(get_session())
+
+
+def _create_summary_function():
+    _summary_scalar_op_list = []
+    _summary_scalar_input_list = []
+    _summary_histogram_list = []
+    _summary_histogram_input_list = []
+
+    def _add_summary_(name, tensor, is_placeholder, op_list, input_list):
+        if is_placeholder:
+            op_list.append((name, tensor))
+        else:
+            input_list.append((name, tensor))
+
+    def _add_summary_scalar(name, tensor, is_placeholder=True):
+        _add_summary_(name, tensor, is_placeholder, _summary_scalar_op_list, _summary_scalar_input_list)
+
+    def _add_summary_histogram(name, tensor, is_placeholder=True):
+        _add_summary_(name, tensor, is_placeholder, _summary_histogram_list, _summary_histogram_input_list)
+
+    def _merge_op():
+        with tf.variable_scope("summary"):
+            _merge_op_summary = tf.summary.merge(list(itertools.starmap(tf.summary.scalar, _summary_scalar_op_list)) +
+                                                 list(itertools.starmap(tf.summary.histogram, _summary_histogram_list)))
+
+            return _merge_op_summary
+
+    def _merge_placeholder():
+        with tf.variable_scope("summary"):
+            _input = tf.placeholder(dtype=tf.string, name="summary_input")
+            _merge_input_summary = tf.summary.merge(
+                [_input] + list(itertools.starmap(tf.summary.scalar, _summary_scalar_input_list)) +
+                list(itertools.starmap(tf.summary.histogram, _summary_histogram_input_list)))
+            _input_dict = {
+                "summary_input": _input,
+            }
+            _input_dict.update(dict(_summary_scalar_input_list))
+            _input_dict.update(dict(_summary_histogram_input_list))
+            return function(_input_dict, _merge_input_summary, givens={"summary_input": ""})
+
+    return _add_summary_scalar, _add_summary_histogram, _merge_op, _merge_placeholder()
+
+add_summary_scalar, add_summary_histogram, merge_op, placeholder_summary_merge = _create_summary_function()
 
 
 def doublewrap(function):
