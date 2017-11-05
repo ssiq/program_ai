@@ -821,15 +821,15 @@ def _create_summary_function():
     _summary_histogram_input_list = []
 
     def _add_summary_(name, tensor, is_placeholder, op_list, input_list):
-        if is_placeholder:
+        if not is_placeholder:
             op_list.append((name, tensor))
         else:
             input_list.append((name, tensor))
 
-    def _add_summary_scalar(name, tensor, is_placeholder=True):
+    def _add_summary_scalar(name, tensor, is_placeholder=False):
         _add_summary_(name, tensor, is_placeholder, _summary_scalar_op_list, _summary_scalar_input_list)
 
-    def _add_summary_histogram(name, tensor, is_placeholder=True):
+    def _add_summary_histogram(name, tensor, is_placeholder=False):
         _add_summary_(name, tensor, is_placeholder, _summary_histogram_list, _summary_histogram_input_list)
 
     def _merge_op():
@@ -845,14 +845,13 @@ def _create_summary_function():
             _merge_input_summary = tf.summary.merge(
                 [_input] + list(itertools.starmap(tf.summary.scalar, _summary_scalar_input_list)) +
                 list(itertools.starmap(tf.summary.histogram, _summary_histogram_input_list)))
-            _input_dict = {
-                "summary_input": _input,
-            }
-            _input_dict.update(dict(_summary_scalar_input_list))
-            _input_dict.update(dict(_summary_histogram_input_list))
-            return function(_input_dict, _merge_input_summary, givens={"summary_input": ""})
+            f_i = function([_input] + list(itertools.starmap(lambda a, b: b, _summary_scalar_input_list)) + list(
+                itertools.starmap(lambda a, b: b, _summary_histogram_input_list)), _merge_input_summary, )
+            def f(*args, summary_input=""):
+                return f_i(summary_input, *args)
+            return f
 
-    return _add_summary_scalar, _add_summary_histogram, _merge_op, _merge_placeholder()
+    return _add_summary_scalar, _add_summary_histogram, _merge_op, _merge_placeholder
 
 add_summary_scalar, add_summary_histogram, merge_op, placeholder_summary_merge = _create_summary_function()
 

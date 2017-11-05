@@ -139,10 +139,10 @@ class Seq2SeqModel(tf_util.BaseModel):
                                self.output_keyword_id,
                                self.output_copy_word_id]
 
-        loss_input_placeholder = tf.placeholder(tf.float32, shape=[], name="loss_input")
-        metrics_input_placeholder = tf.placeholder(tf.float32, shape=[], name="metrics_input")
-        tf_util.add_summary_scalar("loss", loss_input_placeholder)
-        tf_util.add_summary_scalar("metrics", metrics_input_placeholder)
+        loss_input_placeholder = tf.placeholder(tf.float32, shape=[], name="loss")
+        metrics_input_placeholder = tf.placeholder(tf.float32, shape=[], name="metrics")
+        tf_util.add_summary_scalar("loss", loss_input_placeholder, is_placeholder=True)
+        tf_util.add_summary_scalar("metrics", metrics_input_placeholder, is_placeholder=True)
         self._summary_fn = tf_util.placeholder_summary_merge()
         tf_util.init_all_op(self)
         init = tf.global_variables_initializer()
@@ -322,4 +322,4 @@ class Seq2SeqModel(tf_util.BaseModel):
         output_data = data[4:8]
         loss, predict_result = self._loss_and_predict_fn(*data)
         metrics = self.cal_metrics(output_data, predict_result)
-        return self._summary_fn({"loss": loss, "metrics": metrics})
+        return self._summary_fn(loss, metrics)
