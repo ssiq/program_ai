@@ -107,7 +107,6 @@ def padded_code(batch_code):
     elif not isinstance(batch_code[0], list):
         return batch_code
     max_len = max(map(len, batch_code))
-    # print("max_len:{}".format(max_len))
     return list(map(lambda x:list(more_itertools.padded(x, fillvalue=-1, n=max_len)), batch_code))
 
 
@@ -157,6 +156,8 @@ def batch_holder(*data: typing.List, batch_size=32, epoches=10):
     """
     def iterator():
         def padded(x):
+            import copy
+            x = copy.deepcopy(x)
             if not isinstance(x, list):
                 return x
             elif isinstance(x[0], list):

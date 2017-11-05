@@ -16,6 +16,8 @@ def get_token_list(code):
                 'endif') != -1:
             return None
         tokens = list(GetTokens(code))
+        if len(tokens) >= 2000:
+            return None
         if None in tokens:
             return None
     except RuntimeError as e:
@@ -204,7 +206,7 @@ def parse_xy(df, keyword_voc, char_voc):
 
     # df['sign_id'] = df['actionsign'].map(keyword_voc.word_to_id)
     df['is_copy'] = df.apply(create_iscopy, axis=1, raw=True)
-    df['output_len'] = df['is_copy'].map(lambda x: len(x))
+    df['output_len'] = df['is_copy'].map(len)
 
     df['keyword_id'] = df.apply(find_keyword_id, axis=1, raw=True)
     df['copy_id'] = df.apply(find_copy_id, axis=1, raw=True)
@@ -223,13 +225,7 @@ def sample():
     return (train, test, vaild)
 
 
-def create_embedding(df):
-    df['parse_original_token_obj'] = df['originalcode'].map(get_token_list)
-    df = df[df['parse_original_token_obj'].map(lambda x: x is not None)].copy()
-
-    df['parse_original_token_name'] = df['parse_original_token_obj'].map(token_to_name_list)
-    df['parse_error_token_name'] = df.apply(create_error_token, axis=1, raw=True)
-
+def create_embedding():
     from code_data.constants import char_sign_dict
     key_val = load_vocabulary('keyword', embedding_size=300)
     char_voc = load_character_vocabulary('bigru', n_gram=1, embedding_shape=150, token_list=char_sign_dict.keys())
@@ -244,7 +240,7 @@ if __name__ == '__main__':
 
     train, test, vaild = sample()
 
-    key_val, char_voc = create_embedding(train)
+    key_val, char_voc = create_embedding()
 
     parse_xy_param = [key_val, char_voc]
 
