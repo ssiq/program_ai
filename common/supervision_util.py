@@ -83,7 +83,7 @@ def create_model_train_fn(model_fn, model_parameters):
         util.make_dir('checkpoints', '{}_{}'.format(
             experiment_name + '_model', util.format_dict_to_string(model_parameters)))
         for i, data in enumerate(train_data_iterator()):
-            loss, metrics, _ = model.train(*data)
+            loss, metrics, _ = model.train_model(*data)
             losses.append(loss)
             accuracies.append(metrics)
             if i % skip_steps == 0:
@@ -103,6 +103,6 @@ def create_model_train_fn(model_fn, model_parameters):
                     experiment_name + '_model', util.format_dict_to_string(model_parameters)),
                    model.global_step)
 
-        return np.mean([model.metrics(*p) for p in test_data_iterator()])
+        return np.mean([model.metrics_model(*p) for p in test_data_iterator()])
 
     return train_model
