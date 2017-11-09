@@ -1,5 +1,6 @@
 import itertools
 import typing
+import abc
 
 import numpy as np
 import tensorflow as tf  # pylint: ignore-module
@@ -802,8 +803,10 @@ def get_shape(tensor: tf.Tensor) -> typing.List:
   return dims
 
 
-class BaseModel(object):
-    def __init__(self):
+class BaseModel(abc.ABC):
+
+    def __init__(self, learning_rate):
+        self._learning_rate = learning_rate
         self._global_step_variable = tf.Variable(0, trainable=False, dtype=tf.int32)
 
     @property
@@ -813,6 +816,20 @@ class BaseModel(object):
     @property
     def global_step(self):
         return self._global_step_variable.eval(get_session())
+
+    @abc.abstractmethod
+    def loss_op(self):
+        pass
+
+    @define_scope(scope="train_op")
+    def train_op(self):
+        optimiizer = tf.train.AdamOptimizer(learning_rate=self._learning_rate)
+        return minimize_and_clip(optimizer=optimiizer,
+                                         objective=self.loss_op,
+                                         var_list=tf.trainable_variables(),
+                                         global_step=self.global_step_variable)
+
+
 
 
 def _create_summary_function():

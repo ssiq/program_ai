@@ -8,15 +8,15 @@ from common.tf_util import weight_multiply, get_shape, sequence_mask_with_length
 from common.util import is_sequence, sequence_sum
 
 
-def bi_rnn(cell, inputs, length_of_input):
+def bi_rnn(cell_fn, inputs, length_of_input):
     """
-    :param cell: a function to create the rnn cell object
+    :param cell_fn: a function to create the rnn cell object
     :param inputs: the input of [batch, time, dim]
     :param length_of_input: the length of the inputs [batch]
     :return: outputs, output_states
     """
-    cell_fw = cell()
-    cell_bw = cell()
+    cell_fw = cell_fn()
+    cell_bw = cell_fn()
     print("bi_rnn_inputs:{}, bi_rnn_length:{}".format(inputs, length_of_input))
     # initial_state_fw = cell_fw.zero_state(get_shape(inputs)[0], tf.float32)
     # initial_state_bw = cell_bw.zero_state(get_shape(inputs)[0], tf.float32)

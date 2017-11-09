@@ -107,7 +107,7 @@ class Seq2SeqModel(tf_util.BaseModel):
                  max_decode_iterator_num,
                  identifier_token,
                  ):
-        super().__init__()
+        super().__init__(learning_rate=learning_rate)
         self.word_embedding_layer_fn = word_embedding_layer_fn
         self.character_embedding_layer_fn = character_embedding_layer_fn
         self.hidden_state_size = hidden_size
@@ -257,14 +257,6 @@ class Seq2SeqModel(tf_util.BaseModel):
         loss += sparse_softmax_loss(self.output_keyword_id[:, 1:], key_word_logit)
         loss += sparse_softmax_loss(self.output_copy_word_id[:, 1:], copy_word_logit)
         return loss
-
-    @tf_util.define_scope("train_op")
-    def train_op(self):
-        optimiizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
-        return tf_util.minimize_and_clip(optimizer=optimiizer,
-                                         objective=self.loss_op,
-                                         var_list=tf.trainable_variables(),
-                                         global_step=self.global_step_variable)
 
     @tf_util.define_scope("predict_op")
     def predict_op(self):
