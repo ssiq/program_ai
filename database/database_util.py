@@ -1,110 +1,60 @@
 import sqlite3
-from code_data.constants import DATABASE_PATH, EPISODES, STEP_INFO, BACKUP_PATH
-import os
-import shutil
-import time
+
+from code_data.constants import local_db_path
+from database.sql_statment import sql_dict
 
 
-def initSubmit():
-    conn = sqlite3.connect(DATABASE_PATH)
-    checkExist(conn)
-    return conn
+def with_connect():
+    def wrapper(func):
+        def sub_wrapper(*args, **kwargs):
+            db_path = None
+            if len(args) > 0:
+                db_path = args[0]
+            if 'db_full_path' in kwargs.keys():
+                db_path = kwargs['db_full_path']
+            con = sqlite3.connect(db_path)
+            kwargs['con'] = con
+            res = func(*args, **kwargs)
+            con.close()
+            return res
+        return sub_wrapper
+    return wrapper
+
+@with_connect()
+def create_table(db_full_path, table_name, **kwargs):
+    assert 'con' in kwargs.keys()
+
+    sql = sql_dict[table_name]['create']
+    con = kwargs['con']
+    con.execute(sql)
+    con.commit()
+
+@with_connect()
+def insert_items(db_full_path, table_name, params, **kwargs):
+    assert 'con' in kwargs.keys()
+
+    sql = sql_dict[table_name]['insert_ignore']
+    con = kwargs['con']
+    con.executemany(sql, params)
+    con.commit()
 
 
-def close(conn):
-    conn.close()
+@with_connect()
+def find_ids_by_user_problem_id(db_full_path, table_name, ids, **kwargs):
+    assert 'con' in kwargs.keys()
+
+    sql = sql_dict[table_name]['find_ids_by_user_problem_id']
+    con = kwargs['con']
+    cur = con.cursor()
+    cur.execute(sql.format(",".join(ids)))
+    res = cur.fetchall()
+    return res
 
 
-def checkExist(conn):
-    com = '''CREATE TABLE IF NOT EXISTS '''+EPISODES+''' 
-    (episodeid TEXT primary key,
-    starttime TEXT, 
-    endtime TEXT, 
-    totalstep INTEGER default 0, 
-    totalreward FLOAT default 0, 
-    resolved INTEGER, 
-    codeid TEXT, 
-    originalcode TEXT,
-    endcode TEXT)'''
-    conn.execute(com)
-    conn.commit()
-
-    com = '''CREATE TABLE IF NOT EXISTS '''+STEP_INFO+''' 
-    (id INTEGER primary key AUTOINCREMENT,
-    episodeid TEXT, 
-    stepid TEXT, 
-    actionpos INTEGER,
-    actioncha TEXT,
-    reward FLOAT,
-    done INTEGER)'''
-    conn.execute(com)
-    conn.commit()
-
-
-def insertEpisodes(conn, episodeid, starttime, endtime, totalstep, totalreward, resolved, codeid, originalcode, endcode):
-#    if not conn:
-    conn = initSubmit()
-
-    originalcode = originalcode.replace("'", "''")
-    endcode = endcode.replace("'", "''")
-    cmd = "INSERT OR IGNORE INTO "+EPISODES+" (episodeid, starttime, endtime, totalstep, totalreward, resolved, codeid, originalcode, endcode) " \
-          "VALUES ('"+episodeid+"', '"+starttime+"', '"+endtime+"', "+totalstep+", "+totalreward+", "+resolved+", '"+codeid+"', '''"+originalcode+"''', '''"+endcode+"''')"
-    conn.execute(cmd)
-    conn.commit()
-    conn.close()
-
-
-def updateEpisodes(conn, episodeid, endtime, totalstep, totalreward, resolved, endcode):
-#    if not conn:
-    conn = initSubmit()
-    endcode = endcode.replace("'", "''")
-    cmd = "UPDATE "+EPISODES+" SET endtime = '"+endtime+"', totalstep = "+totalstep+", totalreward = "+totalreward+", resolved = "+resolved+", endcode = '''" + endcode + "''' WHERE episodeid = '" + episodeid + "' "
-    conn.execute(cmd)
-    conn.commit()
-    conn.close()
-
-
-def insertStepInfoMany(param):
-    conn = initSubmit()
-
-    cur = conn.cursor()
-    cmd = 'INSERT OR IGNORE INTO '+STEP_INFO+' (episodeid, stepid, actionpos, actioncha, reward, done)' \
-        'VALUES (?, ?, ?, ?, ?, ?) '
-    cur.executemany(cmd, param)
-    conn.commit()
-    conn.close()
-
-
-def find(conn, table_name, key, value):
-#    if not conn:
-    conn = initSubmit()
-
-    cmd = "SELECT * FROM "+table_name+" WHERE "+key+"='"+value+"' "
-    cur = conn.execute(cmd)
-    return cur.fetchall()
-
-def findIdExist(ids, table_name, key):
-    conn = initSubmit()
-
-    cur = conn.cursor()
-    idstr = ",".join(ids)
-    cmd = "SELECT "+key+" FROM "+ table_name+" WHERE "+key+" in ( "+ idstr + " )"
-    cur.execute(cmd)
-    return cur.fetchall()
-
-def runCommand(conn, cmd):
-    #if not conn:
-    conn = initSubmit()
-
-    return conn.execute(cmd)
-
-
-def backup():
-    if os.path.exists(DATABASE_PATH):
-        ti = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
-        back_dir = os.path.join(BACKUP_PATH, ti)
-        if not os.path.exists(back_dir):
-            os.makedirs(back_dir)
-        shutil.copyfile(DATABASE_PATH, os.path.join(back_dir, 'train.db'))
-        os.remove(DATABASE_PATH)
+if __name__ == '__main__':
+    from code_data.constants import FAKE_CODE_RECORDS
+    create_table(local_db_path, table_name=FAKE_CODE_RECORDS)
+    # res = ['a', 'b', 'c', 'd', 'e', 'f', 2, 'h', 'i']
+    # insert_items('db_path', table_name=FAKE_CODE_RECORDS, params=[res])
+    find_ids_by_user_problem_id(local_db_path, FAKE_CODE_RECORDS, ids=['1', '2'])
 

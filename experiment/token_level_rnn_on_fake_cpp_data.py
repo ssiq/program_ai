@@ -4,8 +4,9 @@ from common.code_tokenize import GetTokens
 from common.supervision_util import create_supervision_experiment
 from model.seq2seq_model import Seq2SeqModel
 from train.random_search import random_parameters_generator
-import logging
 
+MAX_TOKEN_LENGTH = 200
+MAX_ITERATOR_LEGNTH = 250
 
 def get_token_list(code):
     try:
@@ -14,7 +15,7 @@ def get_token_list(code):
                 'endif') != -1:
             return None
         tokens = list(GetTokens(code))
-        if len(tokens) >= 2000:
+        if len(tokens) >= MAX_TOKEN_LENGTH:
             return None
         if None in tokens:
             return None
@@ -213,6 +214,8 @@ def parse_xy(df, keyword_voc, char_voc):
     df['copy_id'] = df.apply(find_copy_id, axis=1, raw=True)
     df = df[df['copy_id'].map(lambda x: x is not None)].copy()
 
+    print('parse_xy_data_shape: {}'.format(df.shape))
+
     return df['parse_error_token_id'], df['parse_error_token_len'], df['parse_error_char_list'], df['parse_error_char_len'], df['output_len'], df['is_copy'], df['keyword_id'], df['copy_id']
 
 
@@ -228,8 +231,8 @@ def sample():
 
 def create_embedding():
     from code_data.constants import char_sign_dict
-    key_val = load_vocabulary('keyword', embedding_size=300)
-    char_voc = load_character_vocabulary('bigru', n_gram=1, embedding_shape=150, token_list=char_sign_dict.keys())
+    key_val = load_vocabulary('keyword', embedding_size=200)
+    char_voc = load_character_vocabulary('bigru', n_gram=1, embedding_shape=100, token_list=char_sign_dict.keys())
     return key_val, char_voc
 
 if __name__ == '__main__':
@@ -264,7 +267,7 @@ if __name__ == '__main__':
     #                         pass
     #     isPrint += 1
 
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='seq2seq', batch_size=16)
+    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='seq2seq', batch_size=8)
     param_generator = random_parameters_generator(random_param={"learning_rate": [-5, 0]},
                                                   choice_param={ },
                                                   constant_param={"hidden_size": 100,
@@ -272,7 +275,7 @@ if __name__ == '__main__':
                                                                   'keyword_number': len(key_val.word_id_map),
                                                                   'start_id': key_val.word_to_id(key_val.start_label),
                                                                   'end_token_id': key_val.word_to_id(key_val.end_label),
-                                                                  'max_decode_iterator_num': 2000,
+                                                                  'max_decode_iterator_num': MAX_ITERATOR_LEGNTH,
                                                                   'identifier_token': key_val.word_to_id(key_val.identifier_label),
                                                                   'word_embedding_layer_fn': key_val.create_embedding_layer,
                                                                   'character_embedding_layer_fn': char_voc.create_embedding_layer})

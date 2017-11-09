@@ -1,0 +1,1 @@
+INSERT OR IGNORE INTO fake_code_records (id, submit_id, problem_id, user_id, ac_code, code, error_count, error_character_maplist, action_character_list) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

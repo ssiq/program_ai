@@ -5,10 +5,12 @@ DATABASE_PATH = os.path.join(ROOT_PATH, 'data/train.db')
 BACKUP_PATH = os.path.join(ROOT_PATH, 'backup/')
 LOG_PATH = os.path.join(ROOT_PATH, 'logs/')
 CHECKPOINT_PATH = os.path.join(ROOT_PATH, 'checkpoint/')
+SQL_DIR_PATH = os.path.join(ROOT_PATH, 'database/sql/')
 EPISODES = 'episodes'
 STEP_INFO = 'step_info'
 FAKE_ERROR_CODE = 'fake_error_code'
 FAKE_ERROR_TOKEN_CODE = 'fake_error_token_code'
+FAKE_CODE_RECORDS = 'fake_code_records'
 
 spider_key_path = 'key/id_rsa_spider'
 remote_db_path = '/home/lf/DataCrawl/scrapy_OJ/release_data/scrapyOJ.db'
