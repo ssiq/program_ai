@@ -7,7 +7,7 @@ from code_data.constants import cpp_tmp_dir, cpp_tmp_filename, cpp_tmp_path, sig
 from code_data.read_data import read_cpp_error_code_list, read_less_cpp_code_list, read_length_cpp_code_list
 import math
 import time
-from database.database_util import insertEpisodes, insertStepInfoMany, backup
+from database.supervision_database import insertEpisodes, insertStepInfoMany, backup
 
 
 class CodeEnv(gym.Env):
