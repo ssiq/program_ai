@@ -42,6 +42,11 @@ def read_cpp_token_fake_data(conn: sqlite3.Connection) -> pd.DataFrame:
     fake_df = pd.read_sql('select * from {}'.format(FAKE_ERROR_TOKEN_CODE), conn)
     return fake_df
 
+def read_cpp_fake_records(conn: sqlite3.Connection) -> pd.DataFrame:
+    from code_data.constants import FAKE_CODE_RECORDS
+    records_df = pd.read_sql('select * from {} LIMIT 300000'.format(FAKE_CODE_RECORDS), conn)
+    return records_df
+
 def read_local_submit_data() -> pd.DataFrame:
     from code_data.constants import local_db_path
     import sqlite3
@@ -79,6 +84,12 @@ def read_code_list(filter_function: typing.Callable[[pd.DataFrame], pd.Series], 
         df = df[filter_function(df)].head(head)['code']
         df.to_pickle(path)
         return df
+
+def read_fake_code_records() -> pd.DataFrame:
+    from code_data.constants import local_db_path
+    import sqlite3
+    con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
+    return read_cpp_fake_records(con)
 
 @util.disk_cache(basename='cpp', directory=cache_data_path)
 def read_cpp_error_code_list() -> pd.DataFrame:
@@ -139,6 +150,16 @@ def read_cpp_fake_code_set() -> tuple:
 @util.disk_cache(basename='fake_cpp_token_code_set', directory=cache_data_path)
 def read_cpp_token_fake_code_set() -> pd.DataFrame:
     df = read_local_token_fake_data()
+    test = df.sample(10000, random_state=666)
+    df = df.drop(test.index)
+    vaild = df.sample(10000, random_state=888)
+    train = df.drop(vaild.index)
+    return (train, test, vaild)
+
+
+@util.disk_cache(basename='fake_code_records_set', directory=cache_data_path)
+def read_cpp_fake_code_records_set() -> pd.DataFrame:
+    df = read_fake_code_records()
     test = df.sample(10000, random_state=666)
     df = df.drop(test.index)
     vaild = df.sample(10000, random_state=888)

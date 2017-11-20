@@ -7,6 +7,7 @@ class WordMap(object):
         self._end_label = "<END>"
         self._start_label = "<START>"
         self._identifier_label = "<IDENTIFIER>"
+        self._placeholder_label = '<PLACEHOLDER>'
 
     @property
     def end_label(self):
@@ -20,12 +21,16 @@ class WordMap(object):
     def identifier_label(self):
         return self._identifier_label
 
+    @property
+    def placeholder_label(self):
+        return self._placeholder_label
+
 
 class KeyWordMap(WordMap):
     def __init__(self):
         from code_data.constants import pre_defined_cpp_token
         super().__init__()
-        self._keyword = pre_defined_cpp_token | {self._start_label, self._end_label, self._identifier_label}
+        self._keyword = pre_defined_cpp_token | {self._start_label, self._end_label, self._identifier_label, self._placeholder_label}
         self._keyword = sorted(self._keyword)
         self._keyword_to_id = dict(list(enumerate(self._keyword)))
         self._keyword_to_id = {value:key for key, value in self._keyword_to_id.items()}
