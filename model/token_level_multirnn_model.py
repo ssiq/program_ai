@@ -68,7 +68,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                  learning_rate,
                  max_decode_iterator_num,
                  identifier_token,
-                 placeholder_token,
+                 # placeholder_token,
                  ):
         super().__init__(learning_rate=learning_rate)
         self.word_embedding_layer_fn = word_embedding_layer_fn
@@ -79,7 +79,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         self.end_token_id = end_token_id
         self.max_decode_iterator_num = max_decode_iterator_num
         self.identifier_token = identifier_token
-        self.placeholder_token = placeholder_token
+        # self.placeholder_token = placeholder_token
         self.learning_rate = learning_rate
         self.token_input = tf.placeholder(dtype=tf.int32, shape=(None, None, None), name="token_input")
         self.token_input_length = tf.placeholder(dtype=tf.int32, shape=(None, None,), name="token_input_length")
@@ -92,17 +92,17 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         self.output_copy_word_id = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_copy_word_id")
 
         #the function
-        self.train = tf_util.function(
-            [self.token_input,
-             self.token_input_length,
-             self.character_input,
-             self.character_input_length,
-             self.output_length,
-             self.output_position_label,
-             self.output_is_copy,
-             self.output_keyword_id,
-             self.output_copy_word_id],
-            [self.loss_op, self.loss_op, self.train_op])
+        # self.train = tf_util.function(
+        #     [self.token_input,
+        #      self.token_input_length,
+        #      self.character_input,
+        #      self.character_input_length,
+        #      self.output_length,
+        #      self.output_position_label,
+        #      self.output_is_copy,
+        #      self.output_keyword_id,
+        #      self.output_copy_word_id],
+        #     [self.loss_op, self.loss_op, self.train_op])
 
     def _rnn_cell(self, hidden_size):
         return tf.nn.rnn_cell.GRUCell(hidden_size)
@@ -117,42 +117,46 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
     @tf_util.define_scope("word_embedding_op")
     def word_embedding_op(self):
-        input_shape = tf_util.get_shape(self.token_input)
-        input_op = tf.reshape(self.token_input, (-1, input_shape[2]))
-        input_embedding_op = self.word_embedding_layer_fn(input_op)
-        input_embedding_op = tf.reshape(input_embedding_op, (input_shape[0], input_shape[1], input_shape[2], -1))
+        # input_shape = tf_util.get_shape(self.token_input)
+        # input_op = tf.reshape(self.token_input, (-1, input_shape[2]))
+        input_embedding_op = self.word_embedding_layer_fn(self.token_input)
+        # input_embedding_op = tf.reshape(input_embedding_op, (
+        # input_shape[0], input_shape[1], input_shape[2], tf_util.get_shape(input_embedding_op[-1])))
         return input_embedding_op
 
     @tf_util.define_scope("character_embedding_op")
     def character_embedding_op(self):
-        input_shape = tf_util.get_shape(self.character_input)
-        input_length_shape = tf_util.get_shape(self.character_input_length)
-        input_op = tf.reshape(self.character_input, (-1, input_shape[2], input_shape[3]))
-        input_length_op = tf.reshape(self.character_input_length, (-1, input_length_shape[2]))
-        input_embedding_op = self.character_embedding_layer_fn(input_op, input_length_op)
-        input_embedding_op = tf.reshape(input_embedding_op, (input_shape[0], input_shape[1], input_shape[2], -1))
+        # input_shape = tf_util.get_shape(self.character_input)
+        # input_length_shape = tf_util.get_shape(self.character_input_length)
+        # input_op = tf.reshape(self.character_input, (-1, input_shape[2], input_shape[3]))
+        # input_length_op = tf.reshape(self.character_input_length, (-1, input_length_shape[2]))
+        input_embedding_op = self.character_embedding_layer_fn(self.character_input, self.character_input_length)
+        # input_embedding_op = tf.reshape(input_embedding_op, (input_shape[0], input_shape[1], input_shape[2], -1))
         return input_embedding_op
 
     @tf_util.define_scope("code_embedding_op")
     def code_embedding_op(self):
         token_embedding = self.word_embedding_op
         character_embedding = self.character_embedding_op
-        mask = tf.equal(self.token_input, self.identifier_token)
-        mask = tf.expand_dims(mask, axis=-1)
-        mask = tf.tile(mask, multiples=[1, 1, 1, tf_util.get_shape(token_embedding[3])])
-        return tf.where(mask, character_embedding, token_embedding)
+        # mask = tf.equal(self.token_input, self.identifier_token)
+        # mask = tf.expand_dims(mask, axis=-1)
+        # mask = tf.tile(mask, multiples=[1, 1, 1, tf_util.get_shape(token_embedding)[-1]])
+        # return tf.where(mask, character_embedding, token_embedding)
+        return code_util.code_embedding(token_embedding, character_embedding, self.token_input, self.identifier_token)
 
     @tf_util.define_scope("bi_gru_encode_op")
     def bi_gru_encode_op(self):
         code_embedding = self.code_embedding_op
         code_embedding_shape = tf_util.get_shape(code_embedding)
-        code_embedding = tf.reshape(code_embedding, (-1, code_embedding_shape[2], code_embedding[3]))
+        code_embedding = tf.reshape(code_embedding, (-1, code_embedding_shape[2], code_embedding_shape[3]))
         code_input_length = self.token_input_length
         code_input_length = tf.reshape(code_input_length, [-1])
         (encode_output_fw, encode_output_bw), _ = rnn_util.bi_rnn(lambda: self._multi_rnn_cell(self.hidden_state_size, self.rnn_layer_number),
                                         code_embedding, code_input_length)
-        encode_output_fw = tf.reshape(encode_output_fw, (code_embedding_shape[0], code_embedding_shape[1], code_embedding_shape[2], -1))
-        encode_output_bw = tf.reshape(encode_output_bw, (code_embedding_shape[0], code_embedding_shape[1], code_embedding_shape[2], -1))
+        encode_output_fw = tf.reshape(encode_output_fw, (
+        code_embedding_shape[0], code_embedding_shape[1], code_embedding_shape[2], self.hidden_state_size))
+        encode_output_bw = tf.reshape(encode_output_bw, (
+        code_embedding_shape[0], code_embedding_shape[1], code_embedding_shape[2], self.hidden_state_size))
         return encode_output_fw, encode_output_bw
 
     @tf_util.define_scope("position_embedding")
@@ -170,7 +174,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         output_bw = tf.reshape(output_bw, (-1, output_bw_shape[2], output_bw_shape[3]))
         output_fw_shape_tmp = tf_util.get_shape(output_fw)
         output_bw_shape_tmp = tf_util.get_shape(output_bw)
-        token_length = tf.reshape(token_length, (-1))
+        token_length = tf.reshape(token_length, (-1, ))
 
         output = tf.concat((output_fw, output_bw), axis=2)
         output_fw_in = tf.concat((output_fw, tf.zeros((output_fw_shape_tmp[0], 1, output_fw_shape_tmp[2]), dtype=tf.float32)), axis=1)
@@ -178,30 +182,35 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         output_in = tf.concat((output_bw_in, output_fw_in), axis=2)
         output = tf.concat((output, output_in[:, 1:, :]), axis=2)
         output = tf.reshape(output, (output_fw_shape_tmp[0], -1, output_fw_shape_tmp[2] * 2))
-        output = tf.concat((output_in[:, 0, :], output), axis=1)
+        output = tf.concat((output_in[:, :1, :], output), axis=1)
 
         output = tf_util.sequence_mask_with_length(output, token_length, score_mask_value=0)
-        output = tf.reshape(output, (output_fw_shape[0], output_fw_shape[1], -1, output_fw_shape[2]))
+        output = tf.reshape(output, (output_fw_shape[0], output_fw_shape[1], -1, output_fw_shape[-1]))
         return output
 
     @tf_util.define_scope("position_length")
     def position_length_op(self):
         return self.token_input_length * 2 + 1
 
+    @tf_util.define_scope("sequence_rnn_length_op")
     def sequence_rnn_length_op(self):
         token_input_length = self.token_input_length
-        token_input_length = tf.where(tf.greater(token_input_length, tf.constant(0, dtype=tf.float32)), tf.constant(1, dtype=tf.float32), tf.constant(0, dtype=tf.float32))
+        token_input_length = tf.where(tf.greater(token_input_length, tf.constant(0, dtype=tf.int32)),
+                                      tf.ones_like(token_input_length, dtype=tf.int32),
+                                      tf.zeros_like(token_input_length, dtype=tf.int32))
         token_input_length = tf.reduce_sum(token_input_length, axis=1)
         return token_input_length
 
+    @tf_util.define_scope("sequence_cell_op")
     def sequence_cell_op(self):
         return SequenceRNNCell(self._rnn_cell(self.hidden_state_size),
                                self.position_embedding_op,
                                self.position_length_op,
                                self.keyword_number)
 
+    @tf_util.define_scope("sequence_rnn_op")
     def sequence_rnn_op(self):
-        return rnn_util.rnn(self.sequence_cell_op, self.position_embedding_op, self.sequence_rnn_length_op)
+        return rnn_util.rnn(lambda: self.sequence_cell_op, self.position_embedding_op, self.sequence_rnn_length_op)
 
     @tf_util.define_scope("loss_op")
     def loss_op(self):

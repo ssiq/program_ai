@@ -221,6 +221,7 @@ def sequence_mask_with_length(score, sequence_length, score_mask_value = -1e8):
     score_mask = tf.sequence_mask(
         sequence_length, maxlen=get_shape(score)[1])
     score_mask_values = score_mask_value * tf.ones_like(score)
+    score_mask = expand_dims_and_tile(score_mask, [-1, ], [1, 1, get_shape(score)[-1]])
     return tf.where(score_mask, score, score_mask_values)
 
 
@@ -803,35 +804,6 @@ def get_shape(tensor: tf.Tensor) -> typing.List:
   return dims
 
 
-class BaseModel(abc.ABC):
-
-    def __init__(self, learning_rate):
-        self._learning_rate = learning_rate
-        self._global_step_variable = tf.Variable(0, trainable=False, dtype=tf.int32)
-
-    @property
-    def global_step_variable(self):
-        return self._global_step_variable
-
-    @property
-    def global_step(self):
-        return self._global_step_variable.eval(get_session())
-
-    @abc.abstractmethod
-    def loss_op(self):
-        pass
-
-    @define_scope(scope="train_op")
-    def train_op(self):
-        optimiizer = tf.train.AdamOptimizer(learning_rate=self._learning_rate)
-        return minimize_and_clip(optimizer=optimiizer,
-                                         objective=self.loss_op,
-                                         var_list=tf.trainable_variables(),
-                                         global_step=self.global_step_variable)
-
-
-
-
 def _create_summary_function():
     _summary_scalar_op_list = []
     _summary_scalar_input_list = []
@@ -980,7 +952,34 @@ def expand_dims_and_tile(tensor, add_dims, multiplies):
     :return:
     """
     for t in add_dims:
-        tensor = tf.expand_dims(t)
+        tensor = tf.expand_dims(tensor, axis=t)
 
     tensor = tf.tile(tensor, multiplies)
     return tensor
+
+
+class BaseModel(abc.ABC):
+
+    def __init__(self, learning_rate):
+        self._learning_rate = learning_rate
+        self._global_step_variable = tf.Variable(0, trainable=False, dtype=tf.int32)
+
+    @property
+    def global_step_variable(self):
+        return self._global_step_variable
+
+    @property
+    def global_step(self):
+        return self._global_step_variable.eval(get_session())
+
+    @abc.abstractmethod
+    def loss_op(self):
+        pass
+
+    @define_scope(scope="train_op")
+    def train_op(self):
+        optimiizer = tf.train.AdamOptimizer(learning_rate=self._learning_rate)
+        return minimize_and_clip(optimizer=optimiizer,
+                                         objective=self.loss_op,
+                                         var_list=tf.trainable_variables(),
+                                         global_step=self.global_step_variable)

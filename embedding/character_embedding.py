@@ -101,13 +101,13 @@ class AbstractRNNCharacterEmbedding(CharacterEmbedding):
     def create_embedding_layer(self):
         def embedding_layer(input_op, input_length_op):
             input_shape = tf_util.get_shape(input_op)
-            input_op = tf.reshape(input_op, (-1, input_shape[2]))
+            input_op = tf.reshape(input_op, (-1, input_shape[-1]))
             # length = tf_util.length(tf.one_hot(input_op, len(self.id_to_character_dict)))
             length = tf.reshape(input_length_op, (-1, ))
             length = tf.where(length==0, x=length, y=length+2)
             input_op = tf.nn.embedding_lookup(self._create_embedding_matrix(), input_op)
             output = self._rnn(input_op, length)
-            output = tf.reshape(output, (input_shape[0], input_shape[1], self.embedding_shape*2))
+            output = tf.reshape(output, tuple(input_shape[:-1]) + (self.embedding_shape*2, ))
             return output
         return embedding_layer
 
