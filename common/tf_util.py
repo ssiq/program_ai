@@ -221,7 +221,7 @@ def sequence_mask_with_length(score, sequence_length, score_mask_value = -1e8):
     score_mask = tf.sequence_mask(
         sequence_length, maxlen=get_shape(score)[1])
     score_mask_values = score_mask_value * tf.ones_like(score)
-    score_mask = expand_dims_and_tile(score_mask, [-1, ], [1, 1, get_shape(score)[-1]])
+    score_mask = expand_dims_and_tile(score_mask, [-1]*len(get_shape(score)[2:]), [1, 1,] + get_shape(score)[2:])
     return tf.where(score_mask, score, score_mask_values)
 
 

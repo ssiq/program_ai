@@ -8,11 +8,13 @@ from common.tf_util import weight_multiply, get_shape, sequence_mask_with_length
 from common.util import is_sequence, sequence_sum
 
 
-def bi_rnn(cell_fn, inputs, length_of_input):
+def bi_rnn(cell_fn, inputs, length_of_input, initial_state_fw=None, initial_state_bw=None):
     """
     :param cell_fn: a function to create the rnn cell object
     :param inputs: the input of [batch, time, dim]
     :param length_of_input: the length of the inputs [batch]
+    :param initial_state_fw:
+    :param initial_state_bw:
     :return: outputs, output_states
     """
     cell_fw = cell_fn()
@@ -24,6 +26,8 @@ def bi_rnn(cell_fn, inputs, length_of_input):
                                            cell_bw=cell_bw,
                                            inputs=inputs,
                                            sequence_length=length_of_input,
+                                           initial_state_fw=initial_state_fw,
+                                           initial_state_bw=initial_state_bw,
                                            dtype=tf.float32,
                                            swap_memory=True)
 
@@ -132,6 +136,9 @@ class BasicDecoder(seq2seq.BasicDecoder):
         return seq2seq.BasicDecoderOutput(
             nest.map_structure(lambda _: dtype, self._rnn_output_size()), self._sample_dtype)
 
+
+
+
 def create_decode(sample_helper_fn,
                   sample_sample_output_shape,
                   sample_dtype,
@@ -142,12 +149,10 @@ def create_decode(sample_helper_fn,
                   initial_state,
                   max_decode_iterator_num=None):
 
-    training_helper = seq2seq.CustomHelper(*training_helper_fn)
-    sample_helper = seq2seq.CustomHelper(*sample_helper_fn)
-    train_decoder = BasicDecoder(decode_cell, training_helper, initial_state, training_sample_output_shape, training_dtype)
-    train_decode = seq2seq.dynamic_decode(train_decoder, maximum_iterations=max_decode_iterator_num,
-                                          swap_memory=True)
+    train_decode = create_train_decode(training_helper_fn, training_sample_output_shape, training_dtype, decode_cell,
+                                       initial_state, max_decode_iterator_num)
     # decode_cell.build()
+    sample_helper = seq2seq.CustomHelper(*sample_helper_fn)
     sample_decoder = BasicDecoder(decode_cell, sample_helper, initial_state, sample_sample_output_shape, sample_dtype)
     print("decoder dtype:", sample_decoder.output_dtype)
     sample_decode = seq2seq.dynamic_decode(sample_decoder, maximum_iterations=max_decode_iterator_num,
@@ -155,7 +160,32 @@ def create_decode(sample_helper_fn,
     return train_decode, sample_decode
 
 
+def create_train_decode(training_helper_fn, training_sample_output_shape, training_dtype, decode_cell, initial_state,
+                        max_decode_iterator_num):
+    training_helper = seq2seq.CustomHelper(*training_helper_fn)
+    train_decoder = BasicDecoder(decode_cell, training_helper, initial_state, training_sample_output_shape,
+                                 training_dtype)
+    train_decode = seq2seq.dynamic_decode(train_decoder, maximum_iterations=max_decode_iterator_num,
+                                          swap_memory=True)
+    return train_decode
+
+
 def gather_sequence(param, indices):
+    """
+    :param param: a batch of sequence [..., time, dim]
+    :param indices: a index tensor [...] to difference batch along the time dimension
+    :return:
+    """
+
+    ori_param_shape = get_shape(param)
+    ori_indices_shape = get_shape(indices)
+    print("ori_param_shape:{}".format(ori_param_shape))
+    print("ori_indices_shape:{}".format(ori_indices_shape))
+    assert len(ori_param_shape[:-2]) == len(ori_indices_shape), "The param first n-2 dim should have the same dimensions with indices"
+
+    param = tf.reshape(param, (-1, ori_param_shape[-2], ori_param_shape[-1]))
+    indices = tf.reshape(indices, (-1, ))
+
     batch_size = get_shape(param)[0]
     batch_index = tf.range(0, batch_size, dtype=tf.int32)
     for _ in range(len(get_shape(indices))):
@@ -167,8 +197,12 @@ def gather_sequence(param, indices):
     batch_index = tf.tile(batch_index, indices_shape)
     # batch_index = tf.tile(batch_index, get_shape(indices))
 
-    return tf.gather_nd(param,
-                        tf.concat(
-                            (indices, batch_index),
-                            axis=-1)
-                        )
+
+    result = tf.gather_nd(param,
+                          tf.concat(
+                              (batch_index, indices),
+                              axis=-1)
+                          )
+
+    result = tf.reshape(result, ori_indices_shape + [ori_param_shape[-1], ])
+    return result
