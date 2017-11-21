@@ -66,6 +66,10 @@ class Vocabulary(object):
         return self.word_id_map.identifier_label
 
     @property
+    def placeholder_label(self):
+        return self.word_id_map.placeholder_label
+
+    @property
     def embedding_matrix(self):
         return self._embedding_matrix
 

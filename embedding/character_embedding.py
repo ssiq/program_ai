@@ -17,6 +17,7 @@ class CharacterEmbedding(object):
         self.BEGIN = "<BEGIN>"
         self.END = "<END>"
         self.preprocess_token = lambda x: more_itertools.windowed([self.BEGIN] + list(x) + [self.END], n_gram)
+        self.preprocess_token_without_label = lambda x: more_itertools.windowed(list(x), n_gram)
         token_set = set(more_itertools.flatten(map(lambda x: list(self.preprocess_token(x)) , token_set)))
         self.id_to_character_dict = dict(list(enumerate(start=0, iterable=token_set)))
         self.character_to_id_dict = util.reverse_dict(self.id_to_character_dict)
@@ -50,14 +51,17 @@ class CharacterEmbedding(object):
         string_list = [l+list(itertools.repeat(empty_token, times=max_text_len-len(l))) for l in string_list]
         return string_list
 
-    def parse_string_without_padding(self, string_list):
+    def parse_string_without_padding(self, string_list, position_label=False):
         '''
         parse string list to a char list
         :param string_list: a list of list of tokens
         :return: a list of list of list of characters of tokens
         '''
         def parse_token(token):
-            token = self.preprocess_token(token)
+            if position_label:
+                token = self.preprocess_token(token)
+            else:
+                token = self.preprocess_token_without_label(token)
             token = [self.character_to_id_dict[c] for c in token]
             return token
         # string_list = [[parse_token(token) for token in l] for l in string_list]
@@ -73,8 +77,9 @@ class CharacterEmbedding(object):
         for s in new_string_list:
             if s == None:
                 continue
-            s.insert(0, [self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
-            s.append([self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
+            if position_label:
+                s.insert(0, [self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
+                s.append([self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
         return new_string_list
 
     @abc.abstractmethod
