@@ -63,7 +63,8 @@ def parse_xy(df, keyword_voc, char_voc):
                         keywordid_list.append(0)
                         copyid_list.append(copy_pos)
                     else:
-                        continue
+                        one['res'] = None
+                        return one
             elif act_type == DELETE:
                 is_copy_list.append(0)
                 keywordid_list.append(keyword_voc.word_to_id(keyword_voc.placeholder_label))
@@ -91,7 +92,6 @@ def parse_xy(df, keyword_voc, char_voc):
                 one['res'] = None
                 return one
             char_id_list.append(id_list)
-            print(name_list)
             for i in range(len(id_list)):
                 id_l = id_list[i]
                 one_len.append(len(id_l))
@@ -254,8 +254,8 @@ if __name__ == '__main__':
     # res = parse_xy(train, *parse_xy_param)
     # print(len(res))
 
-    # test_data_iterator = util.batch_holder(*parse_xy(test, *parse_xy_param), batch_size=2)
-
+    # test_data_iterator = util.batch_holder(*parse_xy(test, *parse_xy_param), batch_size=8)
+    #
     # isPrint = 0
     # for i in test_data_iterator():
     #     if isPrint < 1:
