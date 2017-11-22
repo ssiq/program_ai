@@ -51,14 +51,14 @@ class CharacterEmbedding(object):
         string_list = [l+list(itertools.repeat(empty_token, times=max_text_len-len(l))) for l in string_list]
         return string_list
 
-    def parse_string_without_padding(self, string_list, position_label=False):
+    def parse_string_without_padding(self, string_list, token_position_label=True, character_position_label=True):
         '''
         parse string list to a char list
         :param string_list: a list of list of tokens
         :return: a list of list of list of characters of tokens
         '''
         def parse_token(token):
-            if position_label:
+            if character_position_label:
                 token = self.preprocess_token(token)
             else:
                 token = self.preprocess_token_without_label(token)
@@ -77,7 +77,7 @@ class CharacterEmbedding(object):
         for s in new_string_list:
             if s == None:
                 continue
-            if position_label:
+            if token_position_label:
                 s.insert(0, [self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
                 s.append([self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
         return new_string_list
