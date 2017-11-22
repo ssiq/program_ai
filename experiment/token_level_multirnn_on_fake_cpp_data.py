@@ -86,12 +86,14 @@ def parse_xy(df, keyword_voc, char_voc):
         len_list = []
         for name_list in token_name_list:
             one_len = []
-            id_list = char_voc.parse_string_without_padding([name_list], False)[0]
+            id_list = char_voc.parse_string_without_padding([name_list], True)[0]
             if id_list == None:
                 one['res'] = None
                 return one
             char_id_list.append(id_list)
-            for id_l in id_list:
+            print(name_list)
+            for i in range(len(id_list)):
+                id_l = id_list[i]
                 one_len.append(len(id_l))
             len_list.append(one_len)
 
