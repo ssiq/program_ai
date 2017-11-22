@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 from tensorflow.python.util import nest
 
 from common import tf_util, rnn_cell, rnn_util, code_util
@@ -95,12 +96,27 @@ def create_train_helper_function(sample_fn,
 
     def next_input_fn(time, outputs, state, sample_ids):
         """Returns `(finished, next_inputs, next_state)`."""
-        finished = tf.greater_equal(time+2, output_length)
-        next_inputs = memory[:, time + 1, :, :], \
-                      memory_length[:, time + 1], \
-                      position_embedding[:, time + 1, :,:], \
-                      position_length[:, time+1],\
-                      output_embedding[:, time + 1, :]
+        finished = tf.greater_equal(time+1, output_length)
+        def false_fn():
+            next_inputs = memory[:, time + 1, :, :], \
+                          memory_length[:, time + 1], \
+                          position_embedding[:, time + 1, :,:], \
+                          position_length[:, time+1],\
+                          output_embedding[:, time + 1, :]
+            return next_inputs
+
+        def true_fn():
+            next_inputs = tf.zeros_like(memory[:, 0, :, :]), \
+                          tf.zeros_like(memory_length[:, 0]), \
+                          tf.zeros_like(position_embedding[:, 0, :, :]), \
+                          tf.zeros_like(position_length[:, 0]), \
+                          tf.zeros_like(output_embedding[:, 0, :])
+            return next_inputs
+
+        next_inputs = tf.cond(tf.reduce_all(finished),
+                              true_fn=true_fn,
+                              false_fn=false_fn,
+                              strict=True)
         return finished, next_inputs, state
     return (initialize_fn, sample_fn, next_input_fn), \
            (tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([])), \
@@ -139,19 +155,48 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         self.output_is_copy = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_is_copy") #1 means using copy
         self.output_keyword_id = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_keyword_id")
         self.output_copy_word_id = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_copy_word_id")
+        self.predict_hidden_state = tf.placeholder(dtype=tf.float32, shape=(None, self.hidden_state_size),
+                                                   name="predict_hidden_state")
+        self.predict_input = tf.placeholder(dtype=tf.float32, shape=(None, tf_util.get_shape(self.start_label_op)[0]),
+                                            name="predict_input")
 
-        #the function
-        # self.train = tf_util.function(
-        #     [self.token_input,
-        #      self.token_input_length,
-        #      self.character_input,
-        #      self.character_input_length,
-        #      self.output_length,
-        #      self.output_position_label,
-        #      self.output_is_copy,
-        #      self.output_keyword_id,
-        #      self.output_copy_word_id],
-        #     [self.loss_op, self.loss_op, self.train_op])
+        #summary
+        loss_input_placeholder = tf.placeholder(tf.float32, shape=[], name="loss")
+        metrics_input_placeholder = tf.placeholder(tf.float32, shape=[], name="metrics")
+        tf_util.add_summary_scalar("loss", loss_input_placeholder, is_placeholder=True)
+        tf_util.add_summary_scalar("metrics", metrics_input_placeholder, is_placeholder=True)
+        self._summary_fn = tf_util.placeholder_summary_merge()
+
+        #graph init
+        tf_util.init_all_op(self)
+        sess = tf_util.get_session()
+        init = tf.global_variables_initializer()
+        sess.run(init)
+
+        # train the function
+        self.train = tf_util.function(
+            [self.token_input,
+             self.token_input_length,
+             self.character_input,
+             self.character_input_length,
+             self.output_length,
+             self.output_position_label,
+             self.output_is_copy,
+             self.output_keyword_id,
+             self.output_copy_word_id],
+            [self.loss_op, self.loss_op, self.train_op])
+
+        self._loss_fn = tf_util.function(
+            [self.token_input,
+             self.token_input_length,
+             self.character_input,
+             self.character_input_length,
+             self.output_length,
+             self.output_position_label,
+             self.output_is_copy,
+             self.output_keyword_id,
+             self.output_copy_word_id],
+            self.loss_op)
 
     def _rnn_cell(self, hidden_size):
         return tf.nn.rnn_cell.GRUCell(hidden_size)
@@ -295,6 +340,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
     def loss_op(self):
         output_logit, _, _ = self.decode_op
         output_logit, _ = output_logit
+        print("output_logit:{}".format(output_logit))
         position_logit, is_copy_logit, key_word_logit, copy_word_logit = output_logit
         loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
                                                        labels=tf.cast(self.output_is_copy, tf.float32)))
@@ -312,4 +358,32 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                                          var_list=tf.trainable_variables(),
                                          global_step=self.global_step_variable)
 
+    @tf_util.define_scope("one_predict")
+    def one_predict_op(self):
+        predict_cell_input = [
+            tf.concat(self.bi_gru_encode_op, axis=-1)[:, 0, :, :],
+            self.token_input_length[:, 0],
+            self.position_embedding_op[:, 0, :, :],
+            self.position_length_op[:, 0],
+            self.predict_input,
+        ]
+        output, next_state = self.decode_cell_op(predict_cell_input, self.predict_hidden_state)
+        pass
+
+    def train_model(self, *args):
+        print("train_model_input:")
+        for t in args:
+            print(np.array(t).shape)
+            # print("{}:{}".format(np.array(t).shape, np.array(t)))
+        # l1, l2, _ = self.train(*args)
+        # print(l1)
+        # return l1, l2, None
+        return self.train(*args)
+
+    def summary(self, *args):
+        loss = self._loss_fn(*args)
+        return self._summary_fn(loss, loss)
+
+    def metrics_model(self, *args):
+        return 0.0
 
