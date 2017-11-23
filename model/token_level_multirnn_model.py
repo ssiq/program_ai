@@ -22,6 +22,7 @@ class SequenceRNNCell(rnn_cell.RNNWrapper):
     @property
     def output_size(self):
         return tuple([
+            tf.TensorShape([]),
             tf.expand_dims(self._max_position_length, axis=0),
             tf.TensorShape([]),
             self._keyword_size,
@@ -43,6 +44,8 @@ class SequenceRNNCell(rnn_cell.RNNWrapper):
                                       dtype=tf.float32)
         cell_inputs = inputs * tf.sigmoid(tf.matmul(inputs, gate_weight))
         outputs, next_hidden_state = self._cell(cell_inputs, state)
+        # a scalar indicating whether the code has been corrupted
+        is_continue_logit = tf_util.weight_multiply("continue_weight", outputs, 1)[:, 0]
         #position_logit
         with tf.variable_scope("poistion_logit"):
             position_logit = rnn_util.soft_attention_logit(self._attention_size,
@@ -61,19 +64,20 @@ class SequenceRNNCell(rnn_cell.RNNWrapper):
         with tf.variable_scope("copy_word_logit"):
             copy_word_logit = rnn_util.soft_attention_logit(self._attention_size, replace_ouput, _memory, _memory_length)
 
-        return (position_logit, is_copy_logit, key_word_logit, copy_word_logit,), next_hidden_state
+        return (is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit,), next_hidden_state
 
 def create_sample_fn():
     def sample_fn(time, outputs, state):
         """Returns `sample_ids`."""
-        position_logit, is_copy_logit, key_word_logit, copy_word_logit = outputs
+        is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = outputs
+        is_continue = tf.greater(tf.nn.sigmoid(is_continue_logit), tf.constant(0.5, dtype=tf.float32))
         position_id = tf.cast(tf.argmax(position_logit, axis=1), tf.int32)
         is_copy = tf.greater(tf.nn.sigmoid(is_copy_logit), tf.constant(0.5, dtype=tf.float32))
         keyword_id =  tf.cast(tf.argmax(key_word_logit, axis=1), dtype=tf.int32)
         copy_word_id = tf.cast(tf.argmax(key_word_logit, axis=1), dtype=tf.int32)
         zeros_id = tf.zeros_like(keyword_id)
         keyword_id, copy_word_id = tf.where(is_copy, zeros_id, keyword_id), tf.where(is_copy, copy_word_id, zeros_id)
-        return position_id, is_copy, keyword_id, copy_word_id
+        return is_continue, position_id, is_copy, keyword_id, copy_word_id
     return sample_fn
 
 def create_train_helper_function(sample_fn,
@@ -85,8 +89,12 @@ def create_train_helper_function(sample_fn,
                                  output_embedding,
                                  start_label,
                                  batch_size):
+
+    output_length = tf.cast(output_length, tf.bool)
+
     def initialize_fn():
-        is_finished, start_batch = rnn_util.create_decoder_initialize_fn(start_label, batch_size)()
+        _, start_batch = rnn_util.create_decoder_initialize_fn(start_label, batch_size)()
+        is_finished = tf.logical_not(output_length[:, 0])
         return is_finished, \
                (memory[:, 0, :, :],
                memory_length[:, 0],
@@ -96,7 +104,7 @@ def create_train_helper_function(sample_fn,
 
     def next_input_fn(time, outputs, state, sample_ids):
         """Returns `(finished, next_inputs, next_state)`."""
-        finished = tf.greater_equal(time+1, output_length)
+        finished = tf.logical_not(output_length[:, time])
         def false_fn():
             next_inputs = memory[:, time + 1, :, :], \
                           memory_length[:, time + 1], \
@@ -119,8 +127,8 @@ def create_train_helper_function(sample_fn,
                               strict=True)
         return finished, next_inputs, state
     return (initialize_fn, sample_fn, next_input_fn), \
-           (tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([])), \
-           (tf.int32, tf.bool, tf.int32, tf.int32)
+           (tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([])), \
+           (tf.bool, tf.int32, tf.bool, tf.int32, tf.int32)
 
 class TokenLevelMultiRnnModel(tf_util.BaseModel):
     def __init__(self,
@@ -146,19 +154,25 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         self.identifier_token = identifier_token
         # self.placeholder_token = placeholder_token
         self.learning_rate = learning_rate
+        #input placeholder
         self.token_input = tf.placeholder(dtype=tf.int32, shape=(None, None, None), name="token_input")
         self.token_input_length = tf.placeholder(dtype=tf.int32, shape=(None, None,), name="token_input_length")
         self.character_input = tf.placeholder(dtype=tf.int32, shape=(None, None, None, None), name="character_input")
         self.character_input_length = tf.placeholder(dtype=tf.int32, shape=(None, None, None), name="character_input_length")
-        self.output_length = tf.placeholder(dtype=tf.int32, shape=(None, ), name="output_length")
+        #train output placeholder
+        self.output_is_continue = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_length")
         self.output_position_label = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_position")
         self.output_is_copy = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_is_copy") #1 means using copy
         self.output_keyword_id = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_keyword_id")
         self.output_copy_word_id = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_copy_word_id")
+        #predict hidden_state and input
         self.predict_hidden_state = tf.placeholder(dtype=tf.float32, shape=(None, self.hidden_state_size),
                                                    name="predict_hidden_state")
         self.predict_input = tf.placeholder(dtype=tf.float32, shape=(None, tf_util.get_shape(self.start_label_op)[0]),
                                             name="predict_input")
+        #create new input placeholder
+        self.position_embedding_placeholder = tf.placeholder(dtype=tf.float32, shape=(None, 1, None, None))
+        self.code_embedding_placeholder = tf.placeholder(dtype=tf.float32, shape=(None, 1, None, None))
 
         #summary
         loss_input_placeholder = tf.placeholder(tf.float32, shape=[], name="loss")
@@ -169,6 +183,9 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
         #graph init
         tf_util.init_all_op(self)
+        #create new input
+        new_input = self._create_output_embedding(self.code_embedding_placeholder,
+                                                  self.position_embedding_placeholder)
         sess = tf_util.get_session()
         init = tf.global_variables_initializer()
         sess.run(init)
@@ -179,7 +196,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
              self.token_input_length,
              self.character_input,
              self.character_input_length,
-             self.output_length,
+             self.output_is_continue,
              self.output_position_label,
              self.output_is_copy,
              self.output_keyword_id,
@@ -191,12 +208,39 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
              self.token_input_length,
              self.character_input,
              self.character_input_length,
-             self.output_length,
+             self.output_is_continue,
              self.output_position_label,
              self.output_is_copy,
              self.output_keyword_id,
              self.output_copy_word_id],
             self.loss_op)
+
+        self._one_predict_fn = tf_util.function(
+            [self.token_input,
+             self.token_input_length,
+             self.character_input,
+             self.character_input_length,
+             self.predict_hidden_state,
+             self.predict_input],
+            self.one_predict_op)
+
+        self._initial_state_and_initial_label_fn = tf_util.function(
+            [self.token_input,
+             self.token_input_length,
+             self.character_input,
+             self.character_input_length,],
+            [self.start_label_op, self.result_initial_state_op])
+
+        self._create_next_input_fn = tf_util.function(
+            [self.output_position_label,
+             self.output_is_copy,
+             self.output_keyword_id,
+             self.output_copy_word_id,
+             self.position_embedding_placeholder,
+             self.code_embedding_placeholder],
+            new_input
+        )
+
 
     def _rnn_cell(self, hidden_size):
         return tf.nn.rnn_cell.GRUCell(hidden_size)
@@ -288,8 +332,13 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
     @tf_util.define_scope("output_embedding")
     def output_embedding_op(self):
+        code_embedding = self.code_embedding_op
+        position_embedding = self.position_embedding_op
+        return self._create_output_embedding(code_embedding, position_embedding)
+
+    def _create_output_embedding(self, code_embedding, position_embedding):
         keyword_embedding = self.word_embedding_layer_fn(self.output_keyword_id)
-        copyword_embedding = rnn_util.gather_sequence(self.code_embedding_op, self.output_copy_word_id)
+        copyword_embedding = rnn_util.gather_sequence(code_embedding, self.output_copy_word_id)
         output_word_embedding = tf.where(
             tf_util.expand_dims_and_tile(tf.cast(self.output_is_copy, tf.bool),
                                          [-1],
@@ -297,7 +346,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             copyword_embedding,
             keyword_embedding
         )
-        position_embedding = rnn_util.gather_sequence(self.position_embedding_op, self.output_position_label)
+        position_embedding = rnn_util.gather_sequence(position_embedding, self.output_position_label)
         return tf.concat((position_embedding, output_word_embedding), axis=2)
 
     @tf_util.define_scope("decode_cell")
@@ -311,7 +360,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
     @tf_util.define_scope("start_label")
     def start_label_op(self):
-        return tf.zeros_like(self.output_embedding_op[0, 0, :])
+        return tf.zeros(tf_util.get_shape(self.position_embedding_op)[-1]+tf_util.get_shape(self.code_embedding_op)[-1])
 
     @tf_util.define_scope("result_initial_state")
     def result_initial_state_op(self):
@@ -325,7 +374,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                                                        self.token_input_length,
                                                        self.position_embedding_op,
                                                        self.position_length_op,
-                                                       self.output_length,
+                                                       self.output_is_continue,
                                                        self.output_embedding_op,
                                                        self.start_label_op,
                                                        self.batch_size_op)
@@ -341,8 +390,10 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         output_logit, _, _ = self.decode_op
         output_logit, _ = output_logit
         print("output_logit:{}".format(output_logit))
-        position_logit, is_copy_logit, key_word_logit, copy_word_logit = output_logit
-        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
+        is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output_logit
+        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=is_continue_logit,
+                                                                       labels=tf.cast(self.output_is_continue, tf.float32)))
+        loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
                                                        labels=tf.cast(self.output_is_copy, tf.float32)))
         sparse_softmax_loss = lambda x, y: tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y))
         loss += sparse_softmax_loss(self.output_position_label, position_logit)
@@ -358,18 +409,6 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                                          var_list=tf.trainable_variables(),
                                          global_step=self.global_step_variable)
 
-    @tf_util.define_scope("one_predict")
-    def one_predict_op(self):
-        predict_cell_input = [
-            tf.concat(self.bi_gru_encode_op, axis=-1)[:, 0, :, :],
-            self.token_input_length[:, 0],
-            self.position_embedding_op[:, 0, :, :],
-            self.position_length_op[:, 0],
-            self.predict_input,
-        ]
-        output, next_state = self.decode_cell_op(predict_cell_input, self.predict_hidden_state)
-        pass
-
     def train_model(self, *args):
         print("train_model_input:")
         for t in args:
@@ -380,9 +419,59 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         # return l1, l2, None
         return self.train(*args)
 
+    @tf_util.define_scope("one_predict")
+    def one_predict_op(self):
+        predict_cell_input = [
+            tf.concat(self.bi_gru_encode_op, axis=-1)[:, 0, :, :],
+            self.token_input_length[:, 0],
+            self.position_embedding_op[:, 0, :, :],
+            self.position_length_op[:, 0],
+            self.predict_input,
+        ]
+        output, next_state = self.decode_cell_op(predict_cell_input, self.predict_hidden_state)
+        is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output
+        output = (tf.nn.sigmoid(is_continue_logit),
+                  tf.nn.softmax(position_logit),
+                  tf.nn.sigmoid(is_copy_logit),
+                  tf.nn.softmax(key_word_logit),
+                  tf.nn.softmax(copy_word_logit))
+        return output, next_state, self.position_embedding_op, self.code_embedding_op
+
     def summary(self, *args):
         loss = self._loss_fn(*args)
         return self._summary_fn(loss, loss)
+
+    def _create_next_input(self, output, position_embedding, code_embedding):
+        _, position, is_copy, key_word, copy_word = output
+        return self._create_next_input_fn([position, is_copy, key_word, copy_word, position_embedding, code_embedding])
+
+    def _create_next_code(self, actions, token_input, token_input_length, charactere_input, character_input_length):
+        """
+        This function is used to create the new code based now action
+        :param actions:
+        :param token_input:
+        :param token_input_length:
+        :param charactere_input:
+        :param character_input_length:
+        :return:
+        TODO: fill this function
+        """
+        pass
+
+    def predict_model(self, *args):
+        token_input, token_input_length, charactere_input, character_input_length = args
+        start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
+        output, next_state, position_embedding, code_embedding \
+            = self._one_predict_fn(
+            token_input,
+            token_input_length,
+            charactere_input,
+            character_input_length,
+            start_label,
+            initial_state
+        )
+
+
 
     def metrics_model(self, *args):
         return 0.0
