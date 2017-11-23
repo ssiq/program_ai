@@ -149,6 +149,15 @@ def get_sign_list(code_string):
     assert len(code_string) == len(sign_list)
     return sign_list
 
+def padded(x):
+    import copy
+    x = copy.deepcopy(x)
+    if not isinstance(x, list):
+        return x
+    elif isinstance(x[0], list):
+        return padded_code_new(x)
+    else:
+        return x
 
 def batch_holder(*data: typing.List, batch_size=32, epoches=10):
     """
@@ -156,16 +165,6 @@ def batch_holder(*data: typing.List, batch_size=32, epoches=10):
     :return:
     """
     def iterator():
-        def padded(x):
-            import copy
-            x = copy.deepcopy(x)
-            if not isinstance(x, list):
-                return x
-            elif isinstance(x[0], list):
-                return padded_code_new(x)
-            else:
-                return x
-
 
         def one_epoch():
             i_data = sklearn.utils.shuffle(*data)

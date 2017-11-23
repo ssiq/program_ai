@@ -277,10 +277,21 @@ if __name__ == '__main__':
                                                                   'end_token_id': key_val.word_to_id(key_val.end_label),
                                                                   'max_decode_iterator_num': MAX_ITERATOR_LEGNTH,
                                                                   'identifier_token': key_val.word_to_id(key_val.identifier_label),
+                                                                  'placeholder_token': key_val.word_to_id(key_val.placeholder_label),
                                                                   'word_embedding_layer_fn': key_val.create_embedding_layer,
-                                                                  'character_embedding_layer_fn': char_voc.create_embedding_layer})
+                                                                  'character_embedding_layer_fn': char_voc.create_embedding_layer,
+                                                                  'id_to_word_fn': key_val.id_to_word,
+                                                                  'parse_token_fn': char_voc.parse_token})
 
     train_supervision(TokenLevelMultiRnnModel, param_generator)
+    # import tensorflow as tf
+    # with tf.Session():
+    #     for params in param_generator(1):
+    #         params['word_embedding_layer_fn'] = params['word_embedding_layer_fn']()
+    #         params['character_embedding_layer_fn'] = params['character_embedding_layer_fn']()
+    #         model = TokenLevelMultiRnnModel(**params)
+    #         for i, data in enumerate(test_data_iterator()):
+    #             model.metrics_model(*data)
 
 
 

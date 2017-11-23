@@ -32,8 +32,8 @@ class KeyWordMap(WordMap):
         super().__init__()
         self._keyword = pre_defined_cpp_token | {self._start_label, self._end_label, self._identifier_label, self._placeholder_label}
         self._keyword = sorted(self._keyword)
-        self._keyword_to_id = dict(list(enumerate(self._keyword)))
-        self._keyword_to_id = {value:key for key, value in self._keyword_to_id.items()}
+        self._id_to_keyword = dict(list(enumerate(self._keyword)))
+        self._keyword_to_id = {value:key for key, value in self._id_to_keyword.items()}
 
     def __len__(self):
         return len(self._keyword)
@@ -52,6 +52,12 @@ class Vocabulary(object):
 
     def word_to_id(self, word):
         return self.word_id_map[word]
+
+    def id_to_word(self, id):
+        if id in self.word_id_map._id_to_keyword:
+            return self.word_id_map._id_to_keyword[id]
+        else:
+            return None
 
     @property
     def start_label(self):

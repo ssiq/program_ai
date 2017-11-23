@@ -141,7 +141,9 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                  learning_rate,
                  max_decode_iterator_num,
                  identifier_token,
-                 # placeholder_token,
+                 placeholder_token,
+                 id_to_word_fn,
+                 parse_token_fn,
                  ):
         super().__init__(learning_rate=learning_rate)
         self.word_embedding_layer_fn = word_embedding_layer_fn
@@ -152,7 +154,9 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         self.end_token_id = end_token_id
         self.max_decode_iterator_num = max_decode_iterator_num
         self.identifier_token = identifier_token
-        # self.placeholder_token = placeholder_token
+        self.placeholder_token = placeholder_token
+        self.id_to_word = id_to_word_fn
+        self.parse_token = parse_token_fn
         self.learning_rate = learning_rate
         #input placeholder
         self.token_input = tf.placeholder(dtype=tf.int32, shape=(None, None, None), name="token_input")
@@ -410,14 +414,16 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                                          global_step=self.global_step_variable)
 
     def train_model(self, *args):
-        print("train_model_input:")
-        for t in args:
-            print(np.array(t).shape)
+        # print("train_model_input:")
+        # for t in args:
+        #     print(np.array(t).shape)
             # print("{}:{}".format(np.array(t).shape, np.array(t)))
         # l1, l2, _ = self.train(*args)
         # print(l1)
         # return l1, l2, None
-        return self.train(*args)
+        loss, _, train = self.train(*args)
+        metrics = self.metrics_model(*args)
+        return loss, metrics, train
 
     @tf_util.define_scope("one_predict")
     def one_predict_op(self):
@@ -445,34 +451,169 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         _, position, is_copy, key_word, copy_word = output
         return self._create_next_input_fn([position, is_copy, key_word, copy_word, position_embedding, code_embedding])
 
-    def _create_next_code(self, actions, token_input, token_input_length, charactere_input, character_input_length):
+    def _create_next_code(self, actions, token_input, token_input_length, character_input, character_input_length):
         """
         This function is used to create the new code based now action
         :param actions:
         :param token_input:
         :param token_input_length:
-        :param charactere_input:
+        :param character_input:
         :param character_input_length:
         :return:
         TODO: fill this function
         """
-        pass
+        is_continues, positions, is_copys, keyword_ids, copy_ids = actions
+        for i in range(len(token_input)):
+            position = positions[i]
+            is_copy = is_copys[i]
+            keyword_id = keyword_ids[i]
+            copy_id = copy_ids[i]
+            code_length = token_input_length[i][0]
+
+            if position % 2 == 1 and is_copy == 0 and keyword_id == self.placeholder_token:
+                # delete
+                position = int(position/2)
+                if position >= code_length:
+                    # action position error
+                    print('delete action position error', position, code_length)
+                    return None
+                token_input[i][0].pop(position)
+                token_input_length[i][0] -= 1
+                character_input[i][0].pop(position)
+                token_input_length[i][0].pop(position)
+            else:
+                if is_copy:
+                    if copy_id >= code_length:
+                        # copy position error
+                        print('copy position error', copy_id, code_length)
+                        return None
+                    word_token_id = token_input[i][0][copy_id]
+                    word_character_id = character_input[i][0][copy_id]
+                    word_character_length = character_input_length[i][0][copy_id]
+                else:
+                    word_token_id = keyword_id
+                    word = self.id_to_word(word_token_id)
+                    if word == None:
+                        # keyword id error
+                        print('keyword id error', keyword_id)
+                        return None
+                    word_character_id = self.parse_token(word, character_position_label=True)
+                    word_character_length = len(word_character_id)
+
+                if position % 2 == 0:
+                    # insert
+                    position = int(position / 2)
+                    if position > code_length:
+                        # action position error
+                        print('insert action position error', position, code_length)
+                        return None
+                    token_input[i][0].insert(position, word_token_id)
+                    token_input_length[i][0] += 1
+                    character_input[i][0].insert(position, word_character_id)
+                    character_input_length[i][0].insert(position, word_character_length)
+                elif position % 2 == 1:
+                    # change
+                    position = int(position/2)
+                    if position >= code_length:
+                        # action position error
+                        print('change action position error', position, code_length)
+                        return None
+                    token_input[i][0][position] = word_token_id
+                    character_input[i][0][position] = word_character_id
+                    character_input_length[i][0][position] = word_character_length
+
+        return token_input, token_input_length, character_input, character_input_length
 
     def predict_model(self, *args):
+        print('predict iterator start')
         token_input, token_input_length, charactere_input, character_input_length = args
         start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
-        output, next_state, position_embedding, code_embedding \
-            = self._one_predict_fn(
-            token_input,
-            token_input_length,
-            charactere_input,
-            character_input_length,
-            start_label,
-            initial_state
-        )
+        next_state = initial_state
 
+        start_labels = []
+        for i in range(len(initial_state)):
+            start_labels.append(start_label)
 
+        output_is_continues = np.array([[] for i in range(len(token_input))])
+        output_position = np.array([[] for i in range(len(token_input))])
+        output_is_copy = np.array([[] for i in range(len(token_input))])
+        output_keyword_id = np.array([[] for i in range(len(token_input))])
+        output_copy_id = np.array([[] for i in range(len(token_input))])
+
+        from common.util import padded
+
+        for i in range(self.max_decode_iterator_num):
+            output, next_state, position_embedding, code_embedding \
+                = self._one_predict_fn(
+                token_input,
+                token_input_length,
+                charactere_input,
+                character_input_length,
+                next_state,
+                start_labels
+            )
+            is_continue, position, is_copy, keyword_id, copy_id = output
+            is_continue = np.array(is_continue)
+            position = np.argmax(np.array(position), axis=1)
+            is_copy = np.array(is_copy)
+            keyword_id = np.argmax(np.array(keyword_id), axis=1)
+            copy_id = np.argmax(np.array(copy_id), axis=1)
+
+            output_is_continues = np.concatenate((output_is_continues, np.expand_dims(is_continue, axis=1)), axis=1)
+            output_position = np.concatenate((output_position, np.expand_dims(position, axis=1)), axis=1)
+            output_is_copy = np.concatenate((output_is_copy, np.expand_dims(is_copy, axis=1)), axis=1)
+            output_keyword_id = np.concatenate((output_keyword_id, np.expand_dims(keyword_id, axis=1)), axis=1)
+            output_copy_id = np.concatenate((output_copy_id, np.expand_dims(copy_id, axis=1)), axis=1)
+
+            if np.sum(is_continue) == 0:
+                break
+            actions = (is_continue, position, is_copy, keyword_id, copy_id)
+            token_input, token_input_length, charactere_input, character_input_length = self._create_next_code(actions, token_input, token_input_length, charactere_input, character_input_length)
+
+            token_input = padded(token_input)
+            token_input_length = padded(token_input_length)
+            charactere_input = padded(charactere_input)
+            character_input_length = padded(character_input_length)
+
+        return output_is_continues, output_position, output_is_copy, output_keyword_id, output_copy_id
 
     def metrics_model(self, *args):
-        return 0.0
+        input_data = args[0:4]
+        output_data = args[4:9]
+        predict_data = self.predict_model(*input_data)
+        metrics_value = self.cal_metrics(output_data, predict_data)
+        print('metrics_value: ', metrics_value)
+        return metrics_value
 
+    def cal_metrics(self, output_data, predict_data):
+        res_mask = []
+        predict_is_continue = predict_data[0]
+        for bat in predict_is_continue:
+            zero_item = np.argwhere(bat == 0)
+            if len(zero_item) == 0:
+                iter_len = self.max_decode_iterator_num
+            else:
+                iter_len = np.min(zero_item) + 1
+            res_mask.append([1] * iter_len + [0] * (self.max_decode_iterator_num-iter_len))
+        res_mask = np.array(res_mask)
+
+        true_mask = np.ones([len(output_data[0])])
+        for i in range(len(predict_data)):
+            true_mask = 0
+            output_idata = self.fill_output_data(np.array(output_data[i]), self.max_decode_iterator_num)
+            predict_idata = self.fill_output_data(np.array(predict_data[i]), self.max_decode_iterator_num)
+            predict_idata = np.where(res_mask, predict_idata, np.zeros_like(predict_idata))
+
+            res = np.equal(output_idata, predict_idata)
+            res = res.reshape([res.shape[0], -1])
+            res = np.all(res, axis=1)
+            true_mask = np.logical_and(true_mask, res)
+        return np.mean(true_mask)
+
+    def fill_output_data(self, output:np.ndarray, iter_len):
+        output_shape = list(output.shape)
+        if iter_len <= output_shape[-1]:
+            return output
+        output_shape[-1] = iter_len - output_shape[-1]
+        fill_array = np.zeros(output_shape)
+        return np.concatenate((output, fill_array), axis=(len(output_shape)-1))
