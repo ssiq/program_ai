@@ -74,11 +74,12 @@ def parse_xy(df, keyword_voc, char_voc):
         if len(position_list) == 0:
             one['res'] = None
             return one
-        one['output_length'] = len(position_list)
         one['position_list'] = position_list
         one['is_copy_list'] = is_copy_list
         one['keywordid_list'] = keywordid_list
         one['copyid_list'] = copyid_list
+
+        one['output_length'] = [1] * (len(position_list)-1) + [0]
         return one
 
     def create_character_id_input(one):
