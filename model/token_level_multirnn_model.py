@@ -93,8 +93,7 @@ def create_train_helper_function(sample_fn,
     output_length = tf.cast(output_length, tf.bool)
 
     def initialize_fn():
-        _, start_batch = rnn_util.create_decoder_initialize_fn(start_label, batch_size)()
-        is_finished = tf.logical_not(output_length[:, 0])
+        is_finished, start_batch = rnn_util.create_decoder_initialize_fn(start_label, batch_size)()
         return is_finished, \
                (memory[:, 0, :, :],
                memory_length[:, 0],
