@@ -449,6 +449,9 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         return output, next_state, self.position_embedding_op, self.code_embedding_op
 
     def summary(self, *args):
+        # print("summary_input:")
+        # for t in args:
+        #     print(np.array(t).shape)
         loss = self._loss_fn(*args)
         return self._summary_fn(loss, loss)
 

@@ -940,10 +940,12 @@ def variable_length_softmax(logit, in_length):
     logit = tf.reshape(logit, (-1, logit_shape[-1]))
     in_length = tf.reshape(in_length, (-1,))
     in_length = tf.cast(in_length, tf.int32)
-    logit = logit - tf.reduce_max(logit, axis=-1, keep_dims=True)
     mask = lengths_to_mask(in_length, get_shape(logit)[1])
     mask = tf.cast(mask, tf.float32)
-    softmax = tf.exp(logit) / tf.reduce_sum(tf.exp(logit)*mask, axis=-1, keep_dims=True)
+    logit = logit * mask
+    logit = logit - tf.reduce_max(logit, axis=-1, keep_dims=True)
+    exp_logit = tf.exp(logit)*mask
+    softmax = exp_logit / tf.reduce_sum(exp_logit, axis=-1, keep_dims=True)
     softmax = tf.reshape(softmax, logit_shape)
     return softmax
 
