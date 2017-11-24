@@ -156,7 +156,7 @@ def create_decode(sample_helper_fn,
     sample_decoder = BasicDecoder(decode_cell, sample_helper, initial_state, sample_sample_output_shape, sample_dtype)
     print("decoder dtype:", sample_decoder.output_dtype)
     sample_decode = seq2seq.dynamic_decode(sample_decoder, maximum_iterations=max_decode_iterator_num,
-                                           swap_memory=True)
+                                           swap_memory=True, impute_finished=True)
     return train_decode, sample_decode
 
 
@@ -166,7 +166,7 @@ def create_train_decode(training_helper_fn, training_sample_output_shape, traini
     train_decoder = BasicDecoder(decode_cell, training_helper, initial_state, training_sample_output_shape,
                                  training_dtype)
     train_decode = seq2seq.dynamic_decode(train_decoder, maximum_iterations=max_decode_iterator_num,
-                                          swap_memory=True)
+                                          swap_memory=True, impute_finished=True)
     return train_decode
 
 

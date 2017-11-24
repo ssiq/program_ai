@@ -395,11 +395,17 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         output_logit, _ = output_logit
         print("output_logit:{}".format(output_logit))
         is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output_logit
-        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=is_continue_logit,
-                                                                       labels=tf.cast(self.output_is_continue, tf.float32)))
-        loss += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
-                                                       labels=tf.cast(self.output_is_copy, tf.float32)))
-        sparse_softmax_loss = lambda x, y: tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y))
+        loss = tf.reduce_mean(
+            tf.multiply(tf.cast(self.output_is_continue, tf.float32), tf.nn.sigmoid_cross_entropy_with_logits(logits=is_continue_logit,
+                                                                                         labels=tf.cast(
+                                                                                             self.output_is_continue,
+                                                                                             tf.float32))))
+        loss += tf.reduce_mean(
+            tf.multiply(tf.cast(self.output_is_continue, tf.float32), tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
+                                                                                         labels=tf.cast(
+                                                                                             self.output_is_copy,
+                                                                                             tf.float32))))
+        sparse_softmax_loss = lambda x, y: tf.reduce_mean(tf.multiply(tf.cast(self.output_is_continue, tf.float32),tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y)))
         loss += sparse_softmax_loss(self.output_position_label, position_logit)
         loss += sparse_softmax_loss(self.output_keyword_id, key_word_logit)
         loss += sparse_softmax_loss(self.output_copy_word_id, copy_word_logit)
@@ -437,10 +443,10 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         output, next_state = self.decode_cell_op(predict_cell_input, self.predict_hidden_state)
         is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output
         output = (tf.nn.sigmoid(is_continue_logit),
-                  tf.nn.softmax(position_logit),
+                  tf_util.variable_length_softmax(position_logit, self.position_length_op[: ,0]),
                   tf.nn.sigmoid(is_copy_logit),
                   tf.nn.softmax(key_word_logit),
-                  tf.nn.softmax(copy_word_logit))
+                  tf_util.variable_length_softmax(copy_word_logit, self.token_input_length[:, 0]))
         return output, next_state, self.position_embedding_op, self.code_embedding_op
 
     def summary(self, *args):

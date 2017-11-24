@@ -932,14 +932,19 @@ def perplexity(logits: tf.Tensor, one_hot_labels: tf.Tensor):
 
 def variable_length_softmax(logit, in_length):
     """
-    :param logit: [batch, time, other]
+    :param logit: [batch, time]
     :param in_length: [batch]
     :return:
     """
+    logit_shape = get_shape(logit)
+    logit = tf.reshape(logit, (-1, logit_shape[-1]))
+    in_length = tf.reshape(in_length, (-1,))
     in_length = tf.cast(in_length, tf.int32)
+    logit = logit - tf.reduce_max(logit, axis=-1, keep_dims=True)
     mask = lengths_to_mask(in_length, get_shape(logit)[1])
     mask = tf.cast(mask, tf.float32)
     softmax = tf.exp(logit) / tf.reduce_sum(tf.exp(logit)*mask, axis=-1, keep_dims=True)
+    softmax = tf.reshape(softmax, logit_shape)
     return softmax
 
 def expand_dims_and_tile(tensor, add_dims, multiplies):

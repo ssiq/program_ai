@@ -283,7 +283,7 @@ if __name__ == '__main__':
                                                                   'id_to_word_fn': key_val.id_to_word,
                                                                   'parse_token_fn': char_voc.parse_token})
 
-    train_supervision(TokenLevelMultiRnnModel, param_generator)
+    train_supervision(TokenLevelMultiRnnModel, param_generator, 1)
     # import tensorflow as tf
     # with tf.Session():
     #     for params in param_generator(1):

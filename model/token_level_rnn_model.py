@@ -177,7 +177,7 @@ class TokenLevelRnnModel(tf_util.BaseModel):
                  learning_rate,
                  max_decode_iterator_num,
                  ):
-        super().__init__()
+        super().__init__(learning_rate)
         self.word_embedding_layer_fn = word_embedding_layer_fn
         self.character_embedding_layer_fn = character_embedding_layer_fn
         self.hidden_state_size = hidden_size
@@ -185,7 +185,6 @@ class TokenLevelRnnModel(tf_util.BaseModel):
         self.keyword_number = keyword_number
         self.end_token_id = end_token_id
         self.max_decode_iterator_num = max_decode_iterator_num
-        self.learning_rate = learning_rate
         self.token_input = tf.placeholder(dtype=tf.int32, shape=(None, None), name="token_input")
         self.token_input_length = tf.placeholder(dtype=tf.int32, shape=(None,), name="token_input_length")
         self.character_input = tf.placeholder(dtype=tf.int32, shape=(None, None, None), name="character_input")
@@ -312,7 +311,7 @@ class TokenLevelRnnModel(tf_util.BaseModel):
 
     @tf_util.define_scope("train_op")
     def train_op(self):
-        optimiizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+        optimiizer = tf.train.AdamOptimizer(learning_rate=self._learning_rate)
         return tf_util.minimize_and_clip(optimizer=optimiizer,
                                          objective=self.loss_op,
                                          var_list=tf.trainable_variables(),
