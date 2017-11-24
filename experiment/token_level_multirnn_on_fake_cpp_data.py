@@ -5,7 +5,7 @@ from common.supervision_util import create_supervision_experiment
 from model.token_level_multirnn_model import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
 
-MAX_TOKEN_LENGTH = 200
+MAX_TOKEN_LENGTH = 300
 
 def get_token_list(code):
     try:
@@ -239,8 +239,8 @@ if __name__ == '__main__':
     FILE_PATH = '/home/lf/Project/program_ai/log/test.log'
     util.initlogging(FILE_PATH)
     util.set_cuda_devices(1)
-    # train, test, vaild = read_cpp_fake_code_records_set()
-    # train = train.sample(200000)
+    train, test, vaild = read_cpp_fake_code_records_set()
+    # train = train.sample(300000)
 
     from embedding.wordembedding import load_vocabulary
     from embedding.character_embedding import load_character_vocabulary
@@ -248,7 +248,7 @@ if __name__ == '__main__':
     parse_xy_param = [key_val, char_voc]
 
     import numpy as np
-    train, test, vaild = sample()
+    # train, test, vaild = sample()
 
     # print(train)
 

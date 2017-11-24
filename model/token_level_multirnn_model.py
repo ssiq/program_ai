@@ -484,17 +484,17 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                 if position >= code_length:
                     # action position error
                     print('delete action position error', position, code_length)
-                    return None
+                    continue
                 token_input[i][0].pop(position)
                 token_input_length[i][0] -= 1
                 character_input[i][0].pop(position)
-                token_input_length[i][0].pop(position)
+                character_input_length[i][0].pop(position)
             else:
                 if is_copy:
                     if copy_id >= code_length:
                         # copy position error
                         print('copy position error', copy_id, code_length)
-                        return None
+                        continue
                     word_token_id = token_input[i][0][copy_id]
                     word_character_id = character_input[i][0][copy_id]
                     word_character_length = character_input_length[i][0][copy_id]
@@ -504,7 +504,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                     if word == None:
                         # keyword id error
                         print('keyword id error', keyword_id)
-                        return None
+                        continue
                     word_character_id = self.parse_token(word, character_position_label=True)
                     word_character_length = len(word_character_id)
 
@@ -514,7 +514,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                     if position > code_length:
                         # action position error
                         print('insert action position error', position, code_length)
-                        return None
+                        continue
                     token_input[i][0].insert(position, word_token_id)
                     token_input_length[i][0] += 1
                     character_input[i][0].insert(position, word_character_id)
@@ -525,7 +525,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                     if position >= code_length:
                         # action position error
                         print('change action position error', position, code_length)
-                        return None
+                        continue
                     token_input[i][0][position] = word_token_id
                     character_input[i][0][position] = word_character_id
                     character_input_length[i][0][position] = word_character_length
@@ -533,7 +533,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         return token_input, token_input_length, character_input, character_input_length
 
     def predict_model(self, *args):
-        print('predict iterator start')
+        # print('predict iterator start')
         token_input, token_input_length, charactere_input, character_input_length = args
         start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
         next_state = initial_state
@@ -586,11 +586,13 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         return output_is_continues, output_position, output_is_copy, output_keyword_id, output_copy_id
 
     def metrics_model(self, *args):
+        import copy
+        args = copy.deepcopy(args)
         input_data = args[0:4]
         output_data = args[4:9]
         predict_data = self.predict_model(*input_data)
         metrics_value = self.cal_metrics(output_data, predict_data)
-        print('metrics_value: ', metrics_value)
+        # print('metrics_value: ', metrics_value)
         return metrics_value
 
     def cal_metrics(self, output_data, predict_data):
