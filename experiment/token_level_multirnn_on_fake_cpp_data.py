@@ -4,6 +4,9 @@ from common.code_tokenize import GetTokens
 from common.supervision_util import create_supervision_experiment
 from model.token_level_multirnn_model import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
+from common.util import initCustomerLogger
+import logging
+from code_data.constants import DEBUG_LOG_PATH, OUTPUT_LOG_PATH, debug_logger_name_list, output_logger_name_list
 
 MAX_TOKEN_LENGTH = 300
 
@@ -236,8 +239,7 @@ def create_embedding():
     return key_val, char_voc
 
 if __name__ == '__main__':
-    FILE_PATH = '/home/lf/Project/program_ai/log/test.log'
-    util.initlogging(FILE_PATH)
+    util.initLogging()
     util.set_cuda_devices(1)
     train, test, vaild = read_cpp_fake_code_records_set()
     # train = train.sample(300000)

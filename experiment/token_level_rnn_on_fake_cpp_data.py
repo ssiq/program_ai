@@ -236,8 +236,7 @@ def create_embedding():
     return key_val, char_voc
 
 if __name__ == '__main__':
-    FILE_PATH = '/home/lf/Project/program_ai/log/seq2seq.log'
-    util.initlogging(FILE_PATH)
+    util.initLogging()
     util.set_cuda_devices(1)
     train, test, vaild = read_cpp_token_fake_code_set()
     # train = train.sample(200000)

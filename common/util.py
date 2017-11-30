@@ -192,9 +192,30 @@ def set_cuda_devices(deviceid:int=0):
     os.environ["CUDA_VISIBLE_DEVICES"] = str(deviceid)
 
 
-def initlogging(filepath, level=logging.INFO):
-    logging.basicConfig(filename=filepath, level=level, format='%(asctime)s [%(levelname)s] %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
+def initCustomerLogger(name, filepath, level=logging.INFO):
+    import time
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', '%Y-%m-%d %H:%M:%S')
+    if not os.path.exists(filepath):
+        os.makedirs(filepath)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(level=level)
+
+    name = name + time.strftime('_%Y-%m-%d %H:%M:%S.log',time.localtime(time.time()))
+    filepath = os.path.join(filepath, name)
+    fh = logging.FileHandler(filename=filepath)
+    fh.setLevel(level=level)
+    fh.setFormatter(formatter)
+
+    logger.addHandler(fh)
+
+
+def initLogging():
+    from code_data.constants import debug_logger_name_list, output_logger_name_list, DEBUG_LOG_PATH, OUTPUT_LOG_PATH
+    for name in debug_logger_name_list:
+        initCustomerLogger(name, DEBUG_LOG_PATH, level=logging.DEBUG)
+    for name in output_logger_name_list:
+        initCustomerLogger(name, OUTPUT_LOG_PATH, level=logging.INFO)
 
 
 # ================================================================
