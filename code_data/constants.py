@@ -15,9 +15,11 @@ FAKE_CODE_RECORDS = 'fake_code_records'
 LOG_DIR = os.path.join('.', 'log')
 DEBUG_LOG_PATH = os.path.join(LOG_DIR, 'debug')
 OUTPUT_LOG_PATH = os.path.join(LOG_DIR, 'output')
+DOT_PATH = os.path.join(LOG_DIR, 'dot')
+OBJECTLENGTH_PATH = os.path.join(LOG_DIR, 'objectlength')
 
-debug_logger_name_list = ['debug']
-output_logger_name_list = ['output']
+debug_logger_name_list = ['record', 'growth', 'objectlength']
+output_logger_name_list = []
 
 spider_key_path = 'key/id_rsa_spider'
 remote_db_path = '/home/lf/DataCrawl/scrapy_OJ/release_data/scrapyOJ.db'

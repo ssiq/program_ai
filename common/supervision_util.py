@@ -1,9 +1,11 @@
 import tensorflow as tf
 import numpy as np
+import gc
 
 from common import util
 from common import tf_util
 import logging
+from common.debug_tool import record_memory, show_growth, show_diff_length_fn
 
 
 def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_param, experiment_name='default', batch_size=32):
@@ -78,6 +80,13 @@ def create_model_train_fn(model_fn, model_parameters):
         save_steps = 1000
         skip_steps = 100
         print_skip_step = 100
+        debug_steps = 10
+
+        recordloggername = 'record'
+        growthloggername = 'growth'
+        objectlengthloggername = 'objectlength'
+        show_diff_length = show_diff_length_fn(recordloggername, objectlengthloggername)
+
         losses = []
         accuracies = []
         saver = tf.train.Saver()
@@ -102,6 +111,10 @@ def create_model_train_fn(model_fn, model_parameters):
                     saver.save(sess, 'checkpoints/{}_{}/bi_rnn'.format(
                         experiment_name + '_model', util.format_dict_to_string(model_parameters)),
                                model.global_step)
+                if i % debug_steps == 0:
+                    record_memory(recordloggername)
+                    show_growth(recordloggername, growthloggername)
+                    show_diff_length()
             except Exception as e:
                 import traceback
                 mess = traceback.format_exc()

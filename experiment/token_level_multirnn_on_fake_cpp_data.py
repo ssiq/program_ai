@@ -240,7 +240,7 @@ def create_embedding():
 
 if __name__ == '__main__':
     util.initLogging()
-    util.set_cuda_devices(1)
+    util.set_cuda_devices(0)
     train, test, vaild = read_cpp_fake_code_records_set()
     # train = train.sample(300000)
 
@@ -269,7 +269,7 @@ if __name__ == '__main__':
 
     MAX_ITERATOR_LEGNTH = 5
 
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=8)
+    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=32)
     param_generator = random_parameters_generator(random_param={"learning_rate": [-5, 0]},
                                                   choice_param={ },
                                                   constant_param={"hidden_size": 100,

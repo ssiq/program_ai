@@ -200,6 +200,7 @@ def initCustomerLogger(name, filepath, level=logging.INFO):
 
     logger = logging.getLogger(name)
     logger.setLevel(level=level)
+    logger.handlers
 
     name = name + time.strftime('_%Y-%m-%d %H:%M:%S.log',time.localtime(time.time()))
     filepath = os.path.join(filepath, name)
@@ -211,6 +212,12 @@ def initCustomerLogger(name, filepath, level=logging.INFO):
 
 
 def initLogging():
+    logging.basicConfig(filename='output.log', level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    root = logging.getLogger('')
+    print('root handlers len: ', len(root.handlers))
+    for hd in root.handlers:
+        root.removeHandler(hd)
+
     from code_data.constants import debug_logger_name_list, output_logger_name_list, DEBUG_LOG_PATH, OUTPUT_LOG_PATH
     for name in debug_logger_name_list:
         initCustomerLogger(name, DEBUG_LOG_PATH, level=logging.DEBUG)
