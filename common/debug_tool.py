@@ -1,6 +1,7 @@
 import os
 import logging
 import objgraph
+import gc
 _proc_status = '/proc/%d/status' % os.getpid()
 
 _scale = {'kB': 1024.0, 'mB': 1024.0*1024.0,
@@ -29,6 +30,7 @@ def _VmB(VmKey):
 def memory(since=0.0):
     '''Return memory usage in bytes.
     '''
+    gc.collect()
     return _VmB('VmSize:') - since
 
 
@@ -54,7 +56,6 @@ def show_growth(recordloggername:str, growthloggername:str, peak_stats={}, short
     def get_count(one):
         return one[1]['delta']
 
-    import gc
     growthlogger = logging.getLogger(growthloggername)
     recordlogger = logging.getLogger(recordloggername)
 
@@ -153,9 +154,11 @@ def show_diff_length_fn(recordloggername:str, lengthloggername:str):
             global_record[name] = i
 
     def show_diff_length(min_record_delta_length=100):
+        gc.collect()
         objs = objgraph.by_type(list.__name__)
         show_diff_len(objs, list_length, min_record_delta_length)
 
+        gc.collect()
         objs = objgraph.by_type(dict.__name__)
         show_diff_len(objs, dict_length)
 

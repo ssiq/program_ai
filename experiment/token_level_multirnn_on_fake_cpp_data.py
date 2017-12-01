@@ -269,7 +269,7 @@ if __name__ == '__main__':
 
     MAX_ITERATOR_LEGNTH = 5
 
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=32)
+    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
     param_generator = random_parameters_generator(random_param={"learning_rate": [-5, 0]},
                                                   choice_param={ },
                                                   constant_param={"hidden_size": 100,
