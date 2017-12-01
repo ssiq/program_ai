@@ -12,7 +12,7 @@ FAKE_ERROR_CODE = 'fake_error_code'
 FAKE_ERROR_TOKEN_CODE = 'fake_error_token_code'
 FAKE_CODE_RECORDS = 'fake_code_records'
 
-LOG_DIR = os.path.join(ROOT_PATH, 'log')
+LOG_DIR = os.path.join('.', 'log')
 DEBUG_LOG_PATH = os.path.join(LOG_DIR, 'debug')
 OUTPUT_LOG_PATH = os.path.join(LOG_DIR, 'output')
 
