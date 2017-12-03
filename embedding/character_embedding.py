@@ -79,8 +79,8 @@ class CharacterEmbedding(object):
             if s == None:
                 continue
             if token_position_label:
-                s.insert(0, [self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
-                s.append([self.character_to_id_dict[tuple([self.BEGIN])], self.character_to_id_dict[tuple([self.END])]])
+                s.insert(0, [self.character_to_id_dict[tuple([self.BEGIN])]])
+                s.append([self.character_to_id_dict[tuple([self.END])]])
         return new_string_list
 
     @abc.abstractmethod

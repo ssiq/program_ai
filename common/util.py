@@ -9,6 +9,8 @@ import pickle
 import errno
 import os
 import logging
+import hashlib
+import pandas as pd
 
 
 def make_dir(*path: str) -> None:
@@ -74,7 +76,7 @@ def disk_cache(basename, directory, method=False):
             # Don't use self or cls for the invalidation hash.
             if method and key:
                 key = key[1:]
-            filename = '{}-{}.pickle'.format(basename, hash(key))
+            filename = '{}-{}.pickle'.format(basename, data_hash(key))
             filepath = os.path.join(directory, filename)
             if os.path.isfile(filepath):
                 with open(filepath, 'rb') as handle:
@@ -86,6 +88,49 @@ def disk_cache(basename, directory, method=False):
         return wrapped
 
     return wrapper
+
+
+def data_hash(key):
+
+    def hash_value(hash_item):
+        v = 0
+        try:
+            v = int(hashlib.md5(str(hash_item).encode('utf-8')).hexdigest(), 16)
+        except Exception as e:
+            print('error occur while hash item {} '.format(type(hash_item)))
+        return v
+
+    hash_val = 0
+    key = list(more_itertools.flatten(key))
+    for item in key:
+        if isinstance(item, pd.DataFrame):
+            serlist = [item.itertuples(index=False, name=None)]
+            serlist = list(more_itertools.collapse(serlist))
+            for ser in serlist:
+                val = hash_value(ser)
+                hash_val += val
+        elif isinstance(item, pd.Series):
+            serlist = item.tolist()
+            serlist = list(more_itertools.collapse(serlist))
+            for ser in serlist:
+                val = hash_value(ser)
+                hash_val += val
+        elif isinstance(item, int) or isinstance(item, float) or isinstance(item, str):
+            val = hash_value(item)
+            hash_val += val
+        elif isinstance(item, list) or isinstance(item, set):
+            serlist = list(more_itertools.collapse(item))
+            for ser in serlist:
+                val = hash_value(ser)
+                hash_val += val
+        elif isinstance(item, dict):
+            serlist = list(more_itertools.collapse(item.items()))
+            for ser in serlist:
+                val = hash_value(ser)
+                hash_val += val
+        else:
+            print('type {} cant be hashed.'.format(type(item)))
+    return str(hash_val)
 
 
 def overwrite_graph(function):

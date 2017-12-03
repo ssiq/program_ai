@@ -5,6 +5,7 @@ from common.supervision_util import create_supervision_experiment
 from model.token_level_multirnn_model import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
 from code_data.constants import cache_data_path
+import more_itertools
 from common.util import initCustomerLogger
 import logging
 from code_data.constants import DEBUG_LOG_PATH, OUTPUT_LOG_PATH, debug_logger_name_list, output_logger_name_list
@@ -28,6 +29,7 @@ def get_token_list(code):
     return tokens
 
 
+@util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
 def parse_xy(df, keyword_voc, char_voc):
 
     def create_full_output(one):
@@ -75,7 +77,7 @@ def parse_xy(df, keyword_voc, char_voc):
                 copyid_list.append(0)
             position_list.append(act_pos)
 
-        if len(position_list) == 0:
+        if len(position_list) == 0 or len(position_list) > 1:
             one['res'] = None
             return one
         one['position_list'] = position_list
@@ -101,6 +103,13 @@ def parse_xy(df, keyword_voc, char_voc):
                 id_l = id_list[i]
                 one_len.append(len(id_l))
             len_list.append(one_len)
+
+        char_col = list(more_itertools.collapse(char_id_list, levels=1))
+        for tok in char_col:
+            if len(tok) > 30:
+                print('character len is {}. more than 30'.format(len(tok)))
+                one['res'] = None
+                return one
 
         one['character_id_list'] = char_id_list
         one['character_length_list'] = len_list
@@ -243,18 +252,19 @@ def create_embedding():
 if __name__ == '__main__':
     util.initLogging()
     util.set_cuda_devices(0)
-    # train, test, vaild = read_cpp_fake_code_records_set()
+    train, test, vaild = read_cpp_fake_code_records_set()
     # train = train.sample(300000)
 
     key_val, char_voc = create_embedding()
     parse_xy_param = [key_val, char_voc]
 
     import numpy as np
-    train, test, vaild = sample()
+    # train, test, vaild = sample()
 
     # print(train)
 
     res = parse_xy(train, *parse_xy_param)
+    # print(res)
     # print(len(res))
 
     # test_data_iterator = util.batch_holder(*parse_xy(test, *parse_xy_param), batch_size=8)
