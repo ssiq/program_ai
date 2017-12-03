@@ -21,6 +21,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
     '''
 
     def train_supervision(model_fn, param_generator, generator_times=6):
+        print('create supervision data start')
         best_parameter = None
         best_accuracy = None
         for model_parm in param_generator(generator_times):
@@ -28,11 +29,15 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
             model_parm['word_embedding_layer_fn'] = model_parm['word_embedding_layer_fn']()
             model_parm['character_embedding_layer_fn'] = model_parm['character_embedding_layer_fn']()
 
+            print('create train model')
             train_model_fn = create_model_train_fn(model_fn, model_parm)
+            print('create train model finish')
             config = tf.ConfigProto()
             config.gpu_options.allow_growth = True
             with tf.Session(config=config):
+                print('in tf.session')
                 with tf_util.summary_scope():
+                    print('train model')
                     accuracy = train_model_fn(train_batch_iterator, validation_data_iterator, test_data_iterator, experiment_name)
                 if best_accuracy is None:
                     best_accuracy = accuracy
@@ -44,6 +49,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
 
         print("best accuracy:{}, best parameter:{}".format(best_accuracy, best_parameter))
 
+    print('create supervision experiment.')
     train_batch_iterator = util.batch_holder(*parse_xy_fn(train, *parse_xy_param), batch_size=batch_size)
     validation_data_iterator = util.batch_holder(*parse_xy_fn(vaild, *parse_xy_param), batch_size=batch_size)
     test_data_iterator = util.batch_holder(*parse_xy_fn(test, *parse_xy_param), batch_size=batch_size, epoches=1)
@@ -95,6 +101,7 @@ def create_model_train_fn(model_fn, model_parameters):
             experiment_name + '_model', util.format_dict_to_string(model_parameters)))
         for i, data in enumerate(train_data_iterator()):
             try:
+                # log_data_shape(*data, recordloggername=recordloggername)
                 loss, metrics, _ = model.train_model(*data)
                 losses.append(loss)
                 accuracies.append(metrics)
@@ -114,7 +121,7 @@ def create_model_train_fn(model_fn, model_parameters):
                 if i % debug_steps == 0:
                     record_memory(recordloggername)
                     show_growth(recordloggername, growthloggername)
-                    show_diff_length()
+                    show_diff_length(i=i)
             except Exception as e:
                 import traceback
                 mess = traceback.format_exc()
@@ -127,3 +134,11 @@ def create_model_train_fn(model_fn, model_parameters):
         return np.mean([model.metrics_model(*p) for p in test_data_iterator()])
 
     return train_model
+
+
+def log_data_shape(*data, recordloggername):
+    import logging
+    logger = logging.getLogger(recordloggername)
+    for d in data:
+        arr = np.array(d)
+        logger.debug('data shape: {}'.format(arr.shape))

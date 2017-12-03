@@ -105,7 +105,7 @@ def show_diff_length_fn(recordloggername:str, lengthloggername:str):
     def get_delta(one):
         return one[1]['delta']
 
-    def show_diff_len(objs, global_record:dict, min_record_delta_length=100):
+    def show_diff_len(objs, global_record:dict, min_record_delta_length=100, i=0):
         type_name = type(objs[0]).__name__
         recordlogger.debug('record {} delta count in {}.'.format(type_name, filename))
 
@@ -120,17 +120,18 @@ def show_diff_length_fn(recordloggername:str, lengthloggername:str):
                 old = global_record[address]['count']
                 delta = len(obj) - old
                 tmp['delta'] = delta
-                if delta > 0:
+                if delta > 0 and i != 0:
                     cur_add_length[address] = tmp
-                if delta > min_record_delta_length:
-                    dot_path = record_obj_ref(obj)
-                    recordlogger.debug(
-                        'record {} object {} in dot path {} . object length : {}. object delta length : {}'.format(type_name,
-                                                                                                                   address, dot_path, len(obj), delta))
+                if delta > min_record_delta_length and i != 0:
+                    dot_path, obj_len = record_obj_ref(obj)
+                    if obj_len > 1:
+                        recordlogger.debug(
+                            'record {} object {} in dot path {} . path items length: {}. object length : {}. object delta length : {}'.format(type_name,
+                                                                                                                       address, dot_path, obj_len, len(obj), delta))
             else:
                 delta = len(obj)
                 tmp['delta'] = delta
-                if delta > 0:
+                if delta > 0 and i != 0:
                     cur_add_length[address] = tmp
             cur_list_length[address] = tmp
         cur_add_length = sorted(cur_add_length.items(), key=get_delta, reverse=True)
@@ -141,7 +142,7 @@ def show_diff_length_fn(recordloggername:str, lengthloggername:str):
         import time
         if not os.path.exists(OBJECTLENGTH_PATH):
             os.makedirs(OBJECTLENGTH_PATH)
-        str_time = time.strftime('_%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        str_time = time.strftime('_%Y-%m-%d %H-%M-%S', time.localtime(time.time()))
         name = '{}_{}_{}.log'.format(type_name, 'objectlength', str_time)
         ol_filepath = os.path.join(OBJECTLENGTH_PATH, name)
         ol_file = open(ol_filepath, 'w')
@@ -153,14 +154,15 @@ def show_diff_length_fn(recordloggername:str, lengthloggername:str):
         for name, i in cur_list_length.items():
             global_record[name] = i
 
-    def show_diff_length(min_record_delta_length=100):
+    def show_diff_length(min_record_delta_length=100, i=0):
         gc.collect()
         objs = objgraph.by_type(list.__name__)
-        show_diff_len(objs, list_length, min_record_delta_length)
+        show_diff_len(objs, list_length, min_record_delta_length, i)
 
         gc.collect()
         objs = objgraph.by_type(dict.__name__)
-        show_diff_len(objs, dict_length)
+        show_diff_len(objs, dict_length, i)
+        gc.collect()
 
     return show_diff_length
 
@@ -170,12 +172,14 @@ def record_obj_ref(obj):
     import time
     from code_data.constants import DOT_PATH
     address = hex(id(obj))
-    str_time = time.strftime('_%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+    str_time = time.strftime('_%Y-%m-%d %H-%M-%S', time.localtime(time.time()))
     name = '{}_{}.dot'.format(address, str_time)
     if not os.path.exists(os.path.abspath(DOT_PATH)):
         os.makedirs(DOT_PATH)
     file_path = os.path.join(DOT_PATH, name)
-    objgraph.show_chain(objgraph.find_backref_chain(obj, objgraph.is_proper_module, max_depth=20), filename=file_path)
-    return file_path
+    objs = objgraph.find_backref_chain(obj, objgraph.is_proper_module, max_depth=20)
+    if len(objs) > 1:
+        objgraph.show_chain(objs, filename=file_path)
+    return file_path, len(objs)
 
 

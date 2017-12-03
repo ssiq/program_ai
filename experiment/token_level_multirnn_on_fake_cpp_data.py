@@ -4,6 +4,7 @@ from common.code_tokenize import GetTokens
 from common.supervision_util import create_supervision_experiment
 from model.token_level_multirnn_model import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
+from code_data.constants import cache_data_path
 from common.util import initCustomerLogger
 import logging
 from code_data.constants import DEBUG_LOG_PATH, OUTPUT_LOG_PATH, debug_logger_name_list, output_logger_name_list
@@ -222,18 +223,19 @@ def parse_xy(df, keyword_voc, char_voc):
     return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
 
 
-from code_data.constants import cache_data_path
-@util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_sample', directory=cache_data_path)
+@util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_sample_5000', directory=cache_data_path)
 def sample():
     train, test, vaild = read_cpp_fake_code_records_set()
-    train = train.sample(100, random_state=1)
-    test = test.sample(100, random_state=1)
-    vaild = vaild.sample(100, random_state=1)
+    train = train.sample(5000, random_state=1)
+    test = test.sample(5000, random_state=1)
+    vaild = vaild.sample(5000, random_state=1)
     return (train, test, vaild)
 
 
 def create_embedding():
     from code_data.constants import char_sign_dict
+    from embedding.wordembedding import load_vocabulary
+    from embedding.character_embedding import load_character_vocabulary
     key_val = load_vocabulary('keyword', embedding_size=200)
     char_voc = load_character_vocabulary('bigru', n_gram=1, embedding_shape=100, token_list=char_sign_dict.keys())
     return key_val, char_voc
@@ -241,20 +243,18 @@ def create_embedding():
 if __name__ == '__main__':
     util.initLogging()
     util.set_cuda_devices(0)
-    train, test, vaild = read_cpp_fake_code_records_set()
+    # train, test, vaild = read_cpp_fake_code_records_set()
     # train = train.sample(300000)
 
-    from embedding.wordembedding import load_vocabulary
-    from embedding.character_embedding import load_character_vocabulary
     key_val, char_voc = create_embedding()
     parse_xy_param = [key_val, char_voc]
 
     import numpy as np
-    # train, test, vaild = sample()
+    train, test, vaild = sample()
 
     # print(train)
 
-    # res = parse_xy(train, *parse_xy_param)
+    res = parse_xy(train, *parse_xy_param)
     # print(len(res))
 
     # test_data_iterator = util.batch_holder(*parse_xy(test, *parse_xy_param), batch_size=8)
@@ -267,25 +267,25 @@ if __name__ == '__main__':
     #             print(x.shape)
     #     isPrint += 1
 
-    MAX_ITERATOR_LEGNTH = 5
-
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
-    param_generator = random_parameters_generator(random_param={"learning_rate": [-5, 0]},
-                                                  choice_param={ },
-                                                  constant_param={"hidden_size": 100,
-                                                                  'rnn_layer_number': 2,
-                                                                  'keyword_number': len(key_val.word_id_map),
-                                                                  # 'start_id': key_val.word_to_id(key_val.start_label),
-                                                                  'end_token_id': key_val.word_to_id(key_val.end_label),
-                                                                  'max_decode_iterator_num': MAX_ITERATOR_LEGNTH,
-                                                                  'identifier_token': key_val.word_to_id(key_val.identifier_label),
-                                                                  'placeholder_token': key_val.word_to_id(key_val.placeholder_label),
-                                                                  'word_embedding_layer_fn': key_val.create_embedding_layer,
-                                                                  'character_embedding_layer_fn': char_voc.create_embedding_layer,
-                                                                  'id_to_word_fn': key_val.id_to_word,
-                                                                  'parse_token_fn': char_voc.parse_token})
-
-    train_supervision(TokenLevelMultiRnnModel, param_generator, 1)
+    # MAX_ITERATOR_LEGNTH = 5
+    #
+    # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
+    # param_generator = random_parameters_generator(random_param={"learning_rate": [-5, 0]},
+    #                                               choice_param={ },
+    #                                               constant_param={"hidden_size": 100,
+    #                                                               'rnn_layer_number': 2,
+    #                                                               'keyword_number': len(key_val.word_id_map),
+    #                                                               # 'start_id': key_val.word_to_id(key_val.start_label),
+    #                                                               'end_token_id': key_val.word_to_id(key_val.end_label),
+    #                                                               'max_decode_iterator_num': MAX_ITERATOR_LEGNTH,
+    #                                                               'identifier_token': key_val.word_to_id(key_val.identifier_label),
+    #                                                               'placeholder_token': key_val.word_to_id(key_val.placeholder_label),
+    #                                                               'word_embedding_layer_fn': key_val.create_embedding_layer,
+    #                                                               'character_embedding_layer_fn': char_voc.create_embedding_layer,
+    #                                                               'id_to_word_fn': key_val.id_to_word,
+    #                                                               'parse_token_fn': char_voc.parse_token})
+    #
+    # train_supervision(TokenLevelMultiRnnModel, param_generator, 1)
     # import tensorflow as tf
     # with tf.Session():
     #     for params in param_generator(1):

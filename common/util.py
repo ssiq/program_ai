@@ -200,9 +200,8 @@ def initCustomerLogger(name, filepath, level=logging.INFO):
 
     logger = logging.getLogger(name)
     logger.setLevel(level=level)
-    logger.handlers
 
-    name = name + time.strftime('_%Y-%m-%d %H:%M:%S.log',time.localtime(time.time()))
+    name = name + time.strftime('_%Y-%m-%d %H-%M-%S.log',time.localtime(time.time()))
     filepath = os.path.join(filepath, name)
     fh = logging.FileHandler(filename=filepath)
     fh.setLevel(level=level)
