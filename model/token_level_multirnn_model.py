@@ -599,20 +599,23 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         res_mask = []
         predict_is_continue = predict_data[0]
         for bat in predict_is_continue:
-            zero_item = np.argwhere(bat == 0)
+            zero_item = np.argwhere(np.array(bat) == 0)
+            # print("bat:{}, zero_item:{}".format(bat, zero_item))
             if len(zero_item) == 0:
                 iter_len = self.max_decode_iterator_num
             else:
                 iter_len = np.min(zero_item) + 1
             res_mask.append([1] * iter_len + [0] * (self.max_decode_iterator_num-iter_len))
         res_mask = np.array(res_mask)
+        # print("res_mask:{}".format(res_mask))
 
         true_mask = np.ones([len(output_data[0])])
         for i in range(len(predict_data)):
-            true_mask = 0
-            output_idata = self.fill_output_data(np.array(output_data[i]), self.max_decode_iterator_num)
-            predict_idata = self.fill_output_data(np.array(predict_data[i]), self.max_decode_iterator_num)
+            # true_mask = 0
+            output_idata = self.fill_output_data(output_data[i], self.max_decode_iterator_num)
+            predict_idata = self.fill_output_data(predict_data[i], self.max_decode_iterator_num)
             predict_idata = np.where(res_mask, predict_idata, np.zeros_like(predict_idata))
+            # print("index {}: output_data {}, predict_data {}".format(i, output_idata, predict_idata))
 
             res = np.equal(output_idata, predict_idata)
             res = res.reshape([res.shape[0], -1])
@@ -620,10 +623,6 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             true_mask = np.logical_and(true_mask, res)
         return np.mean(true_mask)
 
-    def fill_output_data(self, output:np.ndarray, iter_len):
-        output_shape = list(output.shape)
-        if iter_len <= output_shape[-1]:
-            return output
-        output_shape[-1] = iter_len - output_shape[-1]
-        fill_array = np.zeros(output_shape)
-        return np.concatenate((output, fill_array), axis=(len(output_shape)-1))
+    def fill_output_data(self, output:list, iter_len):
+        res = [t + [0]*(iter_len-len(t)) for t in output]
+        return np.array(res)
