@@ -19,6 +19,7 @@ class CharacterEmbedding(object):
         self.preprocess_token = lambda x: more_itertools.windowed([self.BEGIN] + list(x) + [self.END], n_gram)
         self.preprocess_token_without_label = lambda x: more_itertools.windowed(list(x), n_gram)
         token_set = set(more_itertools.flatten(map(lambda x: list(self.preprocess_token(x)) , token_set)))
+        token_set = sorted(list(token_set))
         self.id_to_character_dict = dict(list(enumerate(start=0, iterable=token_set)))
         self.character_to_id_dict = util.reverse_dict(self.id_to_character_dict)
         self.embedding_shape = embedding_shape

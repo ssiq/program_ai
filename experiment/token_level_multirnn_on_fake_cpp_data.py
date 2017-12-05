@@ -30,7 +30,7 @@ def get_token_list(code):
 
 
 @util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
-def parse_xy(df, keyword_voc, char_voc):
+def parse_xy(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
 
     def create_full_output(one):
         action_list = one['action_list']
@@ -77,7 +77,7 @@ def parse_xy(df, keyword_voc, char_voc):
                 copyid_list.append(0)
             position_list.append(act_pos)
 
-        if len(position_list) == 0 or len(position_list) > 1:
+        if len(position_list) == 0 or len(position_list) > max_bug_number or len(position_list) < min_bug_number:
             one['res'] = None
             return one
         one['position_list'] = position_list
