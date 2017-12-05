@@ -394,17 +394,19 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         output_logit, _ = output_logit
         print("output_logit:{}".format(output_logit))
         is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output_logit
+        copy_length = tf.reduce_sum(self.output_is_continue, axis=1) + 1
+        is_continue_mask = tf_util.lengths_to_mask(copy_length, tf_util.get_shape(self.output_is_continue)[1])
         loss = tf.reduce_mean(
-            tf.multiply(tf.cast(self.output_is_continue, tf.float32), tf.nn.sigmoid_cross_entropy_with_logits(logits=is_continue_logit,
+            tf.multiply(tf.cast(is_continue_mask, tf.float32), tf.nn.sigmoid_cross_entropy_with_logits(logits=is_continue_logit,
                                                                                          labels=tf.cast(
                                                                                              self.output_is_continue,
                                                                                              tf.float32))))
         loss += tf.reduce_mean(
-            tf.multiply(tf.cast(self.output_is_continue, tf.float32), tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
+            tf.multiply(tf.cast(is_continue_mask, tf.float32), tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
                                                                                          labels=tf.cast(
                                                                                              self.output_is_copy,
                                                                                              tf.float32))))
-        sparse_softmax_loss = lambda x, y: tf.reduce_mean(tf.multiply(tf.cast(self.output_is_continue, tf.float32),tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y)))
+        sparse_softmax_loss = lambda x, y: tf.reduce_mean(tf.multiply(tf.cast(is_continue_mask, tf.float32),tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y)))
         loss += sparse_softmax_loss(self.output_position_label, position_logit)
         loss += sparse_softmax_loss(self.output_keyword_id, key_word_logit)
         loss += sparse_softmax_loss(self.output_copy_word_id, copy_word_logit)
@@ -428,6 +430,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         # return l1, l2, None
         loss, _, train = self.train(*args)
         metrics = self.metrics_model(*args)
+        # print('loss : {}. mertics: {}'.format(loss, metrics))
         return loss, metrics, train
 
     @tf_util.define_scope("one_predict")
@@ -542,6 +545,8 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         for i in range(len(initial_state)):
             start_labels.append(start_label)
 
+        next_labels = start_labels
+
         output_is_continues = np.array([[] for i in range(len(token_input))])
         output_position = np.array([[] for i in range(len(token_input))])
         output_is_copy = np.array([[] for i in range(len(token_input))])
@@ -558,14 +563,17 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                 charactere_input,
                 character_input_length,
                 next_state,
-                start_labels
+                next_labels
             )
             is_continue, position, is_copy, keyword_id, copy_id = output
+
             is_continue = np.array(is_continue)
             position = np.argmax(np.array(position), axis=1)
             is_copy = np.array(is_copy)
             keyword_id = np.argmax(np.array(keyword_id), axis=1)
             copy_id = np.argmax(np.array(copy_id), axis=1)
+
+            next_labels = self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1), np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1), position_embedding, code_embedding)[:, 0, :]
 
             output_is_continues = np.concatenate((output_is_continues, np.expand_dims(is_continue, axis=1)), axis=1)
             output_position = np.concatenate((output_position, np.expand_dims(position, axis=1)), axis=1)
@@ -609,7 +617,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
         true_mask = np.ones([len(output_data[0])])
         for i in range(len(predict_data)):
-            true_mask = 0
+            # true_mask = 0
             output_idata = self.fill_output_data(np.array(output_data[i]), self.max_decode_iterator_num)
             predict_idata = self.fill_output_data(np.array(predict_data[i]), self.max_decode_iterator_num)
             predict_idata = np.where(res_mask, predict_idata, np.zeros_like(predict_idata))
