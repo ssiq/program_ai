@@ -118,7 +118,7 @@ def data_hash(key):
         elif isinstance(item, int) or isinstance(item, float) or isinstance(item, str):
             val = hash_value(item)
             hash_val += val
-        elif isinstance(item, list) or isinstance(item, set):
+        elif isinstance(item, list) or isinstance(item, set) or isinstance(item, tuple):
             serlist = list(more_itertools.collapse(item))
             for ser in serlist:
                 val = hash_value(ser)
