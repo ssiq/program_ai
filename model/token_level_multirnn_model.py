@@ -620,9 +620,8 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         true_mask = np.ones([len(output_data[0])])
         for i in range(len(predict_data)):
             # true_mask = 0
-
             output_idata = self.fill_output_data(output_data[i], self.max_decode_iterator_num)
-            predict_idata = self.fill_output_data(predict_data[i], self.max_decode_iterator_num)
+            predict_idata = self.fill_output_data(predict_data[i].tolist(), self.max_decode_iterator_num)
 
             predict_idata = np.where(res_mask, predict_idata, np.zeros_like(predict_idata))
             # print("index {}: output_data {}, predict_data {}".format(i, output_idata, predict_idata))
