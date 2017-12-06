@@ -49,7 +49,8 @@ class Test(unittest.TestCase):
         keyword_id = [[0, 0, 1], [0, 2,0, 0], [0]]
         copy_word_id = [[12, 32, 0], [21, 0, 32,32], [12]]
         o = (is_continue, position_label, is_copy, keyword_id, copy_word_id)
-        res = self.model.cal_metrics(o, o)
+        po = [np.array(padded(t)) for t in o]
+        res = self.model.cal_metrics(o, po)
         self.assertAlmostEqual(res, 1.0)
 
     def test__create_next_code(self):
