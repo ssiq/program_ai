@@ -809,6 +809,7 @@ def _create_summary_function():
     _summary_scalar_input_list = []
     _summary_histogram_list = []
     _summary_histogram_input_list = []
+    _summary_value = {"scalar": {}, "histogram": {}}
 
     def _add_summary_(name, tensor, is_placeholder, op_list, input_list):
         if not is_placeholder:
@@ -843,19 +844,38 @@ def _create_summary_function():
                 return f_i(summary_input, *args)
             return f
 
+    def _add_value_scalar(name, value):
+        _summary_value['scalar'][name] = value
+
+    def _add_value_histogram(name, value):
+        _summary_value['histogram'][name] = value
+
+    def _merge_value():
+        args = []
+        for name, _ in _summary_scalar_input_list:
+            print("{}:{}".format(name, np.array(_summary_value['scalar'].get(name, None)).shape))
+        for name, _ in _summary_histogram_input_list:
+            print("{}:{}".format(name, np.array(_summary_value['histogram'].get(name, None)).shape))
+        args.extend([_summary_value['scalar'].get(name, None) for name, _ in _summary_scalar_input_list])
+        args.extend([_summary_value['histogram'].get(name, None) for name, _ in _summary_histogram_input_list])
+        return args
+
     @contextmanager
     def _summary():
         nonlocal _summary_scalar_op_list
         nonlocal _summary_scalar_input_list
         nonlocal _summary_histogram_list
         nonlocal _summary_histogram_input_list
-        old_ = copy.deepcopy([_summary_scalar_op_list, _summary_scalar_input_list, _summary_histogram_list, _summary_histogram_input_list])
+        nonlocal _summary_value
+        old_ = copy.deepcopy([_summary_scalar_op_list, _summary_scalar_input_list, _summary_histogram_list,
+                              _summary_histogram_input_list, _summary_value])
         yield
-        _summary_scalar_op_list, _summary_scalar_input_list, _summary_histogram_list, _summary_histogram_input_list = old_
+        _summary_scalar_op_list, _summary_scalar_input_list, _summary_histogram_list, _summary_histogram_input_list, _summary_value = old_
 
-    return _add_summary_scalar, _add_summary_histogram, _merge_op, _merge_placeholder, _summary
+    return _add_summary_scalar, _add_summary_histogram, _merge_op, _merge_placeholder, _summary, _add_value_scalar, _add_value_histogram, _merge_value
 
-add_summary_scalar, add_summary_histogram, merge_op, placeholder_summary_merge, summary_scope = _create_summary_function()
+add_summary_scalar, add_summary_histogram, merge_op, placeholder_summary_merge, summary_scope, add_value_scalar, \
+add_value_histogram, merge_value = _create_summary_function()
 
 
 def doublewrap(function):

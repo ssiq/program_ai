@@ -252,14 +252,14 @@ def create_embedding():
 if __name__ == '__main__':
     util.initLogging()
     util.set_cuda_devices(0)
-    train, test, vaild = read_cpp_fake_code_records_set()
+    # train, test, vaild = read_cpp_fake_code_records_set()
     # train = train.sample(300000)
 
     key_val, char_voc = create_embedding()
     parse_xy_param = [key_val, char_voc, 1, 1]
 
     import numpy as np
-    # train, test, vaild = sample()
+    train, test, vaild = sample()
 
     # print(train)
 

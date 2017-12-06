@@ -25,33 +25,34 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
         best_parameter = None
         best_accuracy = None
         for model_parm in param_generator(generator_times):
-            tf.reset_default_graph()
-            model_parm['word_embedding_layer_fn'] = model_parm['word_embedding_layer_fn']()
-            model_parm['character_embedding_layer_fn'] = model_parm['character_embedding_layer_fn']()
+            with tf_util.summary_scope():
+                tf.reset_default_graph()
+                model_parm['word_embedding_layer_fn'] = model_parm['word_embedding_layer_fn']()
+                model_parm['character_embedding_layer_fn'] = model_parm['character_embedding_layer_fn']()
 
-            print('create train model')
-            train_model_fn = create_model_train_fn(model_fn, model_parm)
-            print('create train model finish')
-            config = tf.ConfigProto()
-            config.gpu_options.allow_growth = True
-            with tf.Session(config=config):
-                print('in tf.session')
-                with tf_util.summary_scope():
-                    print('train model')
-                    accuracy = train_model_fn(train_batch_iterator, validation_data_iterator, test_data_iterator, experiment_name)
-                if best_accuracy is None:
-                    best_accuracy = accuracy
-                    best_parameter = model_parm
-                elif best_accuracy < accuracy:
-                    best_accuracy = accuracy
-                    best_parameter = model_parm
-                print("param:{}, accuracy:{}".format(util.format_dict_to_string(model_parm), accuracy))
+                print('create train model')
+                train_model_fn = create_model_train_fn(model_fn, model_parm)
+                print('create train model finish')
+                config = tf.ConfigProto()
+                config.gpu_options.allow_growth = True
+                with tf.Session(config=config):
+                    print('in tf.session')
+                    with tf_util.summary_scope():
+                        print('train model')
+                        accuracy = train_model_fn(train_batch_iterator, validation_data_iterator, test_data_iterator, experiment_name)
+                    if best_accuracy is None:
+                        best_accuracy = accuracy
+                        best_parameter = model_parm
+                    elif best_accuracy < accuracy:
+                        best_accuracy = accuracy
+                        best_parameter = model_parm
+                    print("param:{}, accuracy:{}".format(util.format_dict_to_string(model_parm), accuracy))
 
         print("best accuracy:{}, best parameter:{}".format(best_accuracy, best_parameter))
 
     print('create supervision experiment.')
     train_batch_iterator = util.batch_holder(*parse_xy_fn(train, *parse_xy_param), batch_size=batch_size)
-    validation_data_iterator = util.batch_holder(*parse_xy_fn(vaild, *parse_xy_param), batch_size=batch_size)
+    validation_data_iterator = util.batch_holder(*parse_xy_fn(vaild, *parse_xy_param), batch_size=batch_size, epoches=None)
     test_data_iterator = util.batch_holder(*parse_xy_fn(test, *parse_xy_param), batch_size=batch_size, epoches=1)
 
     return train_supervision

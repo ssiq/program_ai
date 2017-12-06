@@ -180,6 +180,21 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         #summary
         metrics_input_placeholder = tf.placeholder(tf.float32, shape=[], name="metrics")
         tf_util.add_summary_scalar("metrics", metrics_input_placeholder, is_placeholder=True)
+        tf_util.add_summary_histogram("predict_is_continue",
+                                      tf.placeholder(tf.float32, shape=(None, None), name="predict_is_continue"),
+                                      is_placeholder=True)
+        tf_util.add_summary_histogram("predict_position_softmax",
+                                      tf.placeholder(tf.float32, shape=(None, None, None), name="predict_position_softmax"),
+                                      is_placeholder=True)
+        tf_util.add_summary_histogram("predict_is_copy",
+                                      tf.placeholder(tf.float32, shape=(None, None), name="predict_is_copy"),
+                                      is_placeholder=True)
+        tf_util.add_summary_histogram("predict_key_word",
+                                      tf.placeholder(tf.float32, shape=(None, None, None), name="predict_keyword"),
+                                      is_placeholder=True)
+        tf_util.add_summary_histogram("predict_copy_word",
+                                      tf.placeholder(tf.float32, shape=(None, None, None), name="predict_copy_word"),
+                                      is_placeholder=True)
         tf_util.add_summary_scalar("loss", self.loss_op, is_placeholder=False)
         tf_util.add_summary_histogram("is_continue", self.softmax_op[0], is_placeholder=False)
         tf_util.add_summary_histogram("position_softmax", self.softmax_op[1], is_placeholder=False)
@@ -489,7 +504,8 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         #     print(np.array(t).shape)
         train_summary = self._train_summary_fn(*args)
         metrics_model = self.metrics_model(*args)
-        return self._summary_fn(metrics_model, summary_input=train_summary)
+        tf_util.add_value_scalar("metrics", metrics_model)
+        return self._summary_fn(*tf_util.merge_value(), summary_input=train_summary)
 
     def _create_next_input(self, output, position_embedding, code_embedding):
         _, position, is_copy, key_word, copy_word = output
@@ -569,6 +585,23 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         return token_input, token_input_length, character_input, character_input_length
 
     def one_predict(self, inputs, states, labels):
+        output, next_state, position_embedding, code_embedding = self._one_predict(inputs, labels, states)
+        return self._create_output_and_next_input(code_embedding, next_state, output, position_embedding)
+
+    def _create_output_and_next_input(self, code_embedding, next_state, output, position_embedding):
+        is_continue, position, is_copy, keyword_id, copy_id = output
+        is_continue = np.array(is_continue > 0.5)
+        position = np.argmax(np.array(position), axis=1)
+        is_copy = np.array(is_copy > 0.5)
+        keyword_id = np.argmax(np.array(keyword_id), axis=1)
+        copy_id = np.argmax(np.array(copy_id), axis=1)
+        next_labels = self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1),
+                                                 np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1),
+                                                 position_embedding, code_embedding)[:, 0, :]
+        outputs = (is_continue, position, is_copy, keyword_id, copy_id)
+        return outputs, next_state, next_labels
+
+    def _one_predict(self, inputs, labels, states):
         token_input, token_input_length, charactere_input, character_input_length = inputs
         output, next_state, position_embedding, code_embedding \
             = self._one_predict_fn(
@@ -579,21 +612,9 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             states,
             labels
         )
-        is_continue, position, is_copy, keyword_id, copy_id = output
+        return output, next_state, position_embedding, code_embedding
 
-        is_continue = np.array(is_continue > 0.5)
-        position = np.argmax(np.array(position), axis=1)
-        is_copy = np.array(is_copy > 0.5)
-        keyword_id = np.argmax(np.array(keyword_id), axis=1)
-        copy_id = np.argmax(np.array(copy_id), axis=1)
-
-        next_labels = self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1),
-                                                 np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1),
-                                                 position_embedding, code_embedding)[:, 0, :]
-        outputs = (is_continue, position, is_copy, keyword_id, copy_id)
-        return outputs, next_state, next_labels
-
-    def predict_model(self, *args, one_predict):
+    def predict_model(self, *args,):
         # print('predict iterator start')
         token_input, token_input_length, charactere_input, character_input_length = args
         start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
@@ -613,8 +634,15 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
         from common.util import padded
 
+        summary = [[], [], [], [], []]
+
         for i in range(self.max_decode_iterator_num):
-            outputs, next_state, next_labels = one_predict((token_input, token_input_length, charactere_input, character_input_length), next_state, next_labels)
+            # outputs, next_state, next_labels = one_predict((token_input, token_input_length, charactere_input, character_input_length), next_state, next_labels)
+            output, next_state, position_embedding, code_embedding = self._one_predict(
+                (token_input, token_input_length, charactere_input, character_input_length), next_labels, next_state)
+            for t, f in zip(summary, output):
+                t.append(f)
+            outputs, next_state, next_labels = self._create_output_and_next_input(code_embedding, next_state, output, position_embedding)
             is_continue, position, is_copy, keyword_id, copy_id = outputs
 
             output_is_continues = np.concatenate((output_is_continues, np.expand_dims(is_continue, axis=1)), axis=1)
@@ -633,6 +661,12 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             charactere_input = padded(charactere_input)
             character_input_length = padded(character_input_length)
 
+        summary = [np.array(padded(t)) for t in summary]
+        tf_util.add_value_histogram("predict_is_continue", np.transpose(summary[0], [1, 0]))
+        tf_util.add_value_histogram("predict_position_softmax", np.transpose(summary[1], [1, 0, 2]))
+        tf_util.add_value_histogram("predict_is_copy", np.transpose(summary[2], [1, 0]))
+        tf_util.add_value_histogram("predict_key_word", np.transpose(summary[3], [1, 0, 2]))
+        tf_util.add_value_histogram("predict_copy_word", np.transpose(summary[4], [1, 0, 2]))
         return output_is_continues, output_position, output_is_copy, output_keyword_id, output_copy_id
 
     def metrics_model(self, *args):
@@ -640,7 +674,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         args = copy.deepcopy(args)
         input_data = args[0:4]
         output_data = args[4:9]
-        predict_data = self.predict_model(*input_data, one_predict=self.one_predict)
+        predict_data = self.predict_model(*input_data,)
         metrics_value = self.cal_metrics(output_data, predict_data)
         # print('metrics_value: ', metrics_value)
         return metrics_value
