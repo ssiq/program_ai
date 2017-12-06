@@ -535,7 +535,32 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
         return token_input, token_input_length, character_input, character_input_length
 
-    def predict_model(self, *args):
+    def one_predict(self, inputs, states, labels):
+        token_input, token_input_length, charactere_input, character_input_length = inputs
+        output, next_state, position_embedding, code_embedding \
+            = self._one_predict_fn(
+            token_input,
+            token_input_length,
+            charactere_input,
+            character_input_length,
+            states,
+            labels
+        )
+        is_continue, position, is_copy, keyword_id, copy_id = output
+
+        is_continue = np.array(is_continue)
+        position = np.argmax(np.array(position), axis=1)
+        is_copy = np.array(is_copy)
+        keyword_id = np.argmax(np.array(keyword_id), axis=1)
+        copy_id = np.argmax(np.array(copy_id), axis=1)
+
+        next_labels = self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1),
+                                                 np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1),
+                                                 position_embedding, code_embedding)[:, 0, :]
+        outputs = (is_continue, position, is_copy, keyword_id, copy_id)
+        return outputs, next_state, next_labels
+
+    def predict_model(self, *args, one_predict):
         # print('predict iterator start')
         token_input, token_input_length, charactere_input, character_input_length = args
         start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
@@ -556,24 +581,9 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         from common.util import padded
 
         for i in range(self.max_decode_iterator_num):
-            output, next_state, position_embedding, code_embedding \
-                = self._one_predict_fn(
-                token_input,
-                token_input_length,
-                charactere_input,
-                character_input_length,
-                next_state,
-                next_labels
-            )
-            is_continue, position, is_copy, keyword_id, copy_id = output
+            outputs, next_state, next_labels = one_predict((token_input, token_input_length, charactere_input, character_input_length), next_state, next_labels)
 
-            is_continue = np.array(is_continue)
-            position = np.argmax(np.array(position), axis=1)
-            is_copy = np.array(is_copy)
-            keyword_id = np.argmax(np.array(keyword_id), axis=1)
-            copy_id = np.argmax(np.array(copy_id), axis=1)
-
-            next_labels = self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1), np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1), position_embedding, code_embedding)[:, 0, :]
+            is_continue, position, is_copy, keyword_id, copy_id = outputs
 
             output_is_continues = np.concatenate((output_is_continues, np.expand_dims(is_continue, axis=1)), axis=1)
             output_position = np.concatenate((output_position, np.expand_dims(position, axis=1)), axis=1)
@@ -598,7 +608,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         args = copy.deepcopy(args)
         input_data = args[0:4]
         output_data = args[4:9]
-        predict_data = self.predict_model(*input_data)
+        predict_data = self.predict_model(*input_data, one_predict=self.one_predict)
         metrics_value = self.cal_metrics(output_data, predict_data)
         # print('metrics_value: ', metrics_value)
         return metrics_value
