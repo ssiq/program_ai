@@ -852,10 +852,10 @@ def _create_summary_function():
 
     def _merge_value():
         args = []
-        for name, _ in _summary_scalar_input_list:
-            print("{}:{}".format(name, np.array(_summary_value['scalar'].get(name, None)).shape))
-        for name, _ in _summary_histogram_input_list:
-            print("{}:{}".format(name, np.array(_summary_value['histogram'].get(name, None)).shape))
+        # for name, _ in _summary_scalar_input_list:
+        #     print("{}:{}".format(name, np.array(_summary_value['scalar'].get(name, None)).shape))
+        # for name, _ in _summary_histogram_input_list:
+        #     print("{}:{}".format(name, np.array(_summary_value['histogram'].get(name, None)).shape))
         args.extend([_summary_value['scalar'].get(name, None) for name, _ in _summary_scalar_input_list])
         args.extend([_summary_value['histogram'].get(name, None) for name, _ in _summary_histogram_input_list])
         return args

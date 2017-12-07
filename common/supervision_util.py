@@ -51,9 +51,15 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
         print("best accuracy:{}, best parameter:{}".format(best_accuracy, best_parameter))
 
     print('create supervision experiment.')
-    train_batch_iterator = util.batch_holder(*parse_xy_fn(train, *parse_xy_param), batch_size=batch_size)
-    validation_data_iterator = util.batch_holder(*parse_xy_fn(vaild, *parse_xy_param), batch_size=batch_size, epoches=None)
-    test_data_iterator = util.batch_holder(*parse_xy_fn(test, *parse_xy_param), batch_size=batch_size, epoches=1)
+    train_data = parse_xy_fn(train, *parse_xy_param)
+    vaild_data = parse_xy_fn(vaild, *parse_xy_param)
+    test_data = parse_xy_fn(test, *parse_xy_param)
+    print('train_data_length: {}'.format(len(train_data[0].index)))
+    print('vaild_data_length: {}'.format(len(vaild_data[0].index)))
+    print('test_data_length: {}'.format(len(test_data[0].index)))
+    train_batch_iterator = util.batch_holder(*train_data, batch_size=batch_size)
+    validation_data_iterator = util.batch_holder(*vaild_data, batch_size=batch_size, epoches=None)
+    test_data_iterator = util.batch_holder(*test_data, batch_size=batch_size, epoches=1)
 
     return train_supervision
 

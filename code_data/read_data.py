@@ -44,7 +44,7 @@ def read_cpp_token_fake_data(conn: sqlite3.Connection) -> pd.DataFrame:
 
 def read_cpp_fake_records(conn: sqlite3.Connection) -> pd.DataFrame:
     from code_data.constants import FAKE_CODE_RECORDS
-    records_df = pd.read_sql('select * from {} LIMIT 300000'.format(FAKE_CODE_RECORDS), conn)
+    records_df = pd.read_sql('select * from {} LIMIT 400000'.format(FAKE_CODE_RECORDS), conn)
     return records_df
 
 def read_local_submit_data() -> pd.DataFrame:

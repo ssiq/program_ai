@@ -632,6 +632,15 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         output_keyword_id = np.array([[] for i in range(len(token_input))])
         output_copy_id = np.array([[] for i in range(len(token_input))])
 
+        token_input = [ [ti[0]] for ti in token_input]
+        token_input_length = [ [ti[0]] for ti in token_input_length]
+        charactere_input = [ [ti[0]] for ti in charactere_input]
+        character_input_length = [ [ti[0]] for ti in character_input_length]
+        # print(np.array(token_input).shape)
+        # print(np.array(token_input_length).shape)
+        # print(np.array(charactere_input).shape)
+        # print(np.array(character_input_length).shape)
+
         from common.util import padded
 
         summary = [[], [], [], [], []]
@@ -661,7 +670,18 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             charactere_input = padded(charactere_input)
             character_input_length = padded(character_input_length)
 
+        # for t in summary:
+        #     # print('t is {}'.format(type(t)))
+        #     for k in range(len(t)):
+        #         if isinstance(t[k], np.ndarray):
+        #             t[k] = t[k].tolist()
+            # print(padded(t))
+            # print(np.array(padded(t)))
+            # print(np.array(padded(t)).shape)
+            # print("summary: ", np.array(padded(t)).shape)
         summary = [np.array(padded(t)) for t in summary]
+        # for t in summary:
+        #     print(t.shape)
         tf_util.add_value_histogram("predict_is_continue", np.transpose(summary[0], [1, 0]))
         tf_util.add_value_histogram("predict_position_softmax", np.transpose(summary[1], [1, 0, 2]))
         tf_util.add_value_histogram("predict_is_copy", np.transpose(summary[2], [1, 0]))

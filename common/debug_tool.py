@@ -85,7 +85,7 @@ def show_growth(recordloggername:str, growthloggername:str, peak_stats={}, short
     filename = fh.baseFilename
 
     import json
-    growthlogger.debug(json.dumps(deltas))
+    # growthlogger.debug(json.dumps(deltas))
     recordlogger.debug('record object growth count in {}. max growth type {} and growth {}'.format(os.path.abspath(filename), max_name, max_delta))
 
 
