@@ -966,6 +966,7 @@ def variable_length_softmax(logit, in_length):
     logit = logit - tf.reduce_max(logit, axis=-1, keep_dims=True)
     exp_logit = tf.exp(logit)*mask
     softmax = exp_logit / tf.reduce_sum(exp_logit, axis=-1, keep_dims=True)
+    softmax = tf.where(tf.equal(in_length, 0), x=tf.zeros_like(softmax), y=softmax)
     softmax = tf.reshape(softmax, logit_shape)
     return softmax
 

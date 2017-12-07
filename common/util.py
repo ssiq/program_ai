@@ -11,6 +11,7 @@ import os
 import logging
 import hashlib
 import pandas as pd
+import numpy as np
 
 
 def make_dir(*path: str) -> None:
@@ -220,6 +221,31 @@ def batch_holder(*data: typing.List, batch_size=32, epoches=10):
                 yield t
 
     return iterator
+
+
+def expand_array_dims_and_tile(array, add_dims, multiplies):
+    """
+    This function first calls np.expand_dims to add dims for the array along the add_dims parameter then
+    use np.tile multiply some dims
+    :param array:
+    :param add_dims:
+    :param multiplies:
+    :return:
+    """
+    for t in add_dims:
+        array = np.expand_dims(array, axis=t)
+
+    array = np.tile(array, multiplies)
+    return array
+
+
+def mask_input_with_end(end_mask, input_data):
+    token_input_shape = list(np.array(input_data).shape)
+    add_dims = [ i for i in range(1, len(token_input_shape))]
+    token_input_shape[0] = 1
+    end_mask_array = expand_array_dims_and_tile(end_mask, add_dims, token_input_shape)
+    token_input = np.where(end_mask_array, input_data, np.zeros_like(input_data))
+    return token_input
 
 
 def dataset_holder(*args):

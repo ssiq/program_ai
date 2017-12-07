@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.python.util import nest
 
-from common import tf_util, rnn_cell, rnn_util, code_util
+from common import tf_util, rnn_cell, rnn_util, code_util, util
 from common.rnn_util import create_decoder_initialize_fn, create_decode
 
 
@@ -200,6 +200,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         tf_util.add_summary_histogram("position_softmax", self.softmax_op[1], is_placeholder=False)
         tf_util.add_summary_histogram("is_copy", self.softmax_op[2], is_placeholder=False)
         tf_util.add_summary_histogram("key_word", self.softmax_op[3], is_placeholder=False)
+        # tf_util.add_summary_histogram("copy_word_logit", self.train_output_logit_op[4], is_placeholder=False)
         tf_util.add_summary_histogram("copy_word", self.softmax_op[4], is_placeholder=False)
         self._summary_fn = tf_util.placeholder_summary_merge()
         self._summary_merge_op = tf_util.merge_op()
@@ -276,6 +277,19 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
              self.output_copy_word_id],
             self._summary_merge_op
         )
+
+        # self._test_train_output_fn = tf_util.function(
+        #     [self.token_input,
+        #      self.token_input_length,
+        #      self.character_input,
+        #      self.character_input_length,
+        #      self.output_is_continue,
+        #      self.output_position_label,
+        #      self.output_is_copy,
+        #      self.output_keyword_id,
+        #      self.output_copy_word_id],
+        #     [self.softmax_op, self.train_output_logit_op]
+        # )
 
 
     def _rnn_cell(self, hidden_size):
@@ -423,10 +437,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
     @tf_util.define_scope("loss_op")
     def loss_op(self):
-        output_logit, _, _ = self.decode_op
-        output_logit, _ = output_logit
-        print("output_logit:{}".format(output_logit))
-        is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output_logit
+        copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, position_logit = self.train_output_logit_op
         copy_length = tf.reduce_sum(self.output_is_continue, axis=1) + 1
         is_continue_mask = tf_util.lengths_to_mask(copy_length, tf_util.get_shape(self.output_is_continue)[1])
         loss = tf.reduce_mean(
@@ -455,10 +466,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
     @tf_util.define_scope("softmax_op")
     def softmax_op(self):
-        output_logit, _, _ = self.decode_op
-        output_logit, _ = output_logit
-        print("output_logit:{}".format(output_logit))
-        is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output_logit
+        copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, position_logit = self.train_output_logit_op
         is_continue = tf.nn.sigmoid(is_continue_logit)
         position_softmax = tf_util.variable_length_softmax(position_logit, self.position_length_op)
         is_copy = tf.nn.sigmoid(is_copy_logit)
@@ -466,12 +474,20 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         copy_word_softmax = tf_util.variable_length_softmax(copy_word_logit, self.token_input_length)
         return is_continue, position_softmax, is_copy, key_word_softmax, copy_word_softmax
 
+    @tf_util.define_scope("train_output_logit_op")
+    def train_output_logit_op(self):
+        output_logit, _, _ = self.decode_op
+        output_logit, _ = output_logit
+        print("output_logit:{}".format(output_logit))
+        is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output_logit
+        return copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, position_logit
 
     def train_model(self, *args):
         # print("train_model_input:")
         # for t in args:
         #     print(np.array(t).shape)
             # print("{}:{}".format(np.array(t).shape, np.array(t)))
+        # print(np.array(args[4]))
         # l1, l2, _ = self.train(*args)
         # print(l1)
         # return l1, l2, None
@@ -502,6 +518,16 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         # print("summary_input:")
         # for t in args:
         #     print(np.array(t).shape)
+
+        # softmax_o, logit_o = self._test_train_output_fn(*args)
+        # print("output_logit:")
+        # for t in logit_o:
+        #     print("is_nan:{}, is_inf:{}".format(np.any(np.isnan(t)), np.any(np.isinf(t))))
+        #
+        # print("output_softmax:")
+        # for t in softmax_o:
+        #     print("is_nan:{}, is_inf:{}".format(np.any(np.isnan(t)), np.any(np.isinf(t))))
+
         train_summary = self._train_summary_fn(*args)
         metrics_model = self.metrics_model(*args)
         tf_util.add_value_scalar("metrics", metrics_model)
@@ -641,6 +667,8 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         # print(np.array(charactere_input).shape)
         # print(np.array(character_input_length).shape)
 
+        end_mask = [1] * len(token_input)
+
         from common.util import padded
 
         summary = [[], [], [], [], []]
@@ -650,9 +678,16 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             output, next_state, position_embedding, code_embedding = self._one_predict(
                 (token_input, token_input_length, charactere_input, character_input_length), next_labels, next_state)
             for t, f in zip(summary, output):
-                t.append(f)
+                t.append(f.tolist())
             outputs, next_state, next_labels = self._create_output_and_next_input(code_embedding, next_state, output, position_embedding)
             is_continue, position, is_copy, keyword_id, copy_id = outputs
+
+
+            is_continue = np.where(end_mask, is_continue, np.zeros_like(is_continue))
+            position = np.where(end_mask, position, np.zeros_like(position))
+            is_copy = np.where(end_mask, is_copy, np.zeros_like(is_copy))
+            keyword_id = np.where(end_mask, keyword_id, np.zeros_like(keyword_id))
+            copy_id = np.where(end_mask, copy_id, np.zeros_like(copy_id))
 
             output_is_continues = np.concatenate((output_is_continues, np.expand_dims(is_continue, axis=1)), axis=1)
             output_position = np.concatenate((output_position, np.expand_dims(position, axis=1)), axis=1)
@@ -665,10 +700,18 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             actions = (is_continue, position, is_copy, keyword_id, copy_id)
             token_input, token_input_length, charactere_input, character_input_length = self._create_next_code(actions, token_input, token_input_length, charactere_input, character_input_length)
 
+            end_mask = np.logical_and(end_mask, is_continue)
+
             token_input = padded(token_input)
             token_input_length = padded(token_input_length)
             charactere_input = padded(charactere_input)
             character_input_length = padded(character_input_length)
+
+            token_input = util.mask_input_with_end(end_mask, token_input).tolist()
+            token_input_length = util.mask_input_with_end(end_mask, token_input_length).tolist()
+            charactere_input = util.mask_input_with_end(end_mask, charactere_input).tolist()
+            character_input_length = util.mask_input_with_end(end_mask, character_input_length).tolist()
+
 
         # for t in summary:
         #     # print('t is {}'.format(type(t)))
@@ -690,6 +733,9 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         return output_is_continues, output_position, output_is_copy, output_keyword_id, output_copy_id
 
     def metrics_model(self, *args):
+        # print("metrics input")
+        # for t in args:
+        #     print(np.array(t).shape)
         import copy
         args = copy.deepcopy(args)
         input_data = args[0:4]
