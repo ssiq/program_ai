@@ -195,9 +195,10 @@ def get_sign_list(code_string):
     assert len(code_string) == len(sign_list)
     return sign_list
 
-def padded(x):
+def padded(x, deepcopy=False):
     import copy
-    x = copy.deepcopy(x)
+    if deepcopy:
+        x = copy.deepcopy(x)
     if not isinstance(x, list):
         return x
     elif isinstance(x[0], list):
@@ -214,7 +215,8 @@ def batch_holder(*data: typing.List, batch_size=32, epoches=10):
 
         def one_epoch():
             i_data = sklearn.utils.shuffle(*data)
-            i_data = list(map(lambda x:map(padded, more_itertools.chunked(x, batch_size)), i_data))
+            padded_with_copy = lambda x: padded(x, deepcopy=True)
+            i_data = list(map(lambda x:map(padded_with_copy, more_itertools.chunked(x, batch_size)), i_data))
             return zip(*i_data)
         for m in more_itertools.repeatfunc(one_epoch, times=epoches):
             for t in m:

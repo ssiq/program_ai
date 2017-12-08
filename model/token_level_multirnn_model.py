@@ -642,9 +642,12 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
     def predict_model(self, *args,):
         # print('predict iterator start')
+        import copy
+        args = [ copy.deepcopy([ [ti[0]] for ti in one_input]) for one_input in args]
         token_input, token_input_length, charactere_input, character_input_length = args
         start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
         next_state = initial_state
+
 
         start_labels = []
         for i in range(len(initial_state)):
@@ -657,15 +660,6 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         output_is_copy = np.array([[] for i in range(len(token_input))])
         output_keyword_id = np.array([[] for i in range(len(token_input))])
         output_copy_id = np.array([[] for i in range(len(token_input))])
-
-        token_input = [ [ti[0]] for ti in token_input]
-        token_input_length = [ [ti[0]] for ti in token_input_length]
-        charactere_input = [ [ti[0]] for ti in charactere_input]
-        character_input_length = [ [ti[0]] for ti in character_input_length]
-        # print(np.array(token_input).shape)
-        # print(np.array(token_input_length).shape)
-        # print(np.array(charactere_input).shape)
-        # print(np.array(character_input_length).shape)
 
         end_mask = [1] * len(token_input)
 
@@ -713,11 +707,11 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             character_input_length = util.mask_input_with_end(end_mask, character_input_length).tolist()
 
 
-        # for t in summary:
-        #     # print('t is {}'.format(type(t)))
-        #     for k in range(len(t)):
-        #         if isinstance(t[k], np.ndarray):
-        #             t[k] = t[k].tolist()
+            # for t in summary:
+            #     # print('t is {}'.format(type(t)))
+            #     for k in range(len(t)):
+            #         if isinstance(t[k], np.ndarray):
+            #             t[k] = t[k].tolist()
             # print(padded(t))
             # print(np.array(padded(t)))
             # print(np.array(padded(t)).shape)
@@ -736,8 +730,6 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         # print("metrics input")
         # for t in args:
         #     print(np.array(t).shape)
-        import copy
-        args = copy.deepcopy(args)
         input_data = args[0:4]
         output_data = args[4:9]
         predict_data = self.predict_model(*input_data,)

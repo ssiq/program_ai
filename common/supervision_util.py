@@ -20,7 +20,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
     :return: train method. you can call the method to start a supervision experiment
     '''
 
-    def train_supervision(model_fn, param_generator, generator_times=6):
+    def train_supervision(model_fn, param_generator, generator_times=6, debug=False):
         print('create supervision data start')
         best_parameter = None
         best_accuracy = None
@@ -31,7 +31,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
                 model_parm['character_embedding_layer_fn'] = model_parm['character_embedding_layer_fn']()
 
                 print('create train model')
-                train_model_fn = create_model_train_fn(model_fn, model_parm)
+                train_model_fn = create_model_train_fn(model_fn, model_parm, debug)
                 print('create train model finish')
                 config = tf.ConfigProto()
                 config.gpu_options.allow_growth = True
@@ -64,7 +64,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
     return train_supervision
 
 
-def create_model_train_fn(model_fn, model_parameters):
+def create_model_train_fn(model_fn, model_parameters, debug=False):
     '''
     create a model with special paramenters.
     :param model_fn: Model class
@@ -125,7 +125,7 @@ def create_model_train_fn(model_fn, model_parameters):
                     saver.save(sess, 'checkpoints/{}_{}/bi_rnn'.format(
                         experiment_name + '_model', util.format_dict_to_string(model_parameters)),
                                model.global_step)
-                if i % debug_steps == 0:
+                if i % debug_steps == 0 and debug:
                     record_memory(recordloggername)
                     show_growth(recordloggername, growthloggername)
                     show_diff_length(i=i)
