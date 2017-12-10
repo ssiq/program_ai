@@ -1,7 +1,7 @@
 from common import util
 from code_data.read_data import read_cpp_fake_code_records_set
 from common.code_tokenize import GetTokens
-from common.supervision_util import create_supervision_experiment
+from common.supervision_util_increment import create_supervision_experiment
 from model.token_level_multirnn_model import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
 from code_data.constants import cache_data_path
@@ -249,6 +249,16 @@ def create_embedding():
     char_voc = load_character_vocabulary('bigru', n_gram=1, embedding_shape=100, token_list=char_sign_dict.keys())
     return key_val, char_voc
 
+
+def create_condition_fn(error_count: int):
+    def condition_fn(one):
+        for x in one:
+            if len(x) > error_count:
+                return False
+        return True
+    return condition_fn
+
+
 if __name__ == '__main__':
     util.initLogging()
     util.set_cuda_devices(1)
@@ -258,7 +268,6 @@ if __name__ == '__main__':
     key_val, char_voc = create_embedding()
     parse_xy_param = [key_val, char_voc, 5, 1]
 
-    import numpy as np
     # train, test, vaild = sample()
 
     # print(train)
@@ -277,9 +286,16 @@ if __name__ == '__main__':
     #             print(x.shape)
     #     isPrint += 1
 
+    modify_condition = [({'error_count': 1}, 0.5),
+                        ({'error_count': 2}, 0.4),
+                        ({'error_count': 3}, 0.3),
+                        ({'error_count': 4}, 0.2),
+                        ({'error_count': 5}, 1.0), ]
+
     MAX_ITERATOR_LEGNTH = 5
 
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
+    # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
+    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16, create_condition_fn=create_condition_fn, modify_condition=modify_condition)
     param_generator = random_parameters_generator(random_param={"learning_rate": [-5, 0]},
                                                   choice_param={ },
                                                   constant_param={"hidden_size": 100,

@@ -225,6 +225,37 @@ def batch_holder(*data: typing.List, batch_size=32, epoches=10):
     return iterator
 
 
+def batch_holder_with_condition(*data: typing.List, batch_size=32, epoches=10, condition=None):
+
+    def iterator():
+
+        def one_epoch():
+            # print('one_epoch')
+            i_data = list(map(list, zip(*sklearn.utils.shuffle(*data))))
+            if condition:
+                i_data = list(filter(condition, i_data))
+                # print('filter: ', i_data)
+            i_data = more_itertools.chunked(i_data, batch_size)
+
+            zip_with_batch_list = lambda a: list(map(lambda x: list(zip(*x)), a))
+            i_data = list(zip_with_batch_list(i_data))
+            i_data = list(map(lambda x: list(map(list, x)), i_data))
+            padded_with_copy = lambda x: list(padded(x, deepcopy=True))
+            i_data = list(map(
+                lambda x: list(map(padded_with_copy, x)), i_data))
+            return i_data
+
+        for m in more_itertools.repeatfunc(one_epoch, times=epoches):
+            for t in m:
+                if not condition.is_modify():
+                    yield t
+                else:
+                    condition.modify = False
+                    break
+
+    return iterator
+
+
 def expand_array_dims_and_tile(array, add_dims, multiplies):
     """
     This function first calls np.expand_dims to add dims for the array along the add_dims parameter then
