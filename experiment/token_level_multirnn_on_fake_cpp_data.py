@@ -327,7 +327,7 @@ if __name__ == '__main__':
                                                                   'character_embedding_layer_fn': char_voc.create_embedding_layer,
                                                                   'id_to_word_fn': key_val.id_to_word,
                                                                   'parse_token_fn': char_voc.parse_token})
-    train_supervision(TokenLevelMultiRnnModel, restore_param_generator, 1, restore_dir=True)
+    train_supervision(TokenLevelMultiRnnModel, restore_param_generator, 1, restore=True)
 
     # import tensorflow as tf
     # with tf.Session():
