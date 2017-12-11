@@ -225,7 +225,7 @@ def batch_holder(*data: typing.List, batch_size=32, epoches=10):
     return iterator
 
 
-def batch_holder_with_condition(*data: typing.List, batch_size=32, epoches=10, condition=None):
+def batch_holder_with_condition(*data: typing.List, batch_size=32, epoches=6, condition=None):
 
     def iterator():
 

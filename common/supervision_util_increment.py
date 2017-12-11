@@ -21,7 +21,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
     :return: train method. you can call the method to start a supervision experiment
     '''
 
-    def train_supervision(model_fn, param_generator, generator_times=6, debug=False):
+    def train_supervision(model_fn, param_generator, generator_times=6, debug=False, restore=None):
         print('create supervision data start')
         best_parameter = None
         best_accuracy = None
@@ -39,7 +39,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
                 test_data_iterator = util.batch_holder_with_condition(*test_data, batch_size=batch_size, epoches=1, condition=condition)
 
                 print('create train model')
-                train_model_fn = create_model_train_fn(model_fn, model_parm, debug)
+                train_model_fn = create_model_train_fn(model_fn, model_parm, debug, restore)
                 print('create train model finish')
                 config = tf.ConfigProto()
                 config.gpu_options.allow_growth = True
@@ -78,7 +78,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
     return train_supervision
 
 
-def create_model_train_fn(model_fn, model_parameters, debug=False):
+def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None):
     '''
     create a model with special paramenters.
     :param model_fn: Model class
@@ -89,7 +89,7 @@ def create_model_train_fn(model_fn, model_parameters, debug=False):
     def train_model(train_data_iterator,
                     validation_data_iterator,
                     test_data_iterator,
-                    experiment_name='default'
+                    experiment_name='default',
                     ):
         print("parameter:{}".format(util.format_dict_to_string(model_parameters)))
         model = model_fn(**model_parameters)
@@ -117,32 +117,37 @@ def create_model_train_fn(model_fn, model_parameters, debug=False):
         losses = []
         accuracies = []
         saver = tf.train.Saver()
+        if restore is not None:
+            restore_dir = 'checkpoints/{}_{}/'.format(experiment_name + '_model', util.format_dict_to_string(model_parameters))
+            util.load_check_point(restore_dir, sess, saver)
+            print('model restore from {}'.format(restore_dir))
         validation_data_itr = validation_data_iterator()
         util.make_dir('checkpoints', '{}_{}'.format(
             experiment_name + '_model', util.format_dict_to_string(model_parameters)))
         for i, data in enumerate(train_data_iterator()):
             try:
+                current_step = model.global_step
                 # log_data_shape(*data, recordloggername=recordloggername)
                 loss, metrics, _ = model.train_model(*data)
                 losses.append(loss)
                 accuracies.append(metrics)
-                if i % skip_steps == 0:
+                if current_step % skip_steps == 0:
                     train_summary = model.summary(*data)
                     train_writer.add_summary(train_summary, global_step=model.global_step)
                     validation_summary = model.summary(*next(validation_data_itr))
                     validation_writer.add_summary(validation_summary, global_step=model.global_step)
-                if i % print_skip_step == 0:
+                if current_step % print_skip_step == 0:
                     loss_mean = np.mean(losses)
                     metrics_mean = np.mean(accuracies)
-                    print("iteration {} with loss {} and accuracy {}".format(i, loss_mean, metrics_mean))
+                    print("iteration {} with loss {} and accuracy {}".format(current_step, loss_mean, metrics_mean))
                     yield metrics_mean
                     losses = []
                     accuracies = []
-                if i % save_steps == 0:
+                if current_step % save_steps == 0:
                     saver.save(sess, 'checkpoints/{}_{}/bi_rnn'.format(
                         experiment_name + '_model', util.format_dict_to_string(model_parameters)),
                                model.global_step)
-                if i % debug_steps == 0 and debug:
+                if current_step % debug_steps == 0 and debug:
                     record_memory(recordloggername)
                     show_growth(recordloggername, growthloggername)
                     show_diff_length(i=i)
