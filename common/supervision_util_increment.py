@@ -34,6 +34,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
                 change_count = 0
                 condition_fn = create_condition_fn(**modify_condition[change_count][0])
                 condition = Condition(condition_fn)
+                print('start condition: {}'.format(str(modify_condition[change_count][0])))
                 train_batch_iterator = util.batch_holder_with_condition(*train_data, batch_size=batch_size, condition=condition)
                 validation_data_iterator = util.batch_holder_with_condition(*vaild_data, batch_size=batch_size, epoches=None, condition=condition)
                 test_data_iterator = util.batch_holder_with_condition(*test_data, batch_size=batch_size, epoches=1, condition=condition)
@@ -53,7 +54,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
 
                             if metrics > modify_condition[change_count][1] and (len(modify_condition)-1) > change_count:
                                 change_count += 1
-                                print('condition modified {}, metrics condition from {} to {} with metrics {}'.format(change_count, modify_condition[change_count-1][1], modify_condition[change_count][1], metrics))
+                                print('condition modified to {}, metrics condition from {} to {} with metrics {}'.format(str(modify_condition[change_count][0]), modify_condition[change_count-1][1], modify_condition[change_count][1], metrics))
                                 condition.condition_fn = create_condition_fn(**modify_condition[change_count][0])
                                 condition.modify = True
 

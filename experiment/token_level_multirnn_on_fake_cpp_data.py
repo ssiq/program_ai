@@ -286,8 +286,9 @@ if __name__ == '__main__':
     #             print(x.shape)
     #     isPrint += 1
 
-    modify_condition = [({'error_count': 1}, 0.6),
-                        ({'error_count': 2}, 0.5),
+    modify_condition = [
+                        # ({'error_count': 1}, 0.6),
+                        # ({'error_count': 2}, 0.5),
                         ({'error_count': 3}, 0.4),
                         ({'error_count': 4}, 0.4),
                         ({'error_count': 5}, 1.0), ]
