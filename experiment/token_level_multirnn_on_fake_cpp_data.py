@@ -12,6 +12,12 @@ from code_data.constants import DEBUG_LOG_PATH, OUTPUT_LOG_PATH, debug_logger_na
 
 MAX_TOKEN_LENGTH = 300
 
+def create_identifier_mask(tokens, keyword_set):
+    token_set = set(tokens) - keyword_set
+    token_id_dict = util.reverse_dict(dict(enumerate(token_set, start=1)))
+    return [token_id_dict[t] if t in token_set else 0 for t in tokens], token_id_dict
+
+
 def get_token_list(code):
     try:
         code = code.replace('\r', '')
