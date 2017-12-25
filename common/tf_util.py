@@ -970,6 +970,28 @@ def variable_length_softmax(logit, in_length):
     softmax = tf.reshape(softmax, logit_shape)
     return softmax
 
+def variable_length_mask_softmax(logit, in_length, mask):
+    """
+    :param logit: [batch, time]
+    :param in_length: [batch]
+    :param mask: the same shape as logit
+    :return:
+    """
+    logit_shape = get_shape(logit)
+    logit = tf.reshape(logit, (-1, logit_shape[-1]))
+    mask = tf.reshape(mask, (-1, logit_shape[-1]))
+    in_length = tf.reshape(in_length, (-1,))
+    in_length = tf.cast(in_length, tf.int32)
+    mask = lengths_to_mask(in_length, get_shape(logit)[1]) * mask
+    mask = tf.cast(mask, tf.float32)
+    logit = logit * mask
+    logit = logit - tf.reduce_max(logit, axis=-1, keep_dims=True)
+    exp_logit = tf.exp(logit) * mask
+    softmax = exp_logit / tf.reduce_sum(exp_logit, axis=-1, keep_dims=True)
+    softmax = tf.where(tf.equal(in_length, 0), x=tf.zeros_like(softmax), y=softmax)
+    softmax = tf.reshape(softmax, logit_shape)
+    return softmax
+
 def expand_dims_and_tile(tensor, add_dims, multiplies):
     """
     This function first calls tf.expand_dims to add dims for the tensor along the add_dims parameter then

@@ -1,3 +1,5 @@
+from multiprocessing import Pool
+
 import sklearn
 import tensorflow as tf
 import typing
@@ -372,6 +374,22 @@ def reverse_dict(d: dict) -> dict:
     dict(key->value) => dict(value->key)
     """
     return dict(map(reversed, d.items()))
+
+# ================================================================
+# multiprocess function
+# ================================================================
+
+def parallel_map(core_num, f, args):
+    """
+    :param core_num: the cpu number
+    :param f: the function to parallel to do
+    :param args: the input args
+    :return:
+    """
+
+    with Pool(core_num) as p:
+        r = p.map(f, args)
+        return r
 
 if __name__ == '__main__':
     make_dir('data', 'cache_data')

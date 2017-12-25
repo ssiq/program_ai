@@ -12,10 +12,21 @@ from code_data.constants import DEBUG_LOG_PATH, OUTPUT_LOG_PATH, debug_logger_na
 
 MAX_TOKEN_LENGTH = 300
 
-def create_identifier_mask(tokens, keyword_set):
+def create_identifier_category(tokens, keyword_set):
     token_set = set(tokens) - keyword_set
     token_id_dict = util.reverse_dict(dict(enumerate(token_set, start=1)))
     return [token_id_dict[t] if t in token_set else 0 for t in tokens], token_id_dict
+
+
+def create_identifier_mask(tokens, keyword_set):
+    token_set = set(tokens) - keyword_set
+    token_set = sorted(token_set)
+    id_token_dict = dict(enumerate(token_set, start=1))
+    token_id_dict = util.reverse_dict(id_token_dict)
+    def f(x):
+         return [int(x==t)  for t in tokens]
+    res = util.parallel_map(core_num=10, f=f, args=token_set)
+    return res, token_id_dict
 
 
 def get_token_list(code):
