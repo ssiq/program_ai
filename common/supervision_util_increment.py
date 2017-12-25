@@ -43,7 +43,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
                 train_model_fn = create_model_train_fn(model_fn, model_parm, debug, restore)
                 print('create train model finish')
                 config = tf.ConfigProto()
-                config.gpu_options.allow_growth = True
+                # config.gpu_options.allow_growth = True
                 with tf.Session(config=config):
                     print('in tf.session')
                     with tf_util.summary_scope():
@@ -133,10 +133,11 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                 losses.append(loss)
                 accuracies.append(metrics)
                 if current_step % skip_steps == 0:
-                    train_summary = model.summary(*data)
-                    train_writer.add_summary(train_summary, global_step=model.global_step)
-                    validation_summary = model.summary(*next(validation_data_itr))
-                    validation_writer.add_summary(validation_summary, global_step=model.global_step)
+                    pass
+                    # train_summary = model.summary(*data)
+                    # train_writer.add_summary(train_summary, global_step=model.global_step)
+                    # validation_summary = model.summary(*next(validation_data_itr))
+                    # validation_writer.add_summary(validation_summary, global_step=model.global_step)
                 if current_step % print_skip_step == 0:
                     loss_mean = np.mean(losses)
                     metrics_mean = np.mean(accuracies)
