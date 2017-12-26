@@ -573,6 +573,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                     if copy_id >= code_length:
                         # copy position error
                         print('copy position error', copy_id, code_length)
+                        print('details:', position, is_copy, keyword_id, copy_id, code_length)
                         continue
                     word_token_id = token_input[i][0][copy_id]
                     word_character_id = character_input[i][0][copy_id]
@@ -787,8 +788,6 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             position_embedding_flat = flat_list(position_embedding_stack)
             code_embedding_flat = flat_list(code_embedding_stack)
 
-            # print(len(output_flat))
-
             create_label_lambda_fn = lambda is_continue, position, is_copy, keyword_id, copy_id, position_emb, code_emb: self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1),
                                                          np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1), position_emb, code_emb)[:, 0, :]
             create_label_lambda_chunked_fn = lambda chunked: create_label_lambda_fn(*list(zip(*chunked)))
@@ -797,26 +796,32 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             next_labels_stack = np.reshape(next_labels_stack, (batch_size, beam_size, -1)).tolist()
             # [create_label_lambda_fn() for is_continue, position, is_copy, keyword_id, copy_id in more_itertools.chunked(list(zip(*output_stack)) + [position_embedding_stack] + [code_embedding_stack], batch_size)]
 
-            input_stack = list(map(util.padded, input_stack))
-            mask_input_with_end_fn = lambda token_input: util.mask_input_with_end(*list(zip(mask_stack, token_input))).tolist()
+            input_stack = [list(util.padded(list(inp))) for inp in input_stack]
+            mask_input_with_end_fn = lambda token_input: list([util.mask_input_with_end(batch_mask, batch_inp, n_dim=1).tolist() for batch_mask, batch_inp in zip(mask_stack, token_input)])
             input_stack = list(map(mask_input_with_end_fn, input_stack))
-            cur_beam_size = 5
+            cur_beam_size = beam_size
 
         final_output = select_max_output(beam_stack, select_output_stack_list)
         return final_output
 
     def beam_calculate(self, inputs, outputs_logit, beam_score, next_states, position_embedding, code_embedding, end_beam, length_beam, select_beam, beam_size):
         # is_continues_beam, positions_beam, is_copys_beam, keyword_ids_beam, copy_ids_beam = outputs
-        length_beam = (np.array(length_beam) + np.array(end_beam)).tolist()
-        cur_beam_size = len(outputs_logit[0])
 
-        p_beam, action_beam = beam_calculate_output_score(outputs_logit, cur_beam_size)
+        # if np.sum(end_beam) == 0:
+        #     outputs = [[0]*len(out) for out in outputs_logit]
+        #     return inputs, outputs, select_beam, end_beam, beam_score, next_states, position_embedding, code_embedding, length_beam
+
+        length_beam = (np.array(length_beam) + np.array(end_beam)).tolist()
+        cur_beam_size = len(outputs_logit[1])
+
+        p_beam, action_beam = beam_calculate_output_score(outputs_logit, beam_size)
         p_beam = [(p_b if end_b else [0]) for p_b, end_b in zip(p_beam, end_beam)]
         p_score = beam_calculate_score(beam_score, p_beam)
         p_score_with_penalty = beam_calculate_length_penalty(length_beam, p_score)
 
         p_score = beam_flat(p_score)
         p_score_with_penalty = beam_flat(p_score_with_penalty)
+
         action_beam = beam_flat(action_beam)
         top_indices = beam_cal_top_k(p_score_with_penalty, beam_size)
         beam_score = beam_gather(p_score, top_indices)
@@ -824,9 +829,10 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         beam_indices = beam_top_to_beamid(action_beam)
 
         # outputs_logit = [self.beam_gather(out, beam_indices) for out in outputs_logit]
+        end_beam = beam_gather(end_beam, beam_indices)
         outputs = beam_get_output_from_action_beams(action_beam)
         outputs = [np.where(end_beam, out, np.zeros_like(out)).tolist() for out in outputs]
-        end_beam = beam_gather(end_beam, beam_indices)
+        # print('outputs:', outputs)
         select_beam = [beam_gather(sel_beam, beam_indices, deepcopy=True) for sel_beam in select_beam]
         is_continues_beam = outputs[0]
         end_beam = np.logical_and(end_beam, is_continues_beam).tolist()
@@ -838,7 +844,6 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         code_embedding = beam_gather(code_embedding, beam_indices, deepcopy=True)
 
         inputs = [beam_gather(inp, beam_indices, deepcopy=True) for inp in inputs]
-        # print('input length:', len(inputs), len(inputs[0]))
         inputs = self._create_next_code(outputs, *inputs)
 
         return inputs, outputs, select_beam, end_beam, beam_score, next_states, position_embedding, code_embedding, length_beam
@@ -890,7 +895,10 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
 def beam_calculate_output_score(output_beam_list, beam_size):
     import math
+
     output_is_continues, output_positions, output_is_copys, output_keyword_ids, output_copy_ids = output_beam_list
+    cur_beam_size = len(output_positions)
+    # print('cur_beam_size:',cur_beam_size)
     beam_action_stack = [[] for i in range(beam_size)]
     beam_p_stack = [[] for i in range(beam_size)]
 
@@ -902,7 +910,7 @@ def beam_calculate_output_score(output_beam_list, beam_size):
     output_is_copys = [sigmoid_to_p_distribute(beam) for beam in output_is_copys]
     top_is_continue_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_is_continues]
     top_is_copy_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_is_copys]
-    for beam_id in range(beam_size):
+    for beam_id in range(cur_beam_size):
 
         for position_id in top_position_beam_id_list[beam_id]:
             for is_continue in top_is_continue_beam_id_list[beam_id]:
@@ -914,9 +922,14 @@ def beam_calculate_output_score(output_beam_list, beam_size):
                             position_p = output_positions[beam_id][position_id]
                             is_copy_p = output_is_copys[beam_id][is_copy]
                             copy_id_p = output_copy_ids[beam_id][copy_id]
+                            is_continue_p = is_continue_p if is_continue_p > 0 else 0.00001
+                            position_p = position_p if position_p > 0 else 0.00001
+                            is_copy_p = is_copy_p if is_copy_p > 0 else 0.00001
+                            copy_id_p = copy_id_p if copy_id_p > 0 else 0.00001
 
                             action = {'is_continue': is_continue, 'position': position_id, 'is_copy': is_copy,
                                       'keyword': keyword, 'copy_id': copy_id, 'beam_id': beam_id}
+                            # print(is_continue_p, position_p, is_copy_p, copy_id_p)
                             p = math.log(is_continue_p) + math.log(position_p) + math.log(is_copy_p) + math.log(copy_id_p)
 
                             beam_action_stack[beam_id].append(action)
@@ -929,6 +942,10 @@ def beam_calculate_output_score(output_beam_list, beam_size):
                             position_p = output_positions[beam_id][position_id]
                             is_copy_p = output_is_copys[beam_id][is_copy]
                             keyword_p = output_keyword_ids[beam_id][keyword]
+                            is_continue_p = is_continue_p if is_continue_p > 0 else 0.00001
+                            position_p = position_p if position_p > 0 else 0.00001
+                            is_copy_p = is_copy_p if is_copy_p > 0 else 0.00001
+                            keyword_p = keyword_p if keyword_p > 0 else 0.00001
 
                             action = {'is_continue': is_continue, 'position': position_id, 'is_copy': is_copy,
                                       'keyword': keyword, 'copy_id': copy_id, 'beam_id': beam_id}
