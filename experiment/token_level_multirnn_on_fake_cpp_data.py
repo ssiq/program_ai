@@ -8,7 +8,7 @@ from code_data.constants import cache_data_path
 import more_itertools
 from common.util import initCustomerLogger
 import logging
-from code_data.constants import DEBUG_LOG_PATH, OUTPUT_LOG_PATH, debug_logger_name_list, output_logger_name_list
+from code_data.constants import DEBUG_LOG_PATH, OUTPUT_LOG_PATH, debug_logger_name_list, output_logger_name_list, pre_defined_cpp_token
 
 MAX_TOKEN_LENGTH = 300
 
@@ -133,7 +133,6 @@ def parse_xy(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
         return one
 
 
-
     def create_token_id_input(one):
         token_name_list = one['token_name_list']
         token_id_list = []
@@ -147,6 +146,13 @@ def parse_xy(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
             token_id_list.append(id_list)
         one['token_id_list'] = token_id_list
         one['token_length_list'] = len_list
+        return one
+
+
+    def create_token_identify_mask(one):
+        token_name_list = one['token_name_list']
+        token_identify_mask = [create_identifier_category(name_list, pre_defined_cpp_token) for name_list in token_name_list]
+        one['token_identify_mask'] = token_identify_mask
         return one
 
 
@@ -240,13 +246,16 @@ def parse_xy(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
     df = df.apply(create_token_id_input, axis=1, raw=True)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
+    df = df.apply(create_token_identify_mask, axis=1, raw=True)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
     df = df.apply(create_character_id_input, axis=1, raw=True)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     df = df.apply(create_full_output, axis=1, raw=True)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
-    return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
+    return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['token_identify_mask'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
 
 
 @util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_sample_5000', directory=cache_data_path)
@@ -290,7 +299,7 @@ if __name__ == '__main__':
     # print(train)
 
     # res = parse_xy(train, *parse_xy_param)
-    # print(res)
+    # print(res[1])
     # print(len(res))
 
     # test_data_iterator = util.batch_holder(*parse_xy(test, *parse_xy_param), batch_size=8)
