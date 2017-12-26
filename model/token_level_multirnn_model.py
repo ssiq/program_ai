@@ -182,13 +182,13 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         metrics_input_placeholder = tf.placeholder(tf.float32, shape=[], name="metrics")
         tf_util.add_summary_scalar("metrics", metrics_input_placeholder, is_placeholder=True)
         tf_util.add_summary_histogram("predict_is_continue",
-                                      tf.placeholder(tf.float32, shape=(None, None), name="predict_is_continue"),
+                                      tf.placeholder(tf.float32, shape=(None, None, None), name="predict_is_continue"),
                                       is_placeholder=True)
         tf_util.add_summary_histogram("predict_position_softmax",
                                       tf.placeholder(tf.float32, shape=(None, None, None), name="predict_position_softmax"),
                                       is_placeholder=True)
         tf_util.add_summary_histogram("predict_is_copy",
-                                      tf.placeholder(tf.float32, shape=(None, None), name="predict_is_copy"),
+                                      tf.placeholder(tf.float32, shape=(None, None, None), name="predict_is_copy"),
                                       is_placeholder=True)
         tf_util.add_summary_histogram("predict_key_word",
                                       tf.placeholder(tf.float32, shape=(None, None, None), name="predict_keyword"),
@@ -800,6 +800,14 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             mask_input_with_end_fn = lambda token_input: list([util.mask_input_with_end(batch_mask, batch_inp, n_dim=1).tolist() for batch_mask, batch_inp in zip(mask_stack, token_input)])
             input_stack = list(map(mask_input_with_end_fn, input_stack))
             cur_beam_size = beam_size
+
+
+        summary = copy.deepcopy(select_output_stack_list)
+        tf_util.add_value_histogram("predict_is_continue", util.padded(summary[0]))
+        tf_util.add_value_histogram("predict_position_softmax", util.padded(summary[1]))
+        tf_util.add_value_histogram("predict_is_copy", util.padded(summary[2]))
+        tf_util.add_value_histogram("predict_key_word", util.padded(summary[3]))
+        tf_util.add_value_histogram("predict_copy_word", util.padded(summary[4]))
 
         final_output = select_max_output(beam_stack, select_output_stack_list)
         return final_output
