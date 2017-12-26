@@ -775,7 +775,16 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             position_embedding_stack = revert_batch_beam_stack(position_embedding_list, batch_size, cur_beam_size)
             code_embedding_stack = revert_batch_beam_stack(code_embedding_list, batch_size, cur_beam_size)
 
-            batch_returns = list(map(self.beam_calculate, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, next_states_stack, position_embedding_stack, code_embedding_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size]*batch_size))
+            # beam_args = (list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, next_states_stack,
+            #              position_embedding_stack, code_embedding_stack, mask_stack, beam_length_stack,
+            #              list(zip(*select_output_stack_list)), [beam_size] * batch_size)
+            # batch_returns = list(util.parallel_map(core_num=3, f=beam_calculate_fn, args=list(zip(*beam_args))))
+            batch_returns = list(map(beam_calculate, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, next_states_stack, position_embedding_stack, code_embedding_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size]*batch_size))
+            def create_next(ret):
+                ret = list(ret)
+                ret[0] = self._create_next_code(ret[1], *ret[0])
+                return ret
+            batch_returns = [create_next(ret) for ret in batch_returns]
             input_stack, output_stack, select_output_stack_list, mask_stack, beam_stack, next_states_stack, position_embedding_stack, code_embedding_stack, beam_length_stack = list(zip(*batch_returns))
             input_stack = list(zip(*input_stack))
             output_stack = list(zip(*output_stack))
@@ -811,50 +820,6 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
         final_output = select_max_output(beam_stack, select_output_stack_list)
         return final_output
-
-    def beam_calculate(self, inputs, outputs_logit, beam_score, next_states, position_embedding, code_embedding, end_beam, length_beam, select_beam, beam_size):
-        # is_continues_beam, positions_beam, is_copys_beam, keyword_ids_beam, copy_ids_beam = outputs
-
-        # if np.sum(end_beam) == 0:
-        #     outputs = [[0]*len(out) for out in outputs_logit]
-        #     return inputs, outputs, select_beam, end_beam, beam_score, next_states, position_embedding, code_embedding, length_beam
-
-        length_beam = (np.array(length_beam) + np.array(end_beam)).tolist()
-        cur_beam_size = len(outputs_logit[1])
-
-        p_beam, action_beam = beam_calculate_output_score(outputs_logit, beam_size)
-        p_beam = [(p_b if end_b else [0]) for p_b, end_b in zip(p_beam, end_beam)]
-        p_score = beam_calculate_score(beam_score, p_beam)
-        p_score_with_penalty = beam_calculate_length_penalty(length_beam, p_score)
-
-        p_score = beam_flat(p_score)
-        p_score_with_penalty = beam_flat(p_score_with_penalty)
-
-        action_beam = beam_flat(action_beam)
-        top_indices = beam_cal_top_k(p_score_with_penalty, beam_size)
-        beam_score = beam_gather(p_score, top_indices)
-        action_beam = beam_gather(action_beam, top_indices)
-        beam_indices = beam_top_to_beamid(action_beam)
-
-        # outputs_logit = [self.beam_gather(out, beam_indices) for out in outputs_logit]
-        end_beam = beam_gather(end_beam, beam_indices)
-        outputs = beam_get_output_from_action_beams(action_beam)
-        outputs = [np.where(end_beam, out, np.zeros_like(out)).tolist() for out in outputs]
-        # print('outputs:', outputs)
-        select_beam = [beam_gather(sel_beam, beam_indices, deepcopy=True) for sel_beam in select_beam]
-        is_continues_beam = outputs[0]
-        end_beam = np.logical_and(end_beam, is_continues_beam).tolist()
-        select_beam = [np.concatenate((sel_out, np.expand_dims(out, axis=1)), 1).tolist() for sel_out, out in zip(select_beam, outputs)]
-        length_beam = beam_gather(length_beam, beam_indices)
-
-        next_states = beam_gather(next_states, beam_indices, deepcopy=True)
-        position_embedding = beam_gather(position_embedding, beam_indices, deepcopy=True)
-        code_embedding = beam_gather(code_embedding, beam_indices, deepcopy=True)
-
-        inputs = [beam_gather(inp, beam_indices, deepcopy=True) for inp in inputs]
-        inputs = self._create_next_code(outputs, *inputs)
-
-        return inputs, outputs, select_beam, end_beam, beam_score, next_states, position_embedding, code_embedding, length_beam
 
     def metrics_model(self, *args):
         # print("metrics input")
@@ -899,6 +864,55 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
     def fill_output_data(self, output:list, iter_len):
         res = [t + [0]*(iter_len-len(t)) for t in output]
         return np.array(res)
+
+
+def beam_calculate_fn(args):
+    return beam_calculate(*args)
+
+
+def beam_calculate(inputs, outputs_logit, beam_score, next_states, position_embedding, code_embedding, end_beam, length_beam, select_beam, beam_size):
+    # is_continues_beam, positions_beam, is_copys_beam, keyword_ids_beam, copy_ids_beam = outputs
+
+    # if np.sum(end_beam) == 0:
+    #     outputs = [[0]*len(out) for out in outputs_logit]
+    #     return inputs, outputs, select_beam, end_beam, beam_score, next_states, position_embedding, code_embedding, length_beam
+
+    length_beam = (np.array(length_beam) + np.array(end_beam)).tolist()
+    cur_beam_size = len(outputs_logit[1])
+
+    p_beam, action_beam = beam_calculate_output_score(outputs_logit, beam_size)
+    p_beam = [(p_b if end_b else [0]) for p_b, end_b in zip(p_beam, end_beam)]
+    p_score = beam_calculate_score(beam_score, p_beam)
+    p_score_with_penalty = beam_calculate_length_penalty(length_beam, p_score)
+
+    p_score = beam_flat(p_score)
+    p_score_with_penalty = beam_flat(p_score_with_penalty)
+
+    action_beam = beam_flat(action_beam)
+    top_indices = beam_cal_top_k(p_score_with_penalty, beam_size)
+    beam_score = beam_gather(p_score, top_indices)
+    action_beam = beam_gather(action_beam, top_indices)
+    beam_indices = beam_top_to_beamid(action_beam)
+
+    # outputs_logit = [self.beam_gather(out, beam_indices) for out in outputs_logit]
+    end_beam = beam_gather(end_beam, beam_indices)
+    outputs = beam_get_output_from_action_beams(action_beam)
+    outputs = [np.where(end_beam, out, np.zeros_like(out)).tolist() for out in outputs]
+    # print('outputs:', outputs)
+    select_beam = [beam_gather(sel_beam, beam_indices, deepcopy=True) for sel_beam in select_beam]
+    is_continues_beam = outputs[0]
+    end_beam = np.logical_and(end_beam, is_continues_beam).tolist()
+    select_beam = [np.concatenate((sel_out, np.expand_dims(out, axis=1)), 1).tolist() for sel_out, out in zip(select_beam, outputs)]
+    length_beam = beam_gather(length_beam, beam_indices)
+
+    next_states = beam_gather(next_states, beam_indices, deepcopy=True)
+    position_embedding = beam_gather(position_embedding, beam_indices, deepcopy=True)
+    code_embedding = beam_gather(code_embedding, beam_indices, deepcopy=True)
+
+    inputs = [beam_gather(inp, beam_indices, deepcopy=True) for inp in inputs]
+    # inputs = self._create_next_code(outputs, *inputs)
+
+    return inputs, outputs, select_beam, end_beam, beam_score, next_states, position_embedding, code_embedding, length_beam
 
 
 def beam_calculate_output_score(output_beam_list, beam_size):

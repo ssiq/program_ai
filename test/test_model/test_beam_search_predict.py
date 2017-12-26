@@ -4,6 +4,7 @@ import unittest
 from common.beam_search_util import *
 from experiment.token_level_multirnn_on_fake_cpp_data import sample, create_embedding, parse_xy
 from model.token_level_multirnn_model import *
+from model.token_level_multirnn_model import beam_calculate
 
 
 class TestBeamSearch(unittest.TestCase):
@@ -192,7 +193,7 @@ class TestBeamSearch(unittest.TestCase):
         length_beam = [1, 1, 1]
         select_beam = [([1, 1], [1, 1], [1, 1]), ([], [], []), ([1, 0], [0, 1], [0, 0]), ([], [], []), ([], [], [])]
         beam_size = 3
-        res = self.model.beam_calculate(inputs, outputs_logit, beam_score, next_states, position_embedding, code_embedding, end_beam, length_beam, select_beam, beam_size)
+        res = beam_calculate(inputs, outputs_logit, beam_score, next_states, position_embedding, code_embedding, end_beam, length_beam, select_beam, beam_size)
         inputs, outputs, select_beam, end_beam, beam_score, next_states, position_embedding, code_embedding, length_beam = res
         print(inputs[0][0])
         self.assertEqual(outputs[0][0], 1)

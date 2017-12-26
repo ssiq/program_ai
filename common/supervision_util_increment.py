@@ -118,7 +118,7 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
         losses = []
         accuracies = []
         saver = tf.train.Saver()
-        if restore is not None:
+        if restore:
             restore_dir = 'checkpoints/{}_{}/'.format(experiment_name + '_model', util.format_dict_to_string(model_parameters))
             util.load_check_point(restore_dir, sess, saver)
             print('model restore from {}'.format(restore_dir))
@@ -132,6 +132,7 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                 loss, metrics, _ = model.train_model(*data)
                 losses.append(loss)
                 accuracies.append(metrics)
+                # print("iteration {} with loss {} and metrics {}".format(current_step, loss, metrics))
                 if current_step % skip_steps == 0:
                     train_summary = model.summary(*data)
                     train_writer.add_summary(train_summary, global_step=model.global_step)
