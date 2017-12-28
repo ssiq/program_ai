@@ -11,6 +11,9 @@ import logging
 from code_data.constants import DEBUG_LOG_PATH, OUTPUT_LOG_PATH, debug_logger_name_list, output_logger_name_list, pre_defined_cpp_token
 
 MAX_TOKEN_LENGTH = 300
+CHANGE = 0
+INSERT = 1
+DELETE = 2
 
 def create_identifier_category(tokens, keyword_set):
     token_set = set(tokens) - keyword_set
@@ -148,93 +151,11 @@ def parse_xy(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
         one['token_length_list'] = len_list
         return one
 
-
     def create_token_identify_mask(one):
         token_name_list = one['token_name_list']
         token_identify_mask = [create_identifier_category(name_list, pre_defined_cpp_token) for name_list in token_name_list]
         one['token_identify_mask'] = token_identify_mask
         return one
-
-
-    def create_error_list(one):
-        import random
-
-        def has_repeat_action(code_obj, ac_cha_list):
-            start_ac_pos = []
-            for act in ac_cha_list:
-                ac_pos = act['ac_pos']
-                for obj in code_obj:
-                    if ac_pos >= obj.start and ac_pos < obj.end:
-                        if ac_pos in start_ac_pos:
-                            return True
-                        start_ac_pos.append(ac_pos)
-                        break
-            return False
-
-        def create_name_list(code_obj):
-            name_list = []
-            for obj in code_obj:
-                name_list.append(obj.name)
-            return name_list
-
-
-        import json
-        action_character_list = json.loads(one['action_character_list'])
-        ac_code_obj = one['ac_code_obj']
-
-        if has_repeat_action(ac_code_obj, action_character_list):
-            one['res'] = None
-            return one
-
-        token_name_list = []
-        action_list = []
-        for act in action_character_list:
-            ac_pos = act['ac_pos']
-            ac_type = act['act_type']
-            i = 0
-            while i < len(ac_code_obj):
-                obj = ac_code_obj[i]
-
-                if ac_pos >= obj.start and ac_pos < obj.end:
-                    if ac_type == INSERT:
-                        import copy
-                        tmp_obj = ac_code_obj[random.randint(0, len(ac_code_obj)-1)]
-                        tmp_obj = copy.deepcopy(tmp_obj)
-                        tmp_obj.start = -1
-                        tmp_obj.end = -1
-                        action = {'type': DELETE, 'pos': i * 2 + 1, 'token': tmp_obj.name}
-                        ac_code_obj.insert(i, tmp_obj)
-                        name_list = create_name_list(ac_code_obj)
-                        action_list.insert(0, action)
-                        token_name_list.insert(0, name_list)
-                        break
-                    elif ac_type == DELETE:
-                        ac_code_obj.pop(i)
-                        action = {'type': INSERT, 'pos': i*2, 'token': obj.name}
-                        name_list = create_name_list(ac_code_obj)
-                        action_list.insert(0, action)
-                        token_name_list.insert(0, name_list)
-                        break
-                    elif ac_type == CHANGE:
-                        name = obj.name
-                        tmp_list = list(name)
-                        tmp_list[ac_pos-obj.start] = act['to_char']
-                        ac_code_obj[i].name = "".join(tmp_list)
-
-                        action = {'type': CHANGE, 'pos': i*2+1, 'token': name}
-                        name_list = create_name_list(ac_code_obj)
-                        action_list.insert(0, action)
-                        token_name_list.insert(0, name_list)
-                        break
-                i += 1
-
-        one['token_name_list'] = token_name_list
-        one['action_list'] = action_list
-        return one
-
-    CHANGE = 0
-    INSERT = 1
-    DELETE = 2
 
     df['res'] = ''
     df['ac_code_obj'] = df['ac_code'].map(get_token_list)
@@ -256,6 +177,83 @@ def parse_xy(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['token_identify_mask'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
+
+
+def create_error_list(one):
+    import random
+
+    def has_repeat_action(code_obj, ac_cha_list):
+        start_ac_pos = []
+        for act in ac_cha_list:
+            ac_pos = act['ac_pos']
+            for obj in code_obj:
+                if ac_pos >= obj.start and ac_pos < obj.end:
+                    if ac_pos in start_ac_pos:
+                        return True
+                    start_ac_pos.append(ac_pos)
+                    break
+        return False
+
+    def create_name_list(code_obj):
+        name_list = []
+        for obj in code_obj:
+            name_list.append(obj.name)
+        return name_list
+
+
+    import json
+    action_character_list = json.loads(one['action_character_list'])
+    ac_code_obj = one['ac_code_obj']
+
+    if has_repeat_action(ac_code_obj, action_character_list):
+        one['res'] = None
+        return one
+
+    token_name_list = []
+    action_list = []
+    for act in action_character_list:
+        ac_pos = act['ac_pos']
+        ac_type = act['act_type']
+        i = 0
+        while i < len(ac_code_obj):
+            obj = ac_code_obj[i]
+
+            if ac_pos >= obj.start and ac_pos < obj.end:
+                if ac_type == INSERT:
+                    import copy
+                    tmp_obj = ac_code_obj[random.randint(0, len(ac_code_obj)-1)]
+                    tmp_obj = copy.deepcopy(tmp_obj)
+                    tmp_obj.start = -1
+                    tmp_obj.end = -1
+                    action = {'type': DELETE, 'pos': i * 2 + 1, 'token': tmp_obj.name}
+                    ac_code_obj.insert(i, tmp_obj)
+                    name_list = create_name_list(ac_code_obj)
+                    action_list.insert(0, action)
+                    token_name_list.insert(0, name_list)
+                    break
+                elif ac_type == DELETE:
+                    ac_code_obj.pop(i)
+                    action = {'type': INSERT, 'pos': i*2, 'token': obj.name}
+                    name_list = create_name_list(ac_code_obj)
+                    action_list.insert(0, action)
+                    token_name_list.insert(0, name_list)
+                    break
+                elif ac_type == CHANGE:
+                    name = obj.name
+                    tmp_list = list(name)
+                    tmp_list[ac_pos-obj.start] = act['to_char']
+                    ac_code_obj[i].name = "".join(tmp_list)
+
+                    action = {'type': CHANGE, 'pos': i*2+1, 'token': name}
+                    name_list = create_name_list(ac_code_obj)
+                    action_list.insert(0, action)
+                    token_name_list.insert(0, name_list)
+                    break
+            i += 1
+
+    one['token_name_list'] = token_name_list
+    one['action_list'] = action_list
+    return one
 
 
 @util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_sample_5000', directory=cache_data_path)
@@ -313,10 +311,10 @@ if __name__ == '__main__':
     #     isPrint += 1
 
     modify_condition = [
-                        # ({'error_count': 1}, 0.6),
-                        # ({'error_count': 2}, 0.5),
-                        ({'error_count': 3}, 0.4),
-                        ({'error_count': 4}, 0.4),
+                        ({'error_count': 1}, 0.9),
+                        ({'error_count': 2}, 0.8),
+                        ({'error_count': 3}, 0.7),
+                        ({'error_count': 4}, 0.7),
                         ({'error_count': 5}, 1.0), ]
 
     MAX_ITERATOR_LEGNTH = 5
@@ -324,7 +322,7 @@ if __name__ == '__main__':
     # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
 
     train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16, create_condition_fn=create_condition_fn, modify_condition=modify_condition)
-    # param_generator = random_parameters_generator(random_param={"learning_rate": [-5, 0]},
+    # param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -1]},
     #                                               choice_param={ },
     #                                               constant_param={"hidden_size": 100,
     #                                                               'rnn_layer_number': 2,
@@ -338,10 +336,11 @@ if __name__ == '__main__':
     #                                                               'character_embedding_layer_fn': char_voc.create_embedding_layer,
     #                                                               'id_to_word_fn': key_val.id_to_word,
     #                                                               'parse_token_fn': char_voc.parse_token})
-
+    #
+    # train_supervision(TokenLevelMultiRnnModel, param_generator, 1, restore=False)
     restore_param_generator = random_parameters_generator(random_param={ },
                                                   choice_param={ },
-                                                  constant_param={"learning_rate": 0.000101561577686,
+                                                  constant_param={"learning_rate": 0.000948072915975,
                                                                   "hidden_size": 100,
                                                                   'rnn_layer_number': 2,
                                                                   'keyword_number': len(key_val.word_id_map),

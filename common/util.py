@@ -276,10 +276,11 @@ def expand_array_dims_and_tile(array, add_dims, multiplies):
     return array
 
 
-def mask_input_with_end(end_mask, input_data):
+def mask_input_with_end(end_mask, input_data, n_dim=0):
     token_input_shape = list(np.array(input_data).shape)
     add_dims = [ i for i in range(1, len(token_input_shape))]
-    token_input_shape[0] = 1
+    for i in range(n_dim):
+        token_input_shape[i] = 1
     end_mask_array = expand_array_dims_and_tile(end_mask, add_dims, token_input_shape)
     token_input = np.where(end_mask_array, input_data, np.zeros_like(input_data))
     return token_input

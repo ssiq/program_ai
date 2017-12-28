@@ -43,7 +43,7 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
                 train_model_fn = create_model_train_fn(model_fn, model_parm, debug, restore)
                 print('create train model finish')
                 config = tf.ConfigProto()
-                config.gpu_options.allow_growth = True
+                # config.gpu_options.allow_growth = True
                 with tf.Session(config=config):
                     print('in tf.session')
                     with tf_util.summary_scope():
@@ -118,7 +118,7 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
         losses = []
         accuracies = []
         saver = tf.train.Saver()
-        if restore is not None:
+        if restore:
             restore_dir = 'checkpoints/{}_{}/'.format(experiment_name + '_model', util.format_dict_to_string(model_parameters))
             util.load_check_point(restore_dir, sess, saver)
             print('model restore from {}'.format(restore_dir))
@@ -132,6 +132,7 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                 loss, metrics, _ = model.train_model(*data)
                 losses.append(loss)
                 accuracies.append(metrics)
+                # print("iteration {} with loss {} and metrics {}".format(current_step, loss, metrics))
                 if current_step % skip_steps == 0:
                     train_summary = model.summary(*data)
                     train_writer.add_summary(train_summary, global_step=model.global_step)
@@ -140,7 +141,8 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                 if current_step % print_skip_step == 0:
                     loss_mean = np.mean(losses)
                     metrics_mean = np.mean(accuracies)
-                    print("iteration {} with loss {} and accuracy {}".format(current_step, loss_mean, metrics_mean))
+                    valid = model.metrics_model(*next(validation_data_itr))
+                    print("iteration {} with loss {} and metrics {} and validation metrics {}".format(current_step, loss_mean, metrics_mean, valid))
                     yield metrics_mean
                     losses = []
                     accuracies = []
