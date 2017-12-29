@@ -538,7 +538,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         _, position, is_copy, key_word, copy_word = output
         return self._create_next_input_fn([position, is_copy, key_word, copy_word, position_embedding, code_embedding])
 
-    def _create_next_code(self, actions, token_input, token_input_length, character_input, character_input_length):
+    def _create_next_code(self, actions, token_input, token_input_length, character_input, character_input_length, identifier_mask):
         """
         This function is used to create the new code based now action
         :param actions:
@@ -568,6 +568,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                 token_input_length[i][0] -= 1
                 character_input[i][0].pop(position)
                 character_input_length[i][0].pop(position)
+                identifier_mask[i][0] = identifier_mask[i][0][0:position] + identifier_mask[i][0][position+1:]
             else:
                 if is_copy:
                     if copy_id >= code_length:
@@ -578,6 +579,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                     word_token_id = token_input[i][0][copy_id]
                     word_character_id = character_input[i][0][copy_id]
                     word_character_length = character_input_length[i][0][copy_id]
+                    iden_mask = identifier_mask[i][0][copy_id]
                 else:
                     word_token_id = keyword_id
                     word = self.id_to_word(word_token_id)
@@ -587,6 +589,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                         continue
                     word_character_id = self.parse_token(word, character_position_label=True)
                     word_character_length = len(word_character_id)
+                    iden_mask = [0] * len(identifier_mask[i][0][0])
 
                 if position % 2 == 0:
                     # insert
@@ -599,6 +602,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                     token_input_length[i][0] += 1
                     character_input[i][0].insert(position, word_character_id)
                     character_input_length[i][0].insert(position, word_character_length)
+                    identifier_mask[i][0] = identifier_mask[i][0][0:position] + iden_mask + identifier_mask[i][0][position:]
                 elif position % 2 == 1:
                     # change
                     position = int(position/2)
@@ -609,8 +613,9 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                     token_input[i][0][position] = word_token_id
                     character_input[i][0][position] = word_character_id
                     character_input_length[i][0][position] = word_character_length
+                    identifier_mask[i][0][position] = iden_mask
 
-        return token_input, token_input_length, character_input, character_input_length
+        return token_input, token_input_length, character_input, character_input_length, identifier_mask
 
     # def one_predict(self, inputs, states, labels):
     #     output, next_state, position_embedding, code_embedding = self._one_predict(inputs, labels, states)
@@ -629,7 +634,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         outputs = (is_continue, position, is_copy, keyword_id, copy_id)
         return outputs, next_state, next_labels
 
-    def _one_predict(self, token_input, token_input_length, charactere_input, character_input_length, labels, states):
+    def _one_predict(self, token_input, token_input_length, charactere_input, character_input_length, identifier_mask, labels, states):
         # token_input, token_input_length, charactere_input, character_input_length = inputs
         output, next_state, position_embedding, code_embedding \
             = self._one_predict_fn(
@@ -637,6 +642,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             token_input_length,
             charactere_input,
             character_input_length,
+            identifier_mask,
             states,
             labels
         )
@@ -725,13 +731,13 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         import copy
         import more_itertools
         args = [copy.deepcopy([[ti[0]] for ti in one_input]) for one_input in args]
-        token_input, token_input_length, charactere_input, character_input_length = args
+        token_input, token_input_length, charactere_input, character_input_length, identifier_mask = args
         start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
         batch_size = len(token_input)
         cur_beam_size = 1
         beam_size = 5
 
-        # shape = 4 * batch_size * beam_size * 1 * token_length
+        # shape = 5 * batch_size * beam_size * 1 * token_length
         input_stack = init_input_stack(args)
         # shape = batch_size * beam_size
         beam_stack = [[0]]*batch_size
@@ -825,8 +831,8 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         # print("metrics input")
         # for t in args:
         #     print(np.array(t).shape)
-        input_data = args[0:4]
-        output_data = args[4:9]
+        input_data = args[0:5]
+        output_data = args[5:10]
         predict_data = self.predict_model(*input_data,)
         metrics_value = self.cal_metrics(output_data, predict_data)
         # print('metrics_value: ', metrics_value)
@@ -1013,7 +1019,7 @@ def revert_batch_beam_iterator(one_input, batch_size):
 
 
 def init_input_stack(args):
-    # shape = 4 * batch_size * beam_size * iterator_size * token_length
+    # shape = 5 * batch_size * beam_size * iterator_size * token_length
     init_input_fn = lambda one_input: np.expand_dims(np.array(util.padded(one_input)), axis=1).tolist()
     input_stack = [init_input_fn(one_input) for one_input in args]
     return input_stack

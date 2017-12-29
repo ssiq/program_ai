@@ -28,7 +28,9 @@ def create_identifier_mask(tokens, keyword_set):
     token_id_dict = util.reverse_dict(id_token_dict)
     def f(x):
          return [int(x==t)  for t in tokens]
-    res = util.parallel_map(core_num=10, f=f, args=token_set)
+    # res = list(util.parallel_map(core_num=10, f=f, args=token_set))
+    res = list(map(f, token_set))
+    res = list(map(list, zip(*res)))
     return res, token_id_dict
 
 
@@ -52,110 +54,27 @@ def get_token_list(code):
 @util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
 def parse_xy(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
 
-    def create_full_output(one):
-        action_list = one['action_list']
-        token_name_list = one['token_name_list']
+    df['res'] = ''
+    df['ac_code_obj'] = df['ac_code'].map(get_token_list)
+    df = df[df['ac_code_obj'].map(lambda x: x is not None)].copy()
 
-        position_list = []
-        is_copy_list = []
-        keywordid_list = []
-        copyid_list = []
+    df = df.apply(create_error_list, axis=1, raw=True)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
 
-        def find_token_name(name, token_name_list):
-            for k in range(len(token_name_list)):
-                token = token_name_list[k]
-                if name == token:
-                    return k
-            return -1
+    df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
 
-        for i in range(len(action_list)):
-            action = action_list[i]
-            act_type = action['type']
-            act_pos = action['pos']
-            act_token = action['token']
+    df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
 
 
-            if act_type == INSERT or act_type == CHANGE:
-                act_id = keyword_voc.word_to_id(act_token)
-                if act_id != keyword_voc.word_to_id(keyword_voc.identifier_label) and act_id != keyword_voc.word_to_id(keyword_voc.placeholder_label):
-                    is_copy_list.append(0)
-                    keywordid_list.append(keyword_voc.word_to_id(act_token))
-                    copyid_list.append(0)
-                else:
-                    name_list = token_name_list[i]
-                    copy_pos = find_token_name(act_token, name_list)
-                    if copy_pos >= 0:
-                        is_copy_list.append(1)
-                        keywordid_list.append(0)
-                        copyid_list.append(copy_pos)
-                    else:
-                        one['res'] = None
-                        return one
-            elif act_type == DELETE:
-                is_copy_list.append(0)
-                keywordid_list.append(keyword_voc.word_to_id(keyword_voc.placeholder_label))
-                copyid_list.append(0)
-            position_list.append(act_pos)
-
-        if len(position_list) == 0 or len(position_list) > max_bug_number or len(position_list) < min_bug_number:
-            one['res'] = None
-            return one
-        one['position_list'] = position_list
-        one['is_copy_list'] = is_copy_list
-        one['keywordid_list'] = keywordid_list
-        one['copyid_list'] = copyid_list
-
-        one['output_length'] = [1] * (len(position_list)-1) + [0]
-        return one
-
-    def create_character_id_input(one):
-        token_name_list = one['token_name_list']
-        char_id_list = []
-        len_list = []
-        for name_list in token_name_list:
-            one_len = []
-            id_list = char_voc.parse_string_without_padding([name_list], token_position_label=False, character_position_label=True)[0]
-            if id_list == None:
-                one['res'] = None
-                return one
-            char_id_list.append(id_list)
-            for i in range(len(id_list)):
-                id_l = id_list[i]
-                one_len.append(len(id_l))
-            len_list.append(one_len)
-
-        char_col = list(more_itertools.collapse(char_id_list, levels=1))
-        for tok in char_col:
-            if len(tok) > 30:
-                print('character len is {}. more than 30'.format(len(tok)))
-                one['res'] = None
-                return one
-
-        one['character_id_list'] = char_id_list
-        one['character_length_list'] = len_list
-        return one
-
-
-    def create_token_id_input(one):
-        token_name_list = one['token_name_list']
-        token_id_list = []
-        len_list = []
-        for name_list in token_name_list:
-            id_list = keyword_voc.parse_text_without_pad([name_list], False)[0]
-            if id_list == None:
-                one['res'] = None
-                return one
-            len_list.append(len(id_list))
-            token_id_list.append(id_list)
-        one['token_id_list'] = token_id_list
-        one['token_length_list'] = len_list
-        return one
-
-    def create_token_identify_mask(one):
-        token_name_list = one['token_name_list']
-        token_identify_mask = [create_identifier_category(name_list, pre_defined_cpp_token) for name_list in token_name_list]
-        one['token_identify_mask'] = token_identify_mask
-        return one
+@util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_parse_xy_with_iden_mask', directory=cache_data_path)
+def parse_xy_with_iden_mask(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
 
     df['res'] = ''
     df['ac_code_obj'] = df['ac_code'].map(get_token_list)
@@ -164,19 +83,129 @@ def parse_xy(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
     df = df.apply(create_error_list, axis=1, raw=True)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
-    df = df.apply(create_token_id_input, axis=1, raw=True)
+    df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     df = df.apply(create_token_identify_mask, axis=1, raw=True)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
-    df = df.apply(create_character_id_input, axis=1, raw=True)
+    df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
-    df = df.apply(create_full_output, axis=1, raw=True)
+    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['token_identify_mask'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
+
+
+
+def create_full_output(one, keyword_voc, max_bug_number, min_bug_number):
+    action_list = one['action_list']
+    token_name_list = one['token_name_list']
+
+    position_list = []
+    is_copy_list = []
+    keywordid_list = []
+    copyid_list = []
+
+    def find_token_name(name, token_name_list):
+        for k in range(len(token_name_list)):
+            token = token_name_list[k]
+            if name == token:
+                return k
+        return -1
+
+    for i in range(len(action_list)):
+        action = action_list[i]
+        act_type = action['type']
+        act_pos = action['pos']
+        act_token = action['token']
+
+
+        if act_type == INSERT or act_type == CHANGE:
+            act_id = keyword_voc.word_to_id(act_token)
+            if act_id != keyword_voc.word_to_id(keyword_voc.identifier_label) and act_id != keyword_voc.word_to_id(keyword_voc.placeholder_label):
+                is_copy_list.append(0)
+                keywordid_list.append(keyword_voc.word_to_id(act_token))
+                copyid_list.append(0)
+            else:
+                name_list = token_name_list[i]
+                copy_pos = find_token_name(act_token, name_list)
+                if copy_pos >= 0:
+                    is_copy_list.append(1)
+                    keywordid_list.append(0)
+                    copyid_list.append(copy_pos)
+                else:
+                    one['res'] = None
+                    return one
+        elif act_type == DELETE:
+            is_copy_list.append(0)
+            keywordid_list.append(keyword_voc.word_to_id(keyword_voc.placeholder_label))
+            copyid_list.append(0)
+        position_list.append(act_pos)
+
+    if len(position_list) == 0 or len(position_list) > max_bug_number or len(position_list) < min_bug_number:
+        one['res'] = None
+        return one
+    one['position_list'] = position_list
+    one['is_copy_list'] = is_copy_list
+    one['keywordid_list'] = keywordid_list
+    one['copyid_list'] = copyid_list
+
+    one['output_length'] = [1] * (len(position_list)-1) + [0]
+    return one
+
+
+def create_character_id_input(one, char_voc):
+    token_name_list = one['token_name_list']
+    char_id_list = []
+    len_list = []
+    for name_list in token_name_list:
+        one_len = []
+        id_list = char_voc.parse_string_without_padding([name_list], token_position_label=False, character_position_label=True)[0]
+        if id_list == None:
+            one['res'] = None
+            return one
+        char_id_list.append(id_list)
+        for i in range(len(id_list)):
+            id_l = id_list[i]
+            one_len.append(len(id_l))
+        len_list.append(one_len)
+
+    char_col = list(more_itertools.collapse(char_id_list, levels=1))
+    for tok in char_col:
+        if len(tok) > 30:
+            print('character len is {}. more than 30'.format(len(tok)))
+            one['res'] = None
+            return one
+
+    one['character_id_list'] = char_id_list
+    one['character_length_list'] = len_list
+    return one
+
+
+def create_token_id_input(one, keyword_voc):
+    token_name_list = one['token_name_list']
+    token_id_list = []
+    len_list = []
+    for name_list in token_name_list:
+        id_list = keyword_voc.parse_text_without_pad([name_list], False)[0]
+        if id_list == None:
+            one['res'] = None
+            return one
+        len_list.append(len(id_list))
+        token_id_list.append(id_list)
+    one['token_id_list'] = token_id_list
+    one['token_length_list'] = len_list
+    return one
+
+
+def create_token_identify_mask(one):
+    token_name_list = one['token_name_list']
+    token_identify_mask = [create_identifier_mask(name_list, pre_defined_cpp_token)[0] for name_list in token_name_list]
+    one['token_identify_mask'] = token_identify_mask
+    print(token_identify_mask)
+    return one
 
 
 def create_error_list(one):
@@ -286,8 +315,8 @@ def create_condition_fn(error_count: int):
 if __name__ == '__main__':
     util.initLogging()
     util.set_cuda_devices(1)
-    train, test, vaild = read_cpp_fake_code_records_set()
-    # train, test, vaild = sample()
+    # train, test, vaild = read_cpp_fake_code_records_set()
+    train, test, vaild = sample()
     # train = train.sample(300000)
 
     key_val, char_voc = create_embedding()
@@ -297,8 +326,11 @@ if __name__ == '__main__':
     # print(train)
 
     # res = parse_xy(train, *parse_xy_param)
-    # print(res[1])
+    # res = parse_xy_with_iden_mask(train, *parse_xy_param)
+    # print(res[4])
     # print(len(res))
+    # print(len(res[0]))
+    # print(res[1].loc[197037][0], len(res[4].loc[197037][0]))
 
     # test_data_iterator = util.batch_holder(*parse_xy(test, *parse_xy_param), batch_size=8)
     #
@@ -319,9 +351,9 @@ if __name__ == '__main__':
 
     MAX_ITERATOR_LEGNTH = 5
 
-    # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
+    # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_iden_mask, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
 
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16, create_condition_fn=create_condition_fn, modify_condition=modify_condition)
+    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_iden_mask, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16, create_condition_fn=create_condition_fn, modify_condition=modify_condition)
     # param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -1]},
     #                                               choice_param={ },
     #                                               constant_param={"hidden_size": 100,
@@ -336,7 +368,7 @@ if __name__ == '__main__':
     #                                                               'character_embedding_layer_fn': char_voc.create_embedding_layer,
     #                                                               'id_to_word_fn': key_val.id_to_word,
     #                                                               'parse_token_fn': char_voc.parse_token})
-    #
+
     # train_supervision(TokenLevelMultiRnnModel, param_generator, 1, restore=False)
     restore_param_generator = random_parameters_generator(random_param={ },
                                                   choice_param={ },
