@@ -67,13 +67,13 @@ def parse_xy(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
     df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
-    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number)
+    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_token_name)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
 
 
-@util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_parse_xy_with_iden_mask', directory=cache_data_path)
+# @util.disk_cache(basename='iden_mask_token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
 def parse_xy_with_iden_mask(df, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
 
     df['res'] = ''
@@ -92,28 +92,22 @@ def parse_xy_with_iden_mask(df, keyword_voc, char_voc, max_bug_number=1, min_bug
     df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
-    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number)
+    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['token_identify_mask'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
 
 
 
-def create_full_output(one, keyword_voc, max_bug_number, min_bug_number):
+def create_full_output(one, keyword_voc, max_bug_number, min_bug_number, find_copy_id_fn):
     action_list = one['action_list']
     token_name_list = one['token_name_list']
+    copy_name_list = one['copy_name_list']
 
     position_list = []
     is_copy_list = []
     keywordid_list = []
     copyid_list = []
-
-    def find_token_name(name, token_name_list):
-        for k in range(len(token_name_list)):
-            token = token_name_list[k]
-            if name == token:
-                return k
-        return -1
 
     for i in range(len(action_list)):
         action = action_list[i]
@@ -129,8 +123,8 @@ def create_full_output(one, keyword_voc, max_bug_number, min_bug_number):
                 keywordid_list.append(keyword_voc.word_to_id(act_token))
                 copyid_list.append(0)
             else:
-                name_list = token_name_list[i]
-                copy_pos = find_token_name(act_token, name_list)
+                name_list = copy_name_list[i]
+                copy_pos = find_copy_id_fn(act_token, name_list)
                 if copy_pos >= 0:
                     is_copy_list.append(1)
                     keywordid_list.append(0)
@@ -154,6 +148,20 @@ def create_full_output(one, keyword_voc, max_bug_number, min_bug_number):
 
     one['output_length'] = [1] * (len(position_list)-1) + [0]
     return one
+
+
+def find_token_name(name, token_name_list):
+    for k in range(len(token_name_list)):
+        token = token_name_list[k]
+        if name == token:
+            return k
+    return -1
+
+
+def find_copy_id_by_identifier_dict(name, iden_token_id_dict:dict):
+    if name in iden_token_id_dict.keys():
+        return iden_token_id_dict[name]
+    return -1
 
 
 def create_character_id_input(one, char_voc):
@@ -202,8 +210,8 @@ def create_token_id_input(one, keyword_voc):
 
 def create_token_identify_mask(one):
     token_name_list = one['token_name_list']
-    token_identify_mask = [create_identifier_mask(name_list, pre_defined_cpp_token)[0] for name_list in token_name_list]
-    one['token_identify_mask'] = token_identify_mask
+    token_identify_mask = [create_identifier_mask(name_list, pre_defined_cpp_token) for name_list in token_name_list]
+    one['token_identify_mask'], one['copy_name_list'] = list(zip(*token_identify_mask))
     return one
 
 
@@ -279,6 +287,9 @@ def create_error_list(one):
                     break
             i += 1
 
+    if len(action_list) == 0:
+        one['res'] = None
+        return one
     one['token_name_list'] = token_name_list
     one['action_list'] = action_list
     return one
@@ -325,11 +336,11 @@ if __name__ == '__main__':
     # print(train)
 
     # res = parse_xy(train, *parse_xy_param)
-    # res = parse_xy_with_iden_mask(train, *parse_xy_param)
-    # print(res[4])
-    # print(len(res))
-    # print(len(res[0]))
-    # print(res[1].loc[197037][0], len(res[4].loc[197037][0]))
+    res = parse_xy_with_iden_mask(train, *parse_xy_param)
+    print(res[4])
+    print(len(res))
+    print(len(res[0]))
+    print(res[1].loc[197037][0], len(res[4].loc[197037][0]))
 
     # test_data_iterator = util.batch_holder(*parse_xy(test, *parse_xy_param), batch_size=8)
     #
@@ -352,7 +363,7 @@ if __name__ == '__main__':
 
     # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_iden_mask, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
 
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_iden_mask, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16, create_condition_fn=create_condition_fn, modify_condition=modify_condition)
+    # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_iden_mask, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16, create_condition_fn=create_condition_fn, modify_condition=modify_condition)
     # param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -1]},
     #                                               choice_param={ },
     #                                               constant_param={"hidden_size": 100,
@@ -384,7 +395,7 @@ if __name__ == '__main__':
                                                                   'character_embedding_layer_fn': char_voc.create_embedding_layer,
                                                                   'id_to_word_fn': key_val.id_to_word,
                                                                   'parse_token_fn': char_voc.parse_token})
-    train_supervision(TokenLevelMultiRnnModel, restore_param_generator, 1, debug=False, restore=True)
+    # train_supervision(TokenLevelMultiRnnModel, restore_param_generator, 1, debug=False, restore=True)
 
     # import tensorflow as tf
     # with tf.Session():

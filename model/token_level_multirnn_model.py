@@ -571,15 +571,17 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                 identifier_mask[i][0] = identifier_mask[i][0][0:position] + identifier_mask[i][0][position+1:]
             else:
                 if is_copy:
-                    if copy_id >= code_length:
+                    copy_position_id = self.find_copy_input_position(identifier_mask[i][0], copy_id)
+                    if copy_position_id >= code_length:
                         # copy position error
-                        print('copy position error', copy_id, code_length)
-                        print('details:', position, is_copy, keyword_id, copy_id, code_length)
+                        print('copy position error', copy_position_id, code_length)
+                        print('details:', position, is_copy, keyword_id, copy_position_id, code_length)
                         continue
-                    word_token_id = token_input[i][0][copy_id]
-                    word_character_id = character_input[i][0][copy_id]
-                    word_character_length = character_input_length[i][0][copy_id]
-                    iden_mask = identifier_mask[i][0][copy_id]
+
+                    word_token_id = token_input[i][0][copy_position_id]
+                    word_character_id = character_input[i][0][copy_position_id]
+                    word_character_length = character_input_length[i][0][copy_position_id]
+                    iden_mask = identifier_mask[i][0][copy_position_id]
                 else:
                     word_token_id = keyword_id
                     word = self.id_to_word(word_token_id)
@@ -616,6 +618,13 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
                     identifier_mask[i][0][position] = iden_mask
 
         return token_input, token_input_length, character_input, character_input_length, identifier_mask
+
+    def find_copy_input_position(self, iden_mask, copy_id):
+        for i in range(len(iden_mask)):
+            iden = iden_mask[i]
+            if iden[copy_id] == 1:
+                return i
+        return -1
 
     # def one_predict(self, inputs, states, labels):
     #     output, next_state, position_embedding, code_embedding = self._one_predict(inputs, labels, states)
