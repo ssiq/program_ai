@@ -204,7 +204,6 @@ def create_token_identify_mask(one):
     token_name_list = one['token_name_list']
     token_identify_mask = [create_identifier_mask(name_list, pre_defined_cpp_token)[0] for name_list in token_name_list]
     one['token_identify_mask'] = token_identify_mask
-    print(token_identify_mask)
     return one
 
 
@@ -369,7 +368,7 @@ if __name__ == '__main__':
     #                                                               'id_to_word_fn': key_val.id_to_word,
     #                                                               'parse_token_fn': char_voc.parse_token})
 
-    # train_supervision(TokenLevelMultiRnnModel, param_generator, 1, restore=False)
+    # train_supervision(TokenLevelMultiRnnModel, param_generator, 1, debug=False, restore=False)
     restore_param_generator = random_parameters_generator(random_param={ },
                                                   choice_param={ },
                                                   constant_param={"learning_rate": 0.000948072915975,
@@ -385,7 +384,7 @@ if __name__ == '__main__':
                                                                   'character_embedding_layer_fn': char_voc.create_embedding_layer,
                                                                   'id_to_word_fn': key_val.id_to_word,
                                                                   'parse_token_fn': char_voc.parse_token})
-    train_supervision(TokenLevelMultiRnnModel, restore_param_generator, 1, restore=True)
+    train_supervision(TokenLevelMultiRnnModel, restore_param_generator, 1, debug=False, restore=True)
 
     # import tensorflow as tf
     # with tf.Session():
