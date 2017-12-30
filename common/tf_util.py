@@ -1010,9 +1010,11 @@ def expand_dims_and_tile(tensor, add_dims, multiplies):
 
 class BaseModel(abc.ABC):
 
-    def __init__(self, learning_rate):
+    def __init__(self, learning_rate, decay_step=500, decay_rate=1.0):
         self._learning_rate = learning_rate
         self._global_step_variable = tf.Variable(0, trainable=False, dtype=tf.int32)
+        self._decay_step = decay_step
+        self._decay_rate = decay_rate
 
     @property
     def global_step_variable(self):
@@ -1028,7 +1030,13 @@ class BaseModel(abc.ABC):
 
     @define_scope(scope="train_op")
     def train_op(self):
-        optimiizer = tf.train.AdamOptimizer(learning_rate=self._learning_rate)
+        learning_rate = tf.train.exponential_decay(
+            self._learning_rate,
+            self.global_step_variable,
+            self._decay_step,
+            self._decay_rate,
+        )
+        optimiizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
         return minimize_and_clip(optimizer=optimiizer,
                                          objective=self.loss_op,
                                          var_list=tf.trainable_variables(),
