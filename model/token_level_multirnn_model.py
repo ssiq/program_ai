@@ -538,7 +538,75 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         _, position, is_copy, key_word, copy_word = output
         return self._create_next_input_fn([position, is_copy, key_word, copy_word, position_embedding, code_embedding])
 
-    def _create_next_code(self, actions, token_input, token_input_length, character_input, character_input_length, identifier_mask):
+    def _create_one_next_code(self, action, token_input, token_input_length, character_input, character_input_length):
+        is_continue, position, is_copy, keyword_id, copy_id = action
+        next_inputs = token_input, token_input_length, character_input, character_input_length
+        code_length = token_input_length
+
+        if position % 2 == 1 and is_copy == 0 and keyword_id == self.placeholder_token:
+            # delete
+            position = int(position / 2)
+            if position >= code_length:
+                # action position error
+                print('delete action position error', position, code_length)
+                return next_inputs
+            token_input = token_input[0:position] + token_input[position + 1:]
+            token_input_length -= 1
+            character_input = character_input[0:position] + character_input[position + 1:]
+            character_input_length = character_input_length[0:position] + character_input_length[position + 1:]
+        else:
+            if is_copy:
+                copy_position_id = copy_id
+                if copy_position_id >= code_length:
+                    # copy position error
+                    print('copy position error', copy_position_id, code_length)
+                    print('details:', position, is_copy, keyword_id, copy_position_id, code_length)
+                    return next_inputs
+                word_token_id = token_input[copy_position_id]
+                word_character_id = character_input[copy_position_id]
+                word_character_length = character_input_length[copy_position_id]
+            else:
+                word_token_id = keyword_id
+                word = self.id_to_word(word_token_id)
+                if word == None:
+                    # keyword id error
+                    print('keyword id error', keyword_id)
+                    return next_inputs
+                word_character_id = self.parse_token(word, character_position_label=True)
+                word_character_length = len(word_character_id)
+
+            if position % 2 == 0:
+                # insert
+                position = int(position / 2)
+                if position > code_length:
+                    # action position error
+                    print('insert action position error', position, code_length)
+                    return next_inputs
+                token_input = token_input[0:position] + [word_token_id] + token_input[position:]
+                token_input_length += 1
+                character_input = character_input[0:position] + [word_character_id] + character_input[position:]
+                character_input_length = character_input_length[0:position] + [word_character_length] + character_input_length[position:]
+            elif position % 2 == 1:
+                # change
+                position = int(position / 2)
+                if position >= code_length:
+                    # action position error
+                    print('change action position error', position, code_length)
+                    return next_inputs
+                token_input[position] = word_token_id
+                character_input[position] = word_character_id
+                character_input_length[position] = word_character_length
+        next_inputs = token_input, token_input_length, character_input, character_input_length
+        return next_inputs
+
+
+    def _create_next_code_without_iter_dims(self, actions, inputs_without_iter):
+        create_one_next_code_fn = lambda zipped: self._create_one_next_code(*zipped)
+        next_inputs = list(map(create_one_next_code_fn, list(zip(list(zip(*actions)), *inputs_without_iter))))
+        next_inputs = list(zip(*next_inputs))
+        return next_inputs
+
+    def _create_next_code(self, actions, token_input, token_input_length, character_input, character_input_length):
         """
         This function is used to create the new code based now action
         :param actions:
@@ -549,82 +617,15 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         :return:
         TODO: fill this function
         """
-        is_continues, positions, is_copys, keyword_ids, copy_ids = actions
-        for i in range(len(token_input)):
-            position = positions[i]
-            is_copy = is_copys[i]
-            keyword_id = keyword_ids[i]
-            copy_id = copy_ids[i]
-            code_length = token_input_length[i][0]
+        inputs = token_input, token_input_length, character_input, character_input_length
+        remove_iter_dims_fn = lambda one_input: [one[0] for one in one_input]
+        add_iter_dims_fn = lambda one_input: [[one] for one in one_input]
 
-            if position % 2 == 1 and is_copy == 0 and keyword_id == self.placeholder_token:
-                # delete
-                position = int(position/2)
-                if position >= code_length:
-                    # action position error
-                    print('delete action position error', position, code_length)
-                    continue
-                token_input[i][0].pop(position)
-                token_input_length[i][0] -= 1
-                character_input[i][0].pop(position)
-                character_input_length[i][0].pop(position)
-                identifier_mask[i][0] = identifier_mask[i][0][0:position] + identifier_mask[i][0][position+1:]
-            else:
-                if is_copy:
-                    copy_position_id = self.find_copy_input_position(identifier_mask[i][0], copy_id)
-                    if copy_position_id >= code_length:
-                        # copy position error
-                        print('copy position error', copy_position_id, code_length)
-                        print('details:', position, is_copy, keyword_id, copy_position_id, code_length)
-                        continue
+        inputs_without_iter = [remove_iter_dims_fn(one) for one in inputs]
+        next_inputs = self._create_next_code_without_iter_dims(actions, inputs_without_iter)
+        next_inputs = [add_iter_dims_fn(one) for one in next_inputs]
 
-                    word_token_id = token_input[i][0][copy_position_id]
-                    word_character_id = character_input[i][0][copy_position_id]
-                    word_character_length = character_input_length[i][0][copy_position_id]
-                    iden_mask = identifier_mask[i][0][copy_position_id]
-                else:
-                    word_token_id = keyword_id
-                    word = self.id_to_word(word_token_id)
-                    if word == None:
-                        # keyword id error
-                        print('keyword id error', keyword_id)
-                        continue
-                    word_character_id = self.parse_token(word, character_position_label=True)
-                    word_character_length = len(word_character_id)
-                    iden_mask = [0] * len(identifier_mask[i][0][0])
-
-                if position % 2 == 0:
-                    # insert
-                    position = int(position / 2)
-                    if position > code_length:
-                        # action position error
-                        print('insert action position error', position, code_length)
-                        continue
-                    token_input[i][0].insert(position, word_token_id)
-                    token_input_length[i][0] += 1
-                    character_input[i][0].insert(position, word_character_id)
-                    character_input_length[i][0].insert(position, word_character_length)
-                    identifier_mask[i][0] = identifier_mask[i][0][0:position] + iden_mask + identifier_mask[i][0][position:]
-                elif position % 2 == 1:
-                    # change
-                    position = int(position/2)
-                    if position >= code_length:
-                        # action position error
-                        print('change action position error', position, code_length)
-                        continue
-                    token_input[i][0][position] = word_token_id
-                    character_input[i][0][position] = word_character_id
-                    character_input_length[i][0][position] = word_character_length
-                    identifier_mask[i][0][position] = iden_mask
-
-        return token_input, token_input_length, character_input, character_input_length, identifier_mask
-
-    def find_copy_input_position(self, iden_mask, copy_id):
-        for i in range(len(iden_mask)):
-            iden = iden_mask[i]
-            if iden[copy_id] == 1:
-                return i
-        return -1
+        return next_inputs
 
     # def one_predict(self, inputs, states, labels):
     #     output, next_state, position_embedding, code_embedding = self._one_predict(inputs, labels, states)
@@ -643,7 +644,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         outputs = (is_continue, position, is_copy, keyword_id, copy_id)
         return outputs, next_state, next_labels
 
-    def _one_predict(self, token_input, token_input_length, charactere_input, character_input_length, identifier_mask, labels, states):
+    def _one_predict(self, token_input, token_input_length, charactere_input, character_input_length, labels, states):
         # token_input, token_input_length, charactere_input, character_input_length = inputs
         output, next_state, position_embedding, code_embedding \
             = self._one_predict_fn(
@@ -651,102 +652,101 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             token_input_length,
             charactere_input,
             character_input_length,
-            identifier_mask,
             states,
             labels
         )
         return output, next_state, position_embedding, code_embedding
 
-    def flat_beam_stack(self, one_input):
-        res = [flat_list(inp) for inp in one_input]
-        return res
+    # def flat_beam_stack(self, one_input):
+    #     res = [flat_list(inp) for inp in one_input]
+    #     return res
 
-    def batch_top_k(self, beam_stack, k:int):
-        if k == 0:
-            return [[] for bat in beam_stack]
+    # def batch_top_k(self, beam_stack, k:int):
+    #     if k == 0:
+    #         return [[] for bat in beam_stack]
+    #
+    #     batch_indices = [beam_cal_top_k(one_batch, k) for one_batch in beam_stack]
+    #     return batch_indices
 
-        batch_indices = [beam_cal_top_k(one_batch, k) for one_batch in beam_stack]
-        return batch_indices
+    # def stack_gather(self, one_output, indices:list):
+    #     all = [beam_gather(one_batch_output, one_batch_indices) for one_batch_output, one_batch_indices in zip(one_output, indices)]
+    #     return all
 
-    def stack_gather(self, one_output, indices:list):
-        all = [beam_gather(one_batch_output, one_batch_indices) for one_batch_output, one_batch_indices in zip(one_output, indices)]
-        return all
+    # def stack_flat_and_gather(self, one_output, indices:list):
+    #     one_output_flat = self.flat_beam_stack(one_output)
+    #     one_output_gather = self.stack_gather(one_output_flat, indices)
+    #     return one_output_gather
 
-    def stack_flat_and_gather(self, one_output, indices:list):
-        one_output_flat = self.flat_beam_stack(one_output)
-        one_output_gather = self.stack_gather(one_output_flat, indices)
-        return one_output_gather
+    # def get_key_from_action_stack(self, action_stack, key_name:str):
+    #     return [beam_get_key_from_action(batch_actions, key_name) for batch_actions in action_stack]
 
-    def get_key_from_action_stack(self, action_stack, key_name:str):
-        return [beam_get_key_from_action(batch_actions, key_name) for batch_actions in action_stack]
+    # def top_to_beamid(self, action_stack):
+    #     indices = self.get_key_from_action_stack(action_stack, 'beam_id')
+    #     return indices
 
-    def top_to_beamid(self, action_stack):
-        indices = self.get_key_from_action_stack(action_stack, 'beam_id')
-        return indices
+    # def get_output_from_action_stack(self, action_stack):
+    #     is_continues = self.get_key_from_action_stack(action_stack, 'is_continue')
+    #     positions = self.get_key_from_action_stack(action_stack, 'position')
+    #     is_copys = self.get_key_from_action_stack(action_stack, 'is_copy')
+    #     keyword_ids = self.get_key_from_action_stack(action_stack, 'keyword')
+    #     copy_ids = self.get_key_from_action_stack(action_stack, 'copy_id')
+    #     return is_continues, positions, is_copys, keyword_ids, copy_ids
 
-    def get_output_from_action_stack(self, action_stack):
-        is_continues = self.get_key_from_action_stack(action_stack, 'is_continue')
-        positions = self.get_key_from_action_stack(action_stack, 'position')
-        is_copys = self.get_key_from_action_stack(action_stack, 'is_copy')
-        keyword_ids = self.get_key_from_action_stack(action_stack, 'keyword')
-        copy_ids = self.get_key_from_action_stack(action_stack, 'copy_id')
-        return is_continues, positions, is_copys, keyword_ids, copy_ids
+    # def ready_input_stack(self, input_stack, next_labels_stack, next_states_stack):
+    #     input_iterator_list = []
+    #     batch_size = len(input_stack[0])
+    #
+    #     for input_sta in input_stack:
+    #         input_iterator_list.append(revert_batch_beam_iterator(input_sta, batch_size))
+    #     label_iterator = revert_batch_beam_iterator(next_labels_stack, batch_size)
+    #     state_iterator = revert_batch_beam_iterator(next_states_stack, batch_size)
+    #     return input_iterator_list, label_iterator, state_iterator
 
-    def ready_input_stack(self, input_stack, next_labels_stack, next_states_stack):
-        input_iterator_list = []
-        batch_size = len(input_stack[0])
+    # def calculate_output_score(self, output_stack_list, beam_size):
+    #     batch_size = len(output_stack_list[0])
+    #
+    #     output_stack_list = list(zip(*output_stack_list))
+    #     beam_action_stack = [[[] * beam_size] * batch_size]
+    #     beam_p_stack = [[[] * beam_size] * batch_size]
+    #     for batch_id in range(batch_size):
+    #         p_beam, action_beam = beam_calculate_output_score(output_stack_list[batch_id], beam_size)
+    #         beam_action_stack[batch_id].append(p_beam)
+    #         beam_p_stack[batch_id].append(action_beam)
+    #
+    #     return beam_p_stack, beam_action_stack
 
-        for input_sta in input_stack:
-            input_iterator_list.append(revert_batch_beam_iterator(input_sta, batch_size))
-        label_iterator = revert_batch_beam_iterator(next_labels_stack, batch_size)
-        state_iterator = revert_batch_beam_iterator(next_states_stack, batch_size)
-        return input_iterator_list, label_iterator, state_iterator
+    # def calculate_score(self, beam_stack, output_p_stack):
+    #     all_score = []
+    #     for p_stack, output_p in zip(beam_stack, output_p_stack):
+    #         batch_score = beam_calculate_score(p_stack, output_p)
+    #         all_score.append(batch_score)
+    #     return all_score
 
-    def calculate_output_score(self, output_stack_list, beam_size):
-        batch_size = len(output_stack_list[0])
+    # def calculate_length_penalty(self, beam_length_stack, output_p_stack, penalty_factor=0.6):
+    #     all_score = []
+    #     for p_length_stack, output_p in zip(beam_length_stack, output_p_stack):
+    #         batch_score = beam_calculate_length_penalty(p_length_stack, output_p, penalty_factor)
+    #         all_score.append(batch_score)
+    #     return all_score
 
-        output_stack_list = list(zip(*output_stack_list))
-        beam_action_stack = [[[] * beam_size] * batch_size]
-        beam_p_stack = [[[] * beam_size] * batch_size]
-        for batch_id in range(batch_size):
-            p_beam, action_beam = beam_calculate_output_score(output_stack_list[batch_id], beam_size)
-            beam_action_stack[batch_id].append(p_beam)
-            beam_p_stack[batch_id].append(action_beam)
-
-        return beam_p_stack, beam_action_stack
-
-    def calculate_score(self, beam_stack, output_p_stack):
-        all_score = []
-        for p_stack, output_p in zip(beam_stack, output_p_stack):
-            batch_score = beam_calculate_score(p_stack, output_p)
-            all_score.append(batch_score)
-        return all_score
-
-    def calculate_length_penalty(self, beam_length_stack, output_p_stack, penalty_factor=0.6):
-        all_score = []
-        for p_length_stack, output_p in zip(beam_length_stack, output_p_stack):
-            batch_score = beam_calculate_length_penalty(p_length_stack, output_p, penalty_factor)
-            all_score.append(batch_score)
-        return all_score
-
-    def concatenate_output(self, select_output_stack, current_output_stack):
-        append_cur_output = lambda beam_sel_output, beam_cur_output: beam_sel_output + [beam_cur_output]
-        batch_append_output = lambda batch_sel_output, batch_cur_output: [append_cur_output(beam_sel_output, beam_cur_output) for beam_sel_output, beam_cur_output in zip(batch_sel_output, batch_cur_output)]
-        select_output_stack = [batch_append_output(batch_sel_output, batch_cur_output) for batch_sel_output, batch_cur_output in zip(select_output_stack, current_output_stack)]
-        return select_output_stack
+    # def concatenate_output(self, select_output_stack, current_output_stack):
+    #     append_cur_output = lambda beam_sel_output, beam_cur_output: beam_sel_output + [beam_cur_output]
+    #     batch_append_output = lambda batch_sel_output, batch_cur_output: [append_cur_output(beam_sel_output, beam_cur_output) for beam_sel_output, beam_cur_output in zip(batch_sel_output, batch_cur_output)]
+    #     select_output_stack = [batch_append_output(batch_sel_output, batch_cur_output) for batch_sel_output, batch_cur_output in zip(select_output_stack, current_output_stack)]
+    #     return select_output_stack
 
     def predict_model(self, *args,):
         # print('predict iterator start')
         import copy
         import more_itertools
         args = [copy.deepcopy([[ti[0]] for ti in one_input]) for one_input in args]
-        token_input, token_input_length, charactere_input, character_input_length, identifier_mask = args
+        token_input, token_input_length, charactere_input, character_input_length = args
         start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
         batch_size = len(token_input)
         cur_beam_size = 1
         beam_size = 5
 
-        # shape = 5 * batch_size * beam_size * 1 * token_length
+        # shape = 4 * batch_size * beam_size * 1 * token_length
         input_stack = init_input_stack(args)
         # shape = batch_size * beam_size
         beam_stack = [[0]]*batch_size
@@ -840,8 +840,8 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         # print("metrics input")
         # for t in args:
         #     print(np.array(t).shape)
-        input_data = args[0:5]
-        output_data = args[5:10]
+        input_data = args[0:4]
+        output_data = args[4:9]
         predict_data = self.predict_model(*input_data,)
         metrics_value = self.cal_metrics(output_data, predict_data)
         # print('metrics_value: ', metrics_value)
@@ -879,6 +879,14 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
     def fill_output_data(self, output:list, iter_len):
         res = [t + [0]*(iter_len-len(t)) for t in output]
         return np.array(res)
+
+
+def find_copy_input_position(iden_mask, copy_id):
+    for i in range(len(iden_mask)):
+        iden = iden_mask[i]
+        if iden[copy_id] == 1:
+            return i
+    return -1
 
 
 def beam_calculate_fn(args):
@@ -1028,7 +1036,7 @@ def revert_batch_beam_iterator(one_input, batch_size):
 
 
 def init_input_stack(args):
-    # shape = 5 * batch_size * beam_size * iterator_size * token_length
+    # shape = 4 * batch_size * beam_size * iterator_size * token_length
     init_input_fn = lambda one_input: np.expand_dims(np.array(util.padded(one_input)), axis=1).tolist()
     input_stack = [init_input_fn(one_input) for one_input in args]
     return input_stack
