@@ -1041,3 +1041,15 @@ class BaseModel(abc.ABC):
                                          objective=self.loss_op,
                                          var_list=tf.trainable_variables(),
                                          global_step=self.global_step_variable)
+
+
+def cast_float(x):
+    return tf.cast(x, tf.float32)
+
+
+def cast_int(x):
+    return tf.cast(x, tf.int32)
+
+
+def cast_bool(x):
+    return tf.cast(x, tf.bool)

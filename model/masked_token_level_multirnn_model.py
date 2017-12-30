@@ -1,14 +1,10 @@
-from common import tf_util, code_util ,rnn_util, util
-
 import tensorflow as tf
+from tensorflow.python.ops.losses.losses_impl import Reduction
 
+from common import tf_util, code_util, rnn_util, util
 from common.rnn_cell import RNNWrapper
+from common.tf_util import cast_float, cast_int
 
-def cast_float(x):
-    return tf.cast(x, tf.float32)
-
-def cast_int(x):
-    return tf.cast(x, tf.int32)
 
 class QuestionAwareSelfMatchAttentionWrapper(RNNWrapper):
     def __init__(self,
@@ -213,12 +209,13 @@ class MaskedTokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         loss += tf.reduce_mean(tf.losses.sparse_softmax_cross_entropy(
             self.output_position_label, self.position_logit_op
         ))
-        loss += tf.reduce_mean(tf.losses.sparse_softmax_cross_entropy(
-            self.output_copy_word_id, self.copy_word_logit_op
-        ))
-        loss += tf.reduce_mean(tf.losses.sparse_softmax_cross_entropy(
-            self.output_keyword_id, self.keyword_logit_op
-        ))
+        copyword_loss = tf.losses.sparse_softmax_cross_entropy(
+            self.output_copy_word_id, self.copy_word_logit_op, reduction=Reduction.NONE
+        )
+        keyword_loss = tf.losses.sparse_softmax_cross_entropy(
+            self.output_keyword_id, self.keyword_logit_op, reduction=Reduction.NONE
+        )
+        loss += tf.where(tf_util.cast_bool(self.output_is_copy), x=copyword_loss, y=keyword_loss)
         return loss
 
     @tf_util.define_scope("predict")
@@ -228,6 +225,32 @@ class MaskedTokenLevelMultiRnnModelGraph(tf_util.BaseModel):
                tf.nn.sigmoid(self.is_copy_logit_op), \
                tf.nn.softmax(self.keyword_logit_op), \
                self.copy_word_softmax_op
+
+    @tf_util.define_scope("predict")
+    def argmax_predict_op(self):
+        argmax_copy_word = cast_int(tf.argmax(self.predict_op[3], axis=1))
+        argmax_keyword = cast_int(tf.argmax(self.predict_op[4], axis=1))
+        is_copy = tf.greater(self.predict_op[2], 0.5)
+        return cast_int(tf.greater(self.predict_op[0], 0.5)), \
+               cast_int(tf.argmax(self.predict_op[1], axis=1)), \
+               cast_int(is_copy), \
+               tf.where(tf_util.cast_bool(is_copy), x=argmax_copy_word, y=argmax_keyword), \
+               tf.where(tf_util.cast_bool(is_copy), y=argmax_copy_word, x=argmax_keyword)
+
+    @tf_util.define_scope("metrics")
+    def metrics_op(self):
+        # m = tf_util.cast_bool(tf.ones_like(self.output_is_copy))
+        # for a, b in zip(self.argmax_predict_op,
+        #                 [self.output_is_continue, self.output_position_label, self.output_is_copy,
+        #                  self.output_copy_word_id, self.output_keyword_id]):
+        #     m = tf.logical_and(m, tf.equal(a, b))
+        pad_dims = lambda x: [tf.expand_dims(t, axis=-1) for t in x]
+        predicts = tf.concat(pad_dims(self.argmax_predict_op), axis=1)
+        labels = tf.concat(pad_dims([self.output_is_continue, self.output_position_label, self.output_is_copy,
+                         self.output_copy_word_id, self.output_keyword_id]), axis=1)
+        accuracy, accuracy_updates = tf.metrics.accuracy(labels=labels,
+                            predictions=predicts)
+        return accuracy, accuracy_updates
 
 class MaskedTokenLevelMultiRnnModel(object):
     def __init__(self,
@@ -274,11 +297,11 @@ class MaskedTokenLevelMultiRnnModel(object):
          self.token_input_mask]
         #output
         self.output_is_continue = tf.placeholder(dtype=tf.int32, shape=(None, ), name="output_length")
-        self.output_position_label = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_position")
+        self.output_position_label = tf.placeholder(dtype=tf.int32, shape=(None, ), name="output_position")
         self.output_is_copy = tf.placeholder(dtype=tf.int32, shape=(None, ),
                                              name="output_is_copy")  # 1 means using copy
-        self.output_keyword_id = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_keyword_id")
-        self.output_copy_word_id = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_copy_word_id")
+        self.output_keyword_id = tf.placeholder(dtype=tf.int32, shape=(None, ), name="output_keyword_id")
+        self.output_copy_word_id = tf.placeholder(dtype=tf.int32, shape=(None, ), name="output_copy_word_id")
         self.output_placeholders = [self.output_is_continue, self.output_position_label, self.output_is_copy,
         self.output_keyword_id, self.output_copy_word_id]
 
@@ -335,7 +358,8 @@ class MaskedTokenLevelMultiRnnModel(object):
         )
 
         self._train = tf_util.function(self.input_placeholders+self.output_placeholders,
-                              [self._model.loss_op, self._model.loss_op, self._model.train_op,])
+                              [self._model.loss_op, self._model.metrics_op[0], self._model.train_op,],
+                                       updates=[self._model.metrics_op[1]])
 
         self._loss_fn = tf_util.function(self.input_placeholders+self.output_placeholders,
                               self._model.loss_op, )
@@ -355,6 +379,10 @@ class MaskedTokenLevelMultiRnnModel(object):
 
     def metrics_model(self, *args):
         pass
+
+    def train_model(self, *args):
+        loss, metrics, _ = self._train(*args)
+        return loss, metrics
 
 
 
