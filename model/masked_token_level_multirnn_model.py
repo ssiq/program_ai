@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.ops.losses.losses_impl import Reduction
+import numpy as np
 
 from common import tf_util, code_util, rnn_util, util
 from common.rnn_cell import RNNWrapper
@@ -18,11 +19,12 @@ class QuestionAwareSelfMatchAttentionWrapper(RNNWrapper):
         self._memory = memory
         self._memory_length = memory_length
         self._attention_size = attention_size
-        self._question = question
+        self._question = tf.expand_dims(question, axis=-1)
 
     def call(self, inputs, state):
         with tf.variable_scope("self_match_attention"):
             inputs = util.convert_to_list(inputs)
+            inputs = [tf.matmul(t, self._question) * t for t in inputs]
             atten = rnn_util.soft_attention_reduce_sum(self._memory,
                                                               [inputs],
                                                               self._attention_size,
@@ -69,7 +71,7 @@ class MaskedTokenLevelMultiRnnModelGraph(tf_util.BaseModel):
     @tf_util.define_scope("word_embedding_op")
     def word_embedding_op(self):
         input_embedding_op = self.word_embedding_layer_fn(self.token_input)
-        return input_embedding_op
+        return tf.Print(input_embedding_op, [input_embedding_op], "The word_embedding_has_nan:")
 
     @tf_util.define_scope("character_embedding_op")
     def character_embedding_op(self):
@@ -215,7 +217,7 @@ class MaskedTokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         keyword_loss = tf.losses.sparse_softmax_cross_entropy(
             self.output_keyword_id, self.keyword_logit_op, reduction=Reduction.NONE
         )
-        loss += tf.where(tf_util.cast_bool(self.output_is_copy), x=copyword_loss, y=keyword_loss)
+        loss += tf.reduce_mean(tf.where(tf_util.cast_bool(self.output_is_copy), x=copyword_loss, y=keyword_loss))
         return loss
 
     @tf_util.define_scope("predict")
@@ -349,7 +351,7 @@ class MaskedTokenLevelMultiRnnModel(object):
         self._summary_merge_op = tf_util.merge_op()
 
         sess = tf_util.get_session()
-        init = tf.global_variables_initializer()
+        init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         sess.run(init)
 
         self._train_summary_fn = tf_util.function(
@@ -381,8 +383,12 @@ class MaskedTokenLevelMultiRnnModel(object):
         pass
 
     def train_model(self, *args):
-        loss, metrics, _ = self._train(*args)
-        return loss, metrics
+        for t in args:
+            print(np.array(t).shape)
+            print(t)
+        print(self.input_placeholders+self.output_placeholders)
+        loss, metrics, tt = self._train(*args)
+        return loss, metrics, tt
 
 
 

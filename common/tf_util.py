@@ -211,6 +211,7 @@ def minimize_and_clip(optimizer, objective, var_list, global_step=None, clip_val
     """
     gradients = optimizer.compute_gradients(objective, var_list=var_list,
                                             aggregation_method=tf.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N)
+    ori_gradients = list(gradients)
     for i, (grad, var) in enumerate(gradients):
         if grad is not None:
             gradients[i] = (tf.clip_by_norm(grad, clip_val), var)
@@ -472,6 +473,9 @@ class _Function(object):
         # Update feed dict with givens.
         for inpt in self.givens:
             feed_dict[inpt] = feed_dict.get(inpt, self.givens[inpt])
+        # print("feed_dict:")
+        # for k, v in feed_dict.items():
+        #     print("{}:{}".format(k, v))
         results = get_session().run(self.outputs_update, feed_dict=feed_dict)[:-1]
         if self.check_nan:
             if any(np.isnan(r).any() for r in results):
@@ -1041,6 +1045,12 @@ class BaseModel(abc.ABC):
                                          objective=self.loss_op,
                                          var_list=tf.trainable_variables(),
                                          global_step=self.global_step_variable)
+        # gradients = optimiizer.compute_gradients(self.loss_op, var_list=tf.trainable_variables(),
+        #                                         aggregation_method=tf.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N)
+        # for k, v in gradients:
+        #     print("{}:{}".format(k, v))
+        # gradients = tf.group(gradients)
+        # return gradients
 
 
 def cast_float(x):
