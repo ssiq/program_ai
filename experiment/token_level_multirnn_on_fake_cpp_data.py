@@ -75,8 +75,8 @@ def parse_xy(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug
     return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
 
 
-@util.disk_cache(basename='iden_mask_token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
-def parse_xy_with_iden_mask(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
+@util.disk_cache(basename='identifier_mask_token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
+def parse_xy_with_identifier_mask(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
 
     df['res'] = ''
     df['ac_code_obj'] = df['ac_code'].map(get_token_list)
