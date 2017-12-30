@@ -296,52 +296,52 @@ class MaskedTokenLevelMultiRnnModel(object):
             self.input_placeholders + self.output_placeholders
         )
 
-        # tf_util.init_all_op(self._model)
+        tf_util.init_all_op(self._model)
 
-        # metrics_input_placeholder = tf.placeholder(tf.float32, shape=[], name="metrics")
-        # tf_util.add_summary_scalar("metrics", metrics_input_placeholder, is_placeholder=True)
-        # tf_util.add_summary_histogram("predict_is_continue",
-        #                               tf.placeholder(tf.float32, shape=(None, ), name="predict_is_continue"),
-        #                               is_placeholder=True)
-        # tf_util.add_summary_histogram("predict_position_softmax",
-        #                               tf.placeholder(tf.float32, shape=(None, None),
-        #                                              name="predict_position_softmax"),
-        #                               is_placeholder=True)
-        # tf_util.add_summary_histogram("predict_is_copy",
-        #                               tf.placeholder(tf.float32, shape=(None, ), name="predict_is_copy"),
-        #                               is_placeholder=True)
-        # tf_util.add_summary_histogram("predict_key_word",
-        #                               tf.placeholder(tf.float32, shape=(None, None), name="predict_keyword"),
-        #                               is_placeholder=True)
-        # tf_util.add_summary_histogram("predict_copy_word",
-        #                               tf.placeholder(tf.float32, shape=(None, None), name="predict_copy_word"),
-        #                               is_placeholder=True)
-        # tf_util.add_summary_scalar("loss", self._model.loss_op, is_placeholder=False)
-        # tf_util.add_summary_histogram("is_continue", self._model.predict_op[0], is_placeholder=False)
-        # tf_util.add_summary_histogram("position_softmax", self._model.predict_op[1], is_placeholder=False)
-        # tf_util.add_summary_histogram("is_copy", self._model.predict_op[2], is_placeholder=False)
-        # tf_util.add_summary_histogram("key_word", self._model.predict_op[3], is_placeholder=False)
-        # tf_util.add_summary_histogram("key_word", self._model.predict_op[4], is_placeholder=False)
-        # self._summary_fn = tf_util.placeholder_summary_merge()
-        # self._summary_merge_op = tf_util.merge_op()
+        metrics_input_placeholder = tf.placeholder(tf.float32, shape=[], name="metrics")
+        tf_util.add_summary_scalar("metrics", metrics_input_placeholder, is_placeholder=True)
+        tf_util.add_summary_histogram("predict_is_continue",
+                                      tf.placeholder(tf.float32, shape=(None, ), name="predict_is_continue"),
+                                      is_placeholder=True)
+        tf_util.add_summary_histogram("predict_position_softmax",
+                                      tf.placeholder(tf.float32, shape=(None, None),
+                                                     name="predict_position_softmax"),
+                                      is_placeholder=True)
+        tf_util.add_summary_histogram("predict_is_copy",
+                                      tf.placeholder(tf.float32, shape=(None, ), name="predict_is_copy"),
+                                      is_placeholder=True)
+        tf_util.add_summary_histogram("predict_key_word",
+                                      tf.placeholder(tf.float32, shape=(None, None), name="predict_keyword"),
+                                      is_placeholder=True)
+        tf_util.add_summary_histogram("predict_copy_word",
+                                      tf.placeholder(tf.float32, shape=(None, None), name="predict_copy_word"),
+                                      is_placeholder=True)
+        tf_util.add_summary_scalar("loss", self._model.loss_op, is_placeholder=False)
+        tf_util.add_summary_histogram("is_continue", self._model.predict_op[0], is_placeholder=False)
+        tf_util.add_summary_histogram("position_softmax", self._model.predict_op[1], is_placeholder=False)
+        tf_util.add_summary_histogram("is_copy", self._model.predict_op[2], is_placeholder=False)
+        tf_util.add_summary_histogram("key_word", self._model.predict_op[3], is_placeholder=False)
+        tf_util.add_summary_histogram("key_word", self._model.predict_op[4], is_placeholder=False)
+        self._summary_fn = tf_util.placeholder_summary_merge()
+        self._summary_merge_op = tf_util.merge_op()
 
-        # sess = tf_util.get_session()
-        # init = tf.global_variables_initializer()
-        # sess.run(init)
-        #
-        # self._train_summary_fn = tf_util.function(
-        #     self.input_placeholders + self.output_placeholders,
-        #     self._summary_merge_op
-        # )
-        #
-        # self._train = tf_util.function(self.input_placeholders+self.output_placeholders,
-        #                       [self._model.loss_op, self._model.loss_op, self._model.train_op,])
-        #
-        # self._loss_fn = tf_util.function(self.input_placeholders+self.output_placeholders,
-        #                       self._model.loss_op, )
-        #
-        # self._one_predict_fn = tf_util.function(self.input_placeholders,
-        #                       self._model.predict_op, )
+        sess = tf_util.get_session()
+        init = tf.global_variables_initializer()
+        sess.run(init)
+
+        self._train_summary_fn = tf_util.function(
+            self.input_placeholders + self.output_placeholders,
+            self._summary_merge_op
+        )
+
+        self._train = tf_util.function(self.input_placeholders+self.output_placeholders,
+                              [self._model.loss_op, self._model.loss_op, self._model.train_op,])
+
+        self._loss_fn = tf_util.function(self.input_placeholders+self.output_placeholders,
+                              self._model.loss_op, )
+
+        self._one_predict_fn = tf_util.function(self.input_placeholders,
+                              self._model.predict_op, )
 
     @property
     def model(self):
