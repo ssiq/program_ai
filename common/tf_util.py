@@ -1071,14 +1071,14 @@ def all_is_zero(x: tf.Tensor):
     return tf.reduce_all(tf.equal(x, tf.zeros_like(x)))
 
 def _create_debug_tool():
+    is_debug = True
     @doublewrap
     def debug_print(function, msg: str):
-        debug = True
 
         @functools.wraps(function)
         def decorator(self):
             o = function(self)
-            if debug:
+            if is_debug:
                 return tf.Print(o, [all_is_nan(o), all_is_zero(o), tf.shape(o), o], msg)
             else:
                 return o
@@ -1086,7 +1086,10 @@ def _create_debug_tool():
         return decorator
 
     def debug(o, msg):
-        return tf.Print(o, [all_is_nan(o), all_is_zero(o), tf.shape(o), o], msg)
+        if is_debug:
+            return tf.Print(o, [all_is_nan(o), all_is_zero(o), tf.shape(o), o], msg)
+        else:
+            return o
 
     return debug_print, debug
 
