@@ -1071,7 +1071,7 @@ def all_is_zero(x: tf.Tensor):
     return tf.reduce_all(tf.equal(x, tf.zeros_like(x)))
 
 def _create_debug_tool():
-    is_debug = True
+    is_debug = False
     @doublewrap
     def debug_print(function, msg: str):
 

@@ -213,22 +213,23 @@ class MaskedTokenLevelMultiRnnModelGraph(tf_util.BaseModel):
 
     @tf_util.define_scope("loss")
     def loss_op(self):
-        loss = tf.reduce_mean(tf.losses.sigmoid_cross_entropy(
+        loss = tf_util.debug(tf.reduce_mean(tf.losses.sigmoid_cross_entropy(
             cast_float(self.output_is_continue), self.is_continue_logit_op
-        ))
-        loss += tf.reduce_mean(tf.losses.sigmoid_cross_entropy(
+        )), "is_continue_loss:")
+        loss += tf_util.debug(tf.reduce_mean(tf.losses.sigmoid_cross_entropy(
             cast_float(self.output_is_copy), self.is_copy_logit_op
-        ))
-        loss += tf.reduce_mean(tf.losses.sparse_softmax_cross_entropy(
+        )), "is_copy_loss:")
+        loss += tf_util.debug(tf.reduce_mean(tf.losses.sparse_softmax_cross_entropy(
             self.output_position_label, self.position_logit_op
-        ))
-        copyword_loss = tf.losses.sparse_softmax_cross_entropy(
+        )), "position_logit_loss:")
+        copyword_loss = tf_util.debug(tf.losses.sparse_softmax_cross_entropy(
             self.output_copy_word_id, self.copy_word_logit_op, reduction=Reduction.NONE
-        )
-        keyword_loss = tf.losses.sparse_softmax_cross_entropy(
+        ), "copyword_loss:")
+        keyword_loss = tf_util.debug(tf.losses.sparse_softmax_cross_entropy(
             self.output_keyword_id, self.keyword_logit_op, reduction=Reduction.NONE
-        )
-        loss += tf.reduce_mean(tf.where(tf_util.cast_bool(self.output_is_copy), x=copyword_loss, y=keyword_loss))
+        ), "keyword_loss:")
+        loss += tf_util.debug(tf.reduce_mean(tf.where(tf_util.cast_bool(self.output_is_copy), x=copyword_loss, y=keyword_loss)),
+                              "word_loss:")
         return loss
 
     @tf_util.define_scope("predict")
