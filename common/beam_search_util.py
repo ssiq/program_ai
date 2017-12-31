@@ -1,5 +1,7 @@
+import numpy
 import numpy as np
 import more_itertools
+from Cython.Includes.numpy import __init__
 
 
 def length_penalty(sequence_lengths, penalty_factor=0.6):
@@ -64,3 +66,160 @@ def beam_gather(one_output, indices:list, deepcopy=False):
     else:
         one_output = [one_output[ind] for ind in indices]
     return one_output
+
+
+def revert_batch_beam_stack(one_output, batch_size, beam_size):
+    '''
+    revert [batch*beam, :] to [batch, beam, :]
+    :param one_output:
+    :param batch_size:
+    :param beam_size:
+    :return:
+    '''
+    one_output = np.array(one_output)
+    one_output_shape = list(one_output.shape)
+    one_output = np.reshape(one_output, [batch_size, beam_size] + one_output_shape[1:]).tolist()
+    return one_output
+
+
+# def beam_get_key_from_action(beam_actions, key_name):
+#     return [act[key_name] for act in beam_actions]
+
+
+def beam_calculate(inputs, outputs_logit, beam_score, end_beam, length_beam, select_beam, beam_size, beam_calculate_output_score_fn, beam_gather_args):
+    '''
+
+    :param inputs:
+    :param outputs_logit:
+    :param beam_score:
+    :param next_states:
+    :param position_embedding:
+    :param code_embedding:
+    :param end_beam:
+    :param length_beam:
+    :param select_beam:
+    :param beam_size:
+    :param beam_calculate_output_score_fn: return p_beam, action_beam.
+    :return:
+    '''
+    # is_continues_beam, positions_beam, is_copys_beam, keyword_ids_beam, copy_ids_beam = outputs
+
+    # if np.sum(end_beam) == 0:
+    #     outputs = [[0]*len(out) for out in outputs_logit]
+    #     return inputs, outputs, select_beam, end_beam, beam_score, next_states, position_embedding, code_embedding, length_beam
+
+    length_beam = (np.array(length_beam) + np.array(end_beam)).tolist()
+    cur_beam_size = len(outputs_logit[1])
+
+    p_beam, id_beam, action_beam = beam_calculate_output_score_fn(outputs_logit, beam_size)
+    p_beam = [(p_b if end_b else [0]) for p_b, end_b in zip(p_beam, end_beam)]
+    p_score = beam_calculate_score(beam_score, p_beam)
+    p_score_with_penalty = beam_calculate_length_penalty(length_beam, p_score)
+    p_score = beam_flat(p_score)
+    p_score_with_penalty = beam_flat(p_score_with_penalty)
+
+    action_beam = beam_flat(action_beam)
+    id_beam = beam_flat(id_beam)
+    top_indices = beam_cal_top_k(p_score_with_penalty, beam_size)
+    beam_score = beam_gather(p_score, top_indices)
+    action_beam = beam_gather(action_beam, top_indices)
+    beam_indices = beam_gather(id_beam, top_indices)
+
+    # outputs_logit = [self.beam_gather(out, beam_indices) for out in outputs_logit]
+    end_beam = beam_gather(end_beam, beam_indices)
+    # outputs = beam_get_output_from_action_beams(action_beam)
+    outputs = list(zip(*action_beam))
+    outputs = [np.where(end_beam, out, np.zeros_like(out)).tolist() for out in outputs]
+    # print('outputs:', outputs)
+    select_beam = [beam_gather(sel_beam, beam_indices, deepcopy=True) for sel_beam in select_beam]
+    is_continues_beam = outputs[0]
+    end_beam = np.logical_and(end_beam, is_continues_beam).tolist()
+    select_beam = [np.concatenate((sel_out, np.expand_dims(out, axis=1)), 1).tolist() for sel_out, out in zip(select_beam, outputs)]
+    length_beam = beam_gather(length_beam, beam_indices)
+
+    # next_states = beam_gather(next_states, beam_indices, deepcopy=True)
+    # position_embedding = beam_gather(position_embedding, beam_indices, deepcopy=True)
+    # code_embedding = beam_gather(code_embedding, beam_indices, deepcopy=True)
+
+    beam_gather_args = [beam_gather(arg, beam_indices, deepcopy=True)for arg in beam_gather_args]
+
+    inputs = [beam_gather(inp, beam_indices, deepcopy=True) for inp in inputs]
+    # inputs = self._create_next_code(outputs, *inputs)
+
+    return inputs, outputs, select_beam, end_beam, beam_score, length_beam, beam_gather_args
+
+
+def _create_next_code_without_iter_dims(actions, inputs_without_iter, create_one_fn):
+    create_one_next_code_fn = lambda zipped: create_one_fn(*zipped)
+    next_inputs = list(map(create_one_next_code_fn, list(zip(list(zip(*actions)), *inputs_without_iter))))
+    next_inputs = list(zip(*next_inputs))
+    return next_inputs
+
+
+def _create_next_code(actions, inputs, create_one_fn):
+    """
+    This function is used to create the new code based now action
+    :param actions:
+    :param token_input:
+    :param token_input_length:
+    :param character_input:
+    :param character_input_length:
+    :return:
+    TODO: fill this function
+    """
+    # inputs = token_input, token_input_length, character_input, character_input_length
+    remove_iter_dims_fn = lambda one_input: [one[0] for one in one_input]
+    add_iter_dims_fn = lambda one_input: [[one] for one in one_input]
+
+    inputs_without_iter = [remove_iter_dims_fn(one) for one in inputs]
+    next_inputs = _create_next_code_without_iter_dims(actions, inputs_without_iter, create_one_fn)
+    next_inputs = [add_iter_dims_fn(one) for one in next_inputs]
+
+    return next_inputs
+
+
+def fill_output_data(output:list, iter_len):
+    res = [t + [0]*(iter_len-len(t)) for t in output]
+    return np.array(res)
+
+
+def cal_metrics(max_decode_iterator_num, output_data, predict_data):
+    res_mask = []
+    predict_is_continue = predict_data[0]
+    for bat in predict_is_continue:
+        zero_item = np.argwhere(np.array(bat) == 0)
+        # print("bat:{}, zero_item:{}".format(bat, zero_item))
+        if len(zero_item) == 0:
+            iter_len = max_decode_iterator_num
+        else:
+            iter_len = np.min(zero_item) + 1
+        res_mask.append([1] * iter_len + [0] * (max_decode_iterator_num - iter_len))
+    res_mask = np.array(res_mask)
+    # print("res_mask:{}".format(res_mask))
+
+    true_mask = np.ones([len(output_data[0])])
+    for i in range(len(predict_data)):
+        # true_mask = 0
+        output_idata = fill_output_data(output_data[i], max_decode_iterator_num)
+        predict_idata = fill_output_data(predict_data[i], max_decode_iterator_num)
+
+        predict_idata = np.where(res_mask, predict_idata, np.zeros_like(predict_idata))
+        # print("index {}: output_data {}, predict_data {}".format(i, output_idata, predict_idata))
+
+        res = np.equal(output_idata, predict_idata)
+        res = res.reshape([res.shape[0], -1])
+        res = np.all(res, axis=1)
+        true_mask = np.logical_and(true_mask, res)
+    return np.mean(true_mask)
+
+
+def find_copy_input_position(iden_mask, copy_id):
+    for i in range(len(iden_mask)):
+        iden = iden_mask[i]
+        if iden[copy_id] == 1:
+            return i
+    return -1
+
+
+def beam_calculate_fn(args):
+    return beam_calculate(*args)

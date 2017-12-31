@@ -1,4 +1,5 @@
-from experiment.token_level_multirnn_on_fake_cpp_data import parse_xy, sample
+from experiment.token_level_multirnn_on_fake_cpp_data import parse_xy
+from experiment.experiment_util import sample
 from code_data.token_level_fake_code import GetTokens
 
 if __name__ == '__main__':

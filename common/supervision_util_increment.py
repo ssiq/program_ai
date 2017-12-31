@@ -32,8 +32,8 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
                 model_parm['character_embedding_layer_fn'] = model_parm['character_embedding_layer_fn']()
 
                 change_count = 0
-                condition_fn = create_condition_fn(**modify_condition[change_count][0])
-                condition = Condition(condition_fn)
+                condition_train_fn = create_condition_fn(**modify_condition[change_count][0])
+                condition = Condition(condition_train_fn)
                 print('start condition: {}'.format(str(modify_condition[change_count][0])))
                 train_batch_iterator = util.batch_holder_with_condition(*train_data, batch_size=batch_size, condition=condition)
                 validation_data_iterator = util.batch_holder_with_condition(*vaild_data, batch_size=batch_size, epoches=None, condition=condition)
@@ -72,9 +72,9 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
     train_data = parse_xy_fn(train, 'train', *parse_xy_param)
     vaild_data = parse_xy_fn(vaild, 'valid', *parse_xy_param)
     test_data = parse_xy_fn(test, 'test', *parse_xy_param)
-    print('train_data_length: {}'.format(len(train_data[0].index)))
-    print('vaild_data_length: {}'.format(len(vaild_data[0].index)))
-    print('test_data_length: {}'.format(len(test_data[0].index)))
+    print('train_data_length: {}'.format(len(train_data[0])))
+    print('vaild_data_length: {}'.format(len(vaild_data[0])))
+    print('test_data_length: {}'.format(len(test_data[0])))
 
     return train_supervision
 
@@ -106,8 +106,8 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                 # experiment_name + '_model',  "_validation"),
             graph=sess.graph)
         save_steps = 1000
-        skip_steps = 100
-        print_skip_step = 100
+        skip_steps = 10
+        print_skip_step = 10
         debug_steps = 10
 
         recordloggername = 'record'
@@ -134,10 +134,11 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                 accuracies.append(metrics)
                 # print("iteration {} with loss {} and metrics {}".format(current_step, loss, metrics))
                 if current_step % skip_steps == 0:
-                    train_summary = model.summary(*data)
-                    train_writer.add_summary(train_summary, global_step=model.global_step)
-                    validation_summary = model.summary(*next(validation_data_itr))
-                    validation_writer.add_summary(validation_summary, global_step=model.global_step)
+                    # train_summary = model.summary(*data)
+                    # train_writer.add_summary(train_summary, global_step=model.global_step)
+                    # validation_summary = model.summary(*next(validation_data_itr))
+                    # validation_writer.add_summary(validation_summary, global_step=model.global_step)
+                    pass
                 if current_step % print_skip_step == 0:
                     loss_mean = np.mean(losses)
                     metrics_mean = np.mean(accuracies)

@@ -2,9 +2,10 @@ import math
 import unittest
 
 from common.beam_search_util import *
-from experiment.token_level_multirnn_on_fake_cpp_data import sample, create_embedding, parse_xy
+from common.beam_search_util import beam_calculate
+from experiment.experiment_util import sample, create_embedding
+from experiment.token_level_multirnn_on_fake_cpp_data import parse_xy
 from model.token_level_multirnn_model import *
-from model.token_level_multirnn_model import beam_calculate
 
 
 class TestBeamSearch(unittest.TestCase):
@@ -153,20 +154,20 @@ class TestBeamSearch(unittest.TestCase):
         indices = [5, 2, 4, 7, 1]
         self.assertEqual(beam_gather(predict, indices), [5, 2, 4, 7, [1]])
 
-    def test_beam_get_key_from_action(self):
-        action_list = [{'k1': 'v1'+str(i), 'k2': 'v2'+str(i)} for i in range(5)]
-        self.assertEqual(beam_get_key_from_action(action_list, 'k1'), ['v10', 'v11', 'v12', 'v13', 'v14'])
-        self.assertEqual(beam_get_key_from_action(action_list, 'k2'), ['v20', 'v21', 'v22', 'v23', 'v24'])
+    # def test_beam_get_key_from_action(self):
+    #     action_list = [{'k1': 'v1'+str(i), 'k2': 'v2'+str(i)} for i in range(5)]
+    #     self.assertEqual(beam_get_key_from_action(action_list, 'k1'), ['v10', 'v11', 'v12', 'v13', 'v14'])
+    #     self.assertEqual(beam_get_key_from_action(action_list, 'k2'), ['v20', 'v21', 'v22', 'v23', 'v24'])
 
-    def test_beam_top_to_beamid(self):
-        action_list = [{'beam_id': i} for i in range(5)]
-        self.assertEqual(beam_top_to_beamid(action_list), [0, 1, 2, 3, 4])
+    # def test_beam_top_to_beamid(self):
+    #     action_list = [{'beam_id': i} for i in range(5)]
+    #     self.assertEqual(beam_top_to_beamid(action_list), [0, 1, 2, 3, 4])
 
     def test_beam_calculate_output_score(self):
         import math
         beam_size = 3
         output_beam_list = self.init_output_logits()
-        beam_p_stack, beam_action_stack = beam_calculate_output_score(output_beam_list, beam_size)
+        beam_p_stack, beam_id_stack, beam_action_stack = beam_calculate_output_score(output_beam_list, beam_size)
         self.assertEqual(len(beam_p_stack), 3)
         self.assertEqual(len(beam_p_stack[0]), 24)
         self.assertEqual(len(beam_p_stack[1]), 24)
@@ -193,7 +194,7 @@ class TestBeamSearch(unittest.TestCase):
         length_beam = [1, 1, 1]
         select_beam = [([1, 1], [1, 1], [1, 1]), ([], [], []), ([1, 0], [0, 1], [0, 0]), ([], [], []), ([], [], [])]
         beam_size = 3
-        res = beam_calculate(inputs, outputs_logit, beam_score, next_states, position_embedding, code_embedding, end_beam, length_beam, select_beam, beam_size)
+        res = beam_calculate(inputs, outputs_logit, beam_score, next_states, position_embedding, code_embedding, end_beam, length_beam, select_beam, beam_size, beam_calculate_output_score)
         inputs, outputs, select_beam, end_beam, beam_score, next_states, position_embedding, code_embedding, length_beam = res
         print(inputs[0][0])
         self.assertEqual(outputs[0][0], 1)
