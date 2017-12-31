@@ -75,10 +75,10 @@ if __name__ == '__main__':
     #     isPrint += 1
 
     modify_condition = [
-                        ({'error_count': 1}, 0.9),
-                        ({'error_count': 2}, 0.8),
-                        ({'error_count': 3}, 0.7),
-                        ({'error_count': 4}, 0.7),
+                        # ({'error_count': 1}, 0.9),
+                        # ({'error_count': 2}, 0.8),
+                        # ({'error_count': 3}, 0.7),
+                        # ({'error_count': 4}, 0.7),
                         ({'error_count': 5}, 1.0), ]
 
     MAX_ITERATOR_LEGNTH = 5

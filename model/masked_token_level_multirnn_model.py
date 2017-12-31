@@ -5,7 +5,7 @@ import numpy as np
 from common import tf_util, code_util, rnn_util, util
 from common.rnn_cell import RNNWrapper
 from common.tf_util import cast_float, cast_int
-from common.beam_search_util import beam_cal_top_k, flat_list, \
+from common.beam_search_util import beam_cal_top_k, flat_list, beam_gather, \
     select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code_without_iter_dims, cal_metrics, find_copy_input_position
 
 
@@ -415,12 +415,26 @@ class MaskedTokenLevelMultiRnnModel(object):
             # print(t)
         # print(self.input_placeholders+self.output_placeholders)
 
+        # def get_effective_id(one_flat_data):
+        #     ids = [i if np.sum(one_flat_data[i]) == 0 else -1 for i in range(len(one_flat_data))]
+        #     fil_fn = lambda one: one != -1
+        #     ids = list(filter(fil_fn, ids))
+        #     return ids
 
         flat_args = [flat_list(one_input) for one_input in args]
+
+        # print('before effective: ', len(flat_args[0]))
+        # eff_ids = get_effective_id(flat_args[0])
+        # flat_args = [beam_gather(one, eff_ids) for one in flat_args]
+        # if len(eff_ids) == 0:
+        #     pass
+        #     return
+
         batch_size = len(args[0])
         total = len(flat_args[0])
+        # print('batch size, total:', batch_size, total)
         weight_array = int(total / batch_size) * [batch_size]
-        if total%batch_size != 0:
+        if total % batch_size != 0:
             weight_array = weight_array + [total % batch_size]
 
         import more_itertools
