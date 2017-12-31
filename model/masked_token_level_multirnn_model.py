@@ -364,6 +364,14 @@ class MaskedTokenLevelMultiRnnModel(object):
         self._summary_fn = tf_util.placeholder_summary_merge()
         self._summary_merge_op = tf_util.merge_op()
 
+        max_batches = 5
+        to_place_placeholders = [tf.placeholder(dtype=tf.string, name="to_merege_placeholder_{}".format(i))
+                                           for i in range(max_batches)]
+        merged_summary = tf.summary.merge(to_place_placeholders)
+
+        _merge_fn = tf_util.function(to_place_placeholders, merged_summary)
+        self._merge_fn = lambda *args: _merge_fn(args+[""]*(max_batches-len(args)))
+
         sess = tf_util.get_session()
         init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         sess.run(init)
@@ -380,6 +388,9 @@ class MaskedTokenLevelMultiRnnModel(object):
         self._loss_fn = tf_util.function(self.input_placeholders+self.output_placeholders,
                               self._model.loss_op, )
 
+        self._loss_and_train_summary_fn = tf_util.function(self.input_placeholders+self.output_placeholders,
+                              [self._model.loss_op, self._summary_merge_op], )
+
         self._one_predict_fn = tf_util.function(self.input_placeholders,
                               self._model.predict_op, )
 
@@ -388,9 +399,14 @@ class MaskedTokenLevelMultiRnnModel(object):
         return self._model
 
     def summary(self, *args):
-        train_summary = self._train_summary_fn(*args)
+        # train_summary = self._train_summary_fn(*args)
         metrics_model = self.metrics_model(*args)
+        #TODO: You should calculate the loss just like what you do in train_model function
+        loss, summary = self._loss_and_train_summary_fn(*args) # For each batch you use this fn to get the loss and summary
+        #the loss you should calculate the weighted mean, the summary you should merge this like this
+        train_summary = self._merge_fn([summary])
         tf_util.add_value_scalar("metrics", metrics_model)
+        tf_util.add_value_scalar("loss", loss) # add the weighted loss here
         return self._summary_fn(*tf_util.merge_value(), summary_input=train_summary)
 
     @property
