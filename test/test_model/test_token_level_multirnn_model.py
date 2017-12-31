@@ -2,10 +2,12 @@ import unittest
 import tensorflow as tf
 import numpy as np
 
+from common.beam_search_util import _create_next_code, cal_metrics
 from model.token_level_multirnn_model import TokenLevelMultiRnnModel
 from embedding.wordembedding import load_vocabulary
 from embedding.character_embedding import load_character_vocabulary
-from experiment.token_level_multirnn_on_fake_cpp_data import sample, create_embedding, parse_xy
+from experiment.token_level_multirnn_on_fake_cpp_data import parse_xy
+from experiment.experiment_util import sample, create_embedding
 from common.util import padded
 from test.test_package_util import almost_equal_array
 
@@ -50,7 +52,7 @@ class Test(unittest.TestCase):
         copy_word_id = [[12, 32, 0], [21, 0, 32,32], [12]]
         o = (is_continue, position_label, is_copy, keyword_id, copy_word_id)
         po = [np.array(padded(t)) for t in o]
-        res = self.model.cal_metrics(o, po)
+        res = cal_metrics(self.model.max_decode_iterator_num, o, po)
         self.assertAlmostEqual(res, 1.0)
 
     def test__create_next_code(self):
@@ -71,7 +73,7 @@ class Test(unittest.TestCase):
         action = get_action(0)
         print("action")
         print(action)
-        res = self.model._create_next_code(action, inputs[0], inputs[1], inputs[2], inputs[3])
+        res = _create_next_code(action, inputs[0], inputs[1], inputs[2], inputs[3])
         res = [padded(t) for t in res]
         print("res_shape")
         for t in res:

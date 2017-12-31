@@ -5,6 +5,8 @@ import numpy as np
 from common import tf_util, code_util, rnn_util, util
 from common.rnn_cell import RNNWrapper
 from common.tf_util import cast_float, cast_int
+from common.beam_search_util import beam_cal_top_k, flat_list, \
+    select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code_without_iter_dims, cal_metrics, find_copy_input_position
 
 
 class QuestionAwareSelfMatchAttentionWrapper(RNNWrapper):
@@ -353,7 +355,7 @@ class MaskedTokenLevelMultiRnnModel(object):
         tf_util.add_summary_histogram("predict_copy_word",
                                       tf.placeholder(tf.float32, shape=(None, None), name="predict_copy_word"),
                                       is_placeholder=True)
-        tf_util.add_summary_scalar("loss", self._model.loss_op, is_placeholder=False)
+        tf_util.add_summary_scalar("loss", tf.placeholder(tf.float32, shape=[]), is_placeholder=True)
         tf_util.add_summary_histogram("is_continue", self._model.predict_op[0], is_placeholder=False)
         tf_util.add_summary_histogram("position_softmax", self._model.predict_op[1], is_placeholder=False)
         tf_util.add_summary_histogram("is_copy", self._model.predict_op[2], is_placeholder=False)
@@ -391,16 +393,314 @@ class MaskedTokenLevelMultiRnnModel(object):
         tf_util.add_value_scalar("metrics", metrics_model)
         return self._summary_fn(*tf_util.merge_value(), summary_input=train_summary)
 
+    @property
+    def global_step(self):
+        return self._model.global_step
+
     def metrics_model(self, *args):
-        pass
+        # print("metrics input")
+        # for t in args:
+        #     print(np.array(t).shape)
+        max_decode_iterator_num = 5
+        input_data = args[0:5]
+        output_data = args[5:10]
+        predict_data = self.predict_model(*input_data, )
+        metrics_value = cal_metrics(max_decode_iterator_num, output_data, predict_data)
+        # print('metrics_value: ', metrics_value)
+        return metrics_value
 
     def train_model(self, *args):
         # for t in args:
         #     print(np.array(t).shape)
-        #     print(t)
+            # print(t)
         # print(self.input_placeholders+self.output_placeholders)
-        loss, metrics, tt = self._train(*args)
-        return loss, metrics, tt
+
+
+        flat_args = [flat_list(one_input) for one_input in args]
+        batch_size = len(args[0])
+        total = len(flat_args[0])
+        weight_array = int(total / batch_size) * [batch_size]
+        if total%batch_size != 0:
+            weight_array = weight_array + [total % batch_size]
+
+        import more_itertools
+        chunked_args = more_itertools.chunked(list(zip(*flat_args)), batch_size)
+        train_chunk_fn = lambda chunked: self._train(*list(zip(*chunked)))
+        train_res = map(train_chunk_fn, chunked_args)
+        train_res = list(zip(*train_res))
+
+        weight_fn = lambda one_res: [one_res[i] * weight_array[i] for i in range(len(one_res))]
+        loss_array = weight_fn(train_res[0])
+        accracy_array = weight_fn(train_res[1])
+        # tt_array = weight_fn(train_res[2])
+        loss = np.sum(loss_array) / total
+        accracy = np.sum(accracy_array) / total
+        # tt = np.sum(tt_array) / total
+
+        # loss, accracy, tt = self._train(*args)
+        return loss, accracy, None
+
+    def predict_model(self, *args,):
+        # print('predict iterator start')
+        import copy
+        import more_itertools
+        # print('before args shape: ')
+        # for i in range(5):
+        #     print(np.array(args[i]).shape)
+        args = [copy.deepcopy([ti[0] for ti in one_input]) for one_input in args]
+        # print('args shape: ')
+        # for i in range(5):
+        #     print(np.array(args[i]).shape)
+        # token_input, token_input_length, charactere_input, character_input_length, identifier_mask = args
+        # start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
+        batch_size = len(args[0])
+        cur_beam_size = 1
+        beam_size = 5
+        max_decode_iterator_num = 5
+
+        # shape = 5 * batch_size * beam_size * token_length
+        input_stack = init_input_stack(args)
+        # shape = batch_size * beam_size
+        beam_stack = [[0]]*batch_size
+        # shape = 5 * batch_size * beam_size * output_length
+        output_stack = []
+        # shape = batch_size * beam_size
+        mask_stack = [[1]]*batch_size
+        # shape = batch_size * beam_size
+        beam_length_stack = [[0]]*batch_size
+        # shape = 5 * batch_size * beam_size * max_decode_iterator_num
+        select_output_stack_list = [[[[]]*cur_beam_size]*batch_size]*5
+
+        # shape = batch_size * beam_size* start_label_length
+        # next_labels_stack = []
+        # shape = batch_size * beam_size * initial_state_length
+        # next_states_stack = []
+
+        # next_states_stack = np.expand_dims(np.array(initial_state), axis=1).tolist()
+        # next_labels_stack = [[start_label]] * len(initial_state)
+
+        for i in range(max_decode_iterator_num):
+
+            input_flat = [flat_list(inp) for inp in input_stack]
+            # next_labels_flat = flat_list(next_labels_stack)
+            # next_states_flat = flat_list(next_states_stack)
+
+            one_predict_fn = lambda chunked: self._one_predict_fn(*list(zip(*chunked)))
+
+            chunked_input = more_itertools.chunked(list(zip(*input_flat)), batch_size)
+            predict_returns = list(map(one_predict_fn, chunked_input))
+            predict_returns = list(zip(*predict_returns))
+            outputs = predict_returns
+
+            output_list = [flat_list(out) for out in outputs]
+            # state_list = flat_list(next_state)
+            # position_embedding_list = flat_list(position_embedding)
+            # code_embedding_list = flat_list(code_embedding)
+
+            output_stack = [revert_batch_beam_stack(out_list, batch_size, cur_beam_size) for out_list in output_list]
+            # next_states_stack = revert_batch_beam_stack(state_list, batch_size, cur_beam_size)
+            # position_embedding_stack = revert_batch_beam_stack(position_embedding_list, batch_size, cur_beam_size)
+            # code_embedding_stack = revert_batch_beam_stack(code_embedding_list, batch_size, cur_beam_size)
+
+            # beam_args = (list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, next_states_stack,
+            #              position_embedding_stack, code_embedding_stack, mask_stack, beam_length_stack,
+            #              list(zip(*select_output_stack_list)), [beam_size] * batch_size)
+            # batch_returns = list(util.parallel_map(core_num=3, f=beam_calculate_fn, args=list(zip(*beam_args))))
+            batch_returns = list(map(beam_calculate, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size] * batch_size, [beam_calculate_output_score] * batch_size, [[]]*batch_size))
+            def create_next(ret):
+                ret = list(ret)
+                ret[0] = _create_next_code_without_iter_dims(ret[1], ret[0], create_one_fn=self._create_one_next_code)
+                return ret
+            batch_returns = [create_next(ret) for ret in batch_returns]
+            input_stack, output_stack, select_output_stack_list, mask_stack, beam_stack, beam_length_stack, _ = list(zip(*batch_returns))
+            input_stack = list(zip(*input_stack))
+            output_stack = list(zip(*output_stack))
+            select_output_stack_list = list(zip(*select_output_stack_list))
+
+            if np.sum(output_stack[0]) == 0:
+                break
+
+            # output_flat = [flat_list(out) for out in output_stack]
+            # position_embedding_flat = flat_list(position_embedding_stack)
+            # code_embedding_flat = flat_list(code_embedding_stack)
+
+            # create_label_lambda_fn = lambda is_continue, position, is_copy, keyword_id, copy_id, position_emb, code_emb: self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1),
+            #                                              np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1), position_emb, code_emb)[:, 0, :]
+            # create_label_lambda_chunked_fn = lambda chunked: create_label_lambda_fn(*list(zip(*chunked)))
+            # next_labels_stack = list(map(create_label_lambda_chunked_fn, more_itertools.chunked(list(zip(*list(output_flat + [position_embedding_flat] + [code_embedding_flat]))), batch_size)))
+            # next_labels_stack = flat_list(next_labels_stack)
+            # next_labels_stack = np.reshape(next_labels_stack, (batch_size, beam_size, -1)).tolist()
+            # [create_label_lambda_fn() for is_continue, position, is_copy, keyword_id, copy_id in more_itertools.chunked(list(zip(*output_stack)) + [position_embedding_stack] + [code_embedding_stack], batch_size)]
+
+            input_stack = [[list(inp) for inp in one_input]for one_input in input_stack]
+
+            # print('before inputs shape: ')
+            # for i in range(5):
+            #     print(np.array(input_stack[i]).shape)
+
+            input_stack = [list(util.padded(list(inp))) for inp in input_stack]
+            # print('after padded inputs shape: ')
+            # for i in range(5):
+            #     print(np.array(input_stack[i]).shape)
+                # if len(np.array(input_stack[i]).shape) <= 2:
+                #     print(input_stack[i])
+            mask_input_with_end_fn = lambda token_input: list([util.mask_input_with_end(batch_mask, batch_inp, n_dim=1).tolist() for batch_mask, batch_inp in zip(mask_stack, token_input)])
+            input_stack = list(map(mask_input_with_end_fn, input_stack))
+            cur_beam_size = beam_size
+
+            # print('after inputs shape: ')
+            # for i in range(5):
+            #     print(np.array(input_stack[i]).shape)
+
+
+        summary = copy.deepcopy(select_output_stack_list)
+        tf_util.add_value_histogram("predict_is_continue", util.padded(summary[0]))
+        tf_util.add_value_histogram("predict_position_softmax", util.padded(summary[1]))
+        tf_util.add_value_histogram("predict_is_copy", util.padded(summary[2]))
+        tf_util.add_value_histogram("predict_key_word", util.padded(summary[3]))
+        tf_util.add_value_histogram("predict_copy_word", util.padded(summary[4]))
+
+        final_output = select_max_output(beam_stack, select_output_stack_list)
+        return final_output
+
+    def _create_one_next_code(self, action, token_input, token_input_length, character_input, character_input_length, identifier_mask):
+        is_continue, position, is_copy, keyword_id, copy_id = action
+        next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
+        code_length = token_input_length
+
+        if position % 2 == 1 and is_copy == 0 and keyword_id == self.placeholder_token:
+            # delete
+            position = int(position / 2)
+            if position >= code_length:
+                # action position error
+                print('delete action position error', position, code_length)
+                return next_inputs
+            token_input = token_input[0:position] + token_input[position + 1:]
+            token_input_length -= 1
+            character_input = character_input[0:position] + character_input[position + 1:]
+            character_input_length = character_input_length[0:position] + character_input_length[position + 1:]
+            identifier_mask = identifier_mask[0:position] + identifier_mask[position + 1:]
+        else:
+            if is_copy:
+                copy_position_id = find_copy_input_position(identifier_mask, copy_id)
+                if copy_position_id >= code_length:
+                    # copy position error
+                    print('copy position error', copy_position_id, code_length)
+                    print('details:', position, is_copy, keyword_id, copy_position_id, code_length)
+                    return next_inputs
+                word_token_id = token_input[copy_position_id]
+                word_character_id = character_input[copy_position_id]
+                word_character_length = character_input_length[copy_position_id]
+                iden_mask = identifier_mask[copy_position_id]
+            else:
+                word_token_id = keyword_id
+                word = self.id_to_word(word_token_id)
+                if word == None:
+                    # keyword id error
+                    print('keyword id error', keyword_id)
+                    return next_inputs
+                word_character_id = self.parse_token(word, character_position_label=True)
+                word_character_length = len(word_character_id)
+                iden_mask = [0] * len(identifier_mask[0])
+
+            if position % 2 == 0:
+                # insert
+                position = int(position / 2)
+                if position > code_length:
+                    # action position error
+                    print('insert action position error', position, code_length)
+                    return next_inputs
+                token_input = token_input[0:position] + [word_token_id] + token_input[position:]
+                token_input_length += 1
+                character_input = character_input[0:position] + [word_character_id] + character_input[position:]
+                character_input_length = character_input_length[0:position] + [word_character_length] + character_input_length[position:]
+                identifier_mask = identifier_mask[0:position] + [iden_mask] + identifier_mask[position:]
+            elif position % 2 == 1:
+                # change
+                position = int(position / 2)
+                if position >= code_length:
+                    # action position error
+                    print('change action position error', position, code_length)
+                    return next_inputs
+                token_input[position] = word_token_id
+                character_input[position] = word_character_id
+                character_input_length[position] = word_character_length
+                identifier_mask[position] = iden_mask
+        next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
+        return next_inputs
+
+
+def beam_calculate_output_score(output_beam_list, beam_size):
+    import math
+
+    output_is_continues, output_positions, output_is_copys, output_keyword_ids, output_copy_ids = output_beam_list
+    cur_beam_size = len(output_positions)
+    # print('cur_beam_size:',cur_beam_size)
+    beam_action_stack = [[] for i in range(beam_size)]
+    beam_p_stack = [[] for i in range(beam_size)]
+    beam_id_stack = [[] for i in range(beam_size)]
+
+    top_position_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_positions]
+    top_keyword_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_keyword_ids]
+    top_copy_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_copy_ids]
+    sigmoid_to_p_distribute = lambda x: [1 - x, x]
+    output_is_continues = [sigmoid_to_p_distribute(beam) for beam in output_is_continues]
+    output_is_copys = [sigmoid_to_p_distribute(beam) for beam in output_is_copys]
+    top_is_continue_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_is_continues]
+    top_is_copy_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_is_copys]
+    for beam_id in range(cur_beam_size):
+
+        for position_id in top_position_beam_id_list[beam_id]:
+            for is_continue in top_is_continue_beam_id_list[beam_id]:
+                for is_copy in top_is_copy_beam_id_list[beam_id]:
+                    if is_copy == 1:
+                        for copy_id in top_copy_beam_id_list[beam_id]:
+                            keyword = 0
+                            is_continue_p = output_is_continues[beam_id][is_continue]
+                            position_p = output_positions[beam_id][position_id]
+                            is_copy_p = output_is_copys[beam_id][is_copy]
+                            copy_id_p = output_copy_ids[beam_id][copy_id]
+                            is_continue_p = is_continue_p if is_continue_p > 0 else 0.00001
+                            position_p = position_p if position_p > 0 else 0.00001
+                            is_copy_p = is_copy_p if is_copy_p > 0 else 0.00001
+                            copy_id_p = copy_id_p if copy_id_p > 0 else 0.00001
+
+                            # action = {'is_continue': is_continue, 'position': position_id, 'is_copy': is_copy,
+                            #           'keyword': keyword, 'copy_id': copy_id, 'beam_id': beam_id}
+                            # print(is_continue_p, position_p, is_copy_p, copy_id_p)
+                            p = math.log(is_continue_p) + math.log(position_p) + math.log(is_copy_p) + math.log(copy_id_p)
+
+                            beam_action_stack[beam_id].append((is_continue, position_id, is_copy, keyword, copy_id))
+                            beam_p_stack[beam_id].append(p)
+                            beam_id_stack[beam_id].append(beam_id)
+
+                    else:
+                        for keyword in top_keyword_beam_id_list[beam_id]:
+                            copy_id = 0
+                            is_continue_p = output_is_continues[beam_id][is_continue]
+                            position_p = output_positions[beam_id][position_id]
+                            is_copy_p = output_is_copys[beam_id][is_copy]
+                            keyword_p = output_keyword_ids[beam_id][keyword]
+                            is_continue_p = is_continue_p if is_continue_p > 0 else 0.00001
+                            position_p = position_p if position_p > 0 else 0.00001
+                            is_copy_p = is_copy_p if is_copy_p > 0 else 0.00001
+                            keyword_p = keyword_p if keyword_p > 0 else 0.00001
+
+                            # action = {'is_continue': is_continue, 'position': position_id, 'is_copy': is_copy,
+                            #           'keyword': keyword, 'copy_id': copy_id, 'beam_id': beam_id}
+                            p = math.log(is_continue_p) + math.log(position_p) + math.log(is_copy_p) + math.log(keyword_p)
+
+                            beam_action_stack[beam_id].append((is_continue, position_id, is_copy, keyword, copy_id))
+                            beam_p_stack[beam_id].append(p)
+                            beam_id_stack[beam_id].append(beam_id)
+    return beam_p_stack, beam_id_stack, beam_action_stack
+
+
+def init_input_stack(args):
+    # shape = 4 * batch_size * beam_size * token_length
+    init_input_fn = lambda one_input: np.expand_dims(np.array(util.padded(one_input)), axis=1).tolist()
+    input_stack = [init_input_fn(one_input) for one_input in args]
+    return input_stack
 
 
 
