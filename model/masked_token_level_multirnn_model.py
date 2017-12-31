@@ -69,9 +69,10 @@ class MaskedTokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         return tf.nn.rnn_cell.MultiRNNCell([self._rnn_cell(hidden_size) for _ in range(layer_number)])
 
     @tf_util.define_scope("word_embedding_op")
+    @tf_util.debug_print("word_embedding_op value:")
     def word_embedding_op(self):
         input_embedding_op = self.word_embedding_layer_fn(self.token_input)
-        return tf.Print(input_embedding_op, [input_embedding_op], "The word_embedding_has_nan:")
+        return input_embedding_op
 
     @tf_util.define_scope("character_embedding_op")
     def character_embedding_op(self):
@@ -117,6 +118,7 @@ class MaskedTokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         )
 
     @tf_util.define_scope("self_matched_code")
+    @tf_util.debug_print("self_match_code_output:")
     def self_matched_code_output_op(self):
         return self.self_matched_code_op[0]
 
@@ -125,6 +127,7 @@ class MaskedTokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         return rnn_util.concat_bi_rnn_final_state(self.self_matched_code_op)
 
     @tf_util.define_scope("is_continue")
+    @tf_util.debug_print("is_continue_logit:")
     def is_continue_logit_op(self):
         o = self.self_matched_code_final_state_op
         name = "is_continue"
@@ -137,38 +140,45 @@ class MaskedTokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         o = tf_util.dense(o, classes, name=name)
         return o
 
-    @tf_util.define_scope("position")
+    @tf_util.define_scope("position", initializer=tf.contrib.layers.xavier_initializer())
+    @tf_util.debug_print("position_forward:")
     def position_forward_op(self):
-        with tf.variable_scope("forward"):
+        with tf.variable_scope("forward", ):
             forward = tf.contrib.layers.fully_connected(self.self_matched_code_op[0][0], 1)
         return forward
 
-    @tf_util.define_scope("position")
+    @tf_util.define_scope("position", initializer=tf.contrib.layers.xavier_initializer())
+    @tf_util.debug_print("position_backward:")
     def position_backward_op(self):
         with tf.variable_scope("backward"):
             backward = tf.contrib.layers.fully_connected(self.self_matched_code_op[0][1], 1)
         return backward
 
-    @tf_util.define_scope("position")
+    @tf_util.define_scope("position", initializer=tf.contrib.layers.xavier_initializer())
+    @tf_util.debug_print("position_logit:")
     def position_logit_op(self):
         o = code_util.position_embedding(self.position_forward_op, self.position_backward_op, self.token_input_length)
         return tf.squeeze(tf.contrib.layers.fully_connected(o, 1, None), axis=[-1])
 
-    @tf_util.define_scope("output")
+    @tf_util.define_scope("output", initializer=tf.contrib.layers.xavier_initializer())
+    @tf_util.debug_print("output_state:")
     def output_state_op(self):
         o = tf.reduce_sum(self.position_forward_op * self.self_matched_code_output_op[0], axis=1)
         o += tf.reduce_sum(self.position_backward_op * self.self_matched_code_output_op[1], axis=1)
         return o
 
     @tf_util.define_scope("is_copy")
+    @tf_util.debug_print("is_copy_logit:")
     def is_copy_logit_op(self):
         return tf.squeeze(self._forward_network("is_copy", self.output_state_op, 1), axis=[-1])
 
     @tf_util.define_scope("keyword")
+    @tf_util.debug_print("keyword_logit:")
     def keyword_logit_op(self):
         return self._forward_network("keyword", self.output_state_op, self.keyword_number)
 
-    @tf_util.define_scope("copy_word")
+    @tf_util.define_scope("copy_word", initializer=tf.contrib.layers.xavier_initializer())
+    @tf_util.debug_print("copy_word_logit:")
     def copy_word_logit_op(self):
         with tf.variable_scope("forward"):
             forward = tf.contrib.layers.fully_connected(self.self_matched_code_op[0][0], 1, None)
@@ -182,6 +192,7 @@ class MaskedTokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         return self.token_input_mask
 
     @tf_util.define_scope("copy_word")
+    @tf_util.debug_print("copy_word_masked_logit:")
     def copy_word_masked_logit_op(self):
         original_logit = self.copy_word_logit_op
         original_logit = tf.squeeze(original_logit, axis=[-1])
@@ -383,10 +394,10 @@ class MaskedTokenLevelMultiRnnModel(object):
         pass
 
     def train_model(self, *args):
-        for t in args:
-            print(np.array(t).shape)
-            print(t)
-        print(self.input_placeholders+self.output_placeholders)
+        # for t in args:
+        #     print(np.array(t).shape)
+        #     print(t)
+        # print(self.input_placeholders+self.output_placeholders)
         loss, metrics, tt = self._train(*args)
         return loss, metrics, tt
 
