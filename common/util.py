@@ -208,7 +208,7 @@ def padded(x, deepcopy=False):
     else:
         return x
 
-def batch_holder(*data: typing.List, batch_size=32, epoches=10):
+def batch_holder(*data: typing.List, batch_size=32, epoches=10, is_shufllw=True):
     """
     :param data:
     :return:
@@ -216,7 +216,10 @@ def batch_holder(*data: typing.List, batch_size=32, epoches=10):
     def iterator():
 
         def one_epoch():
-            i_data = sklearn.utils.shuffle(*data)
+            if is_shufllw:
+                i_data = sklearn.utils.shuffle(*data)
+            else:
+                i_data = data
             padded_with_copy = lambda x: padded(x, deepcopy=True)
             i_data = list(map(lambda x:map(padded_with_copy, more_itertools.chunked(x, batch_size)), i_data))
             return zip(*i_data)

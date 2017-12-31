@@ -1063,3 +1063,34 @@ def cast_int(x):
 
 def cast_bool(x):
     return tf.cast(x, tf.bool)
+
+def all_is_nan(x: tf.Tensor):
+    return tf.reduce_any(tf.is_nan(x))
+
+def all_is_zero(x: tf.Tensor):
+    return tf.reduce_all(tf.equal(x, tf.zeros_like(x)))
+
+def _create_debug_tool():
+    is_debug = True
+    @doublewrap
+    def debug_print(function, msg: str):
+
+        @functools.wraps(function)
+        def decorator(self):
+            o = function(self)
+            if is_debug:
+                return tf.Print(o, [all_is_nan(o), all_is_zero(o), tf.shape(o), o], msg)
+            else:
+                return o
+
+        return decorator
+
+    def debug(o, msg):
+        if is_debug:
+            return tf.Print(o, [all_is_nan(o), all_is_zero(o), tf.shape(o), o], msg)
+        else:
+            return o
+
+    return debug_print, debug
+
+debug_print, debug = _create_debug_tool()
