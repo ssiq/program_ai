@@ -75,18 +75,18 @@ if __name__ == '__main__':
     #     isPrint += 1
 
     modify_condition = [
-                        # ({'error_count': 1}, 0.9),
-                        # ({'error_count': 2}, 0.8),
-                        # ({'error_count': 3}, 0.7),
-                        # ({'error_count': 4}, 0.7),
+                        ({'error_count': 1}, 0.9),
+                        ({'error_count': 2}, 0.8),
+                        ({'error_count': 3}, 0.7),
+                        ({'error_count': 4}, 0.7),
                         ({'error_count': 5}, 1.0), ]
 
     MAX_ITERATOR_LEGNTH = 5
 
     # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_iden_mask, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
 
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_identifier_mask, parse_xy_param, experiment_name='masked_token_level_multirnn_model', batch_size=2, create_condition_fn=error_count_create_condition_fn, modify_condition=modify_condition)
-    param_generator = random_parameters_generator(random_param={"learning_rate": [-3, 0]},
+    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_identifier_mask, parse_xy_param, experiment_name='masked_token_level_multirnn_model', batch_size=16, create_condition_fn=error_count_create_condition_fn, modify_condition=modify_condition)
+    param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -1]},
                                                   choice_param={ },
                                                   constant_param={"hidden_size": 100,
                                                                   'rnn_layer_number': 2,

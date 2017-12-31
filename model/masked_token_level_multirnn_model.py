@@ -340,20 +340,20 @@ class MaskedTokenLevelMultiRnnModel(object):
         metrics_input_placeholder = tf.placeholder(tf.float32, shape=[], name="metrics")
         tf_util.add_summary_scalar("metrics", metrics_input_placeholder, is_placeholder=True)
         tf_util.add_summary_histogram("predict_is_continue",
-                                      tf.placeholder(tf.float32, shape=(None, ), name="predict_is_continue"),
+                                      tf.placeholder(tf.float32, shape=(None, None, None), name="predict_is_continue"),
                                       is_placeholder=True)
         tf_util.add_summary_histogram("predict_position_softmax",
-                                      tf.placeholder(tf.float32, shape=(None, None),
+                                      tf.placeholder(tf.float32, shape=(None, None, None),
                                                      name="predict_position_softmax"),
                                       is_placeholder=True)
         tf_util.add_summary_histogram("predict_is_copy",
-                                      tf.placeholder(tf.float32, shape=(None, ), name="predict_is_copy"),
+                                      tf.placeholder(tf.float32, shape=(None, None, None), name="predict_is_copy"),
                                       is_placeholder=True)
         tf_util.add_summary_histogram("predict_key_word",
-                                      tf.placeholder(tf.float32, shape=(None, None), name="predict_keyword"),
+                                      tf.placeholder(tf.float32, shape=(None, None, None), name="predict_keyword"),
                                       is_placeholder=True)
         tf_util.add_summary_histogram("predict_copy_word",
-                                      tf.placeholder(tf.float32, shape=(None, None), name="predict_copy_word"),
+                                      tf.placeholder(tf.float32, shape=(None, None, None), name="predict_copy_word"),
                                       is_placeholder=True)
         tf_util.add_summary_scalar("loss", tf.placeholder(tf.float32, shape=[]), is_placeholder=True)
         tf_util.add_summary_histogram("is_continue", self._model.predict_op[0], is_placeholder=False)
@@ -370,7 +370,7 @@ class MaskedTokenLevelMultiRnnModel(object):
         merged_summary = tf.summary.merge(to_place_placeholders)
 
         _merge_fn = tf_util.function(to_place_placeholders, merged_summary)
-        self._merge_fn = lambda *args: _merge_fn(args+[""]*(max_batches-len(args)))
+        self._merge_fn = lambda *args: _merge_fn(*(list(args)+[""]*(max_batches-len(args))))
 
         sess = tf_util.get_session()
         init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
@@ -402,12 +402,36 @@ class MaskedTokenLevelMultiRnnModel(object):
         # train_summary = self._train_summary_fn(*args)
         metrics_model = self.metrics_model(*args)
         #TODO: You should calculate the loss just like what you do in train_model function
-        loss, summary = self._loss_and_train_summary_fn(*args) # For each batch you use this fn to get the loss and summary
+
+        flat_args = [flat_list(one_input) for one_input in args]
+
+        eff_ids = get_effective_id(flat_args[0])
+        flat_args = [beam_gather(one, eff_ids) for one in flat_args]
+
+        batch_size = len(args[0])
+        total = len(flat_args[0])
+        weight_array = int(total / batch_size) * [batch_size]
+        if total % batch_size != 0:
+            weight_array = weight_array + [total % batch_size]
+
+        import more_itertools
+        chunked_args = more_itertools.chunked(list(zip(*flat_args)), batch_size)
+        train_chunk_fn = lambda chunked: self._loss_fn(*list(zip(*chunked)))
+        train_res = list(map(train_chunk_fn, chunked_args))
+        # train_res = list(zip(*train_res))
+
+        weight_fn = lambda one_res: [one_res[i] * weight_array[i] for i in range(len(one_res))]
+        loss_array = weight_fn(train_res)
+        loss = np.sum(loss_array) / total
+
+        # loss, summary = self._loss_and_train_summary_fn(*args) # For each batch you use this fn to get the loss and summary
         #the loss you should calculate the weighted mean, the summary you should merge this like this
-        train_summary = self._merge_fn([summary])
+        # train_summary = self._merge_fn([summary])
+        # train_summary = self._merge_fn(*train_res[1])
         tf_util.add_value_scalar("metrics", metrics_model)
         tf_util.add_value_scalar("loss", loss) # add the weighted loss here
-        return self._summary_fn(*tf_util.merge_value(), summary_input=train_summary)
+        # return self._summary_fn(*tf_util.merge_value(), summary_input=train_summary)
+        return self._summary_fn(*tf_util.merge_value())
 
     @property
     def global_step(self):
@@ -431,24 +455,13 @@ class MaskedTokenLevelMultiRnnModel(object):
             # print(t)
         # print(self.input_placeholders+self.output_placeholders)
 
-        # def get_effective_id(one_flat_data):
-        #     ids = [i if np.sum(one_flat_data[i]) == 0 else -1 for i in range(len(one_flat_data))]
-        #     fil_fn = lambda one: one != -1
-        #     ids = list(filter(fil_fn, ids))
-        #     return ids
-
         flat_args = [flat_list(one_input) for one_input in args]
 
-        # print('before effective: ', len(flat_args[0]))
-        # eff_ids = get_effective_id(flat_args[0])
-        # flat_args = [beam_gather(one, eff_ids) for one in flat_args]
-        # if len(eff_ids) == 0:
-        #     pass
-        #     return
+        eff_ids = get_effective_id(flat_args[0])
+        flat_args = [beam_gather(one, eff_ids) for one in flat_args]
 
         batch_size = len(args[0])
         total = len(flat_args[0])
-        # print('batch size, total:', batch_size, total)
         weight_array = int(total / batch_size) * [batch_size]
         if total % batch_size != 0:
             weight_array = weight_array + [total % batch_size]
@@ -658,6 +671,13 @@ class MaskedTokenLevelMultiRnnModel(object):
                 identifier_mask[position] = iden_mask
         next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
         return next_inputs
+
+
+def get_effective_id(one_flat_data):
+    ids = [i if np.sum(one_flat_data[i]) != 0 else -1 for i in range(len(one_flat_data))]
+    fil_fn = lambda one: one != -1
+    ids = list(filter(fil_fn, ids))
+    return ids
 
 
 def beam_calculate_output_score(output_beam_list, beam_size):

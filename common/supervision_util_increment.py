@@ -106,8 +106,8 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                 # experiment_name + '_model',  "_validation"),
             graph=sess.graph)
         save_steps = 1000
-        skip_steps = 10
-        print_skip_step = 10
+        skip_steps = 100
+        print_skip_step = 100
         debug_steps = 10
 
         recordloggername = 'record'
@@ -134,11 +134,10 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                 accuracies.append(metrics)
                 # print("iteration {} with loss {} and metrics {}".format(current_step, loss, metrics))
                 if current_step % skip_steps == 0:
-                    # train_summary = model.summary(*data)
-                    # train_writer.add_summary(train_summary, global_step=model.global_step)
-                    # validation_summary = model.summary(*next(validation_data_itr))
-                    # validation_writer.add_summary(validation_summary, global_step=model.global_step)
-                    pass
+                    train_summary = model.summary(*data)
+                    train_writer.add_summary(train_summary, global_step=model.global_step)
+                    validation_summary = model.summary(*next(validation_data_itr))
+                    validation_writer.add_summary(validation_summary, global_step=model.global_step)
                 if current_step % print_skip_step == 0:
                     loss_mean = np.mean(losses)
                     metrics_mean = np.mean(accuracies)
