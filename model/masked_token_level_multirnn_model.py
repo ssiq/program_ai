@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.python.ops.losses.losses_impl import Reduction
 import numpy as np
+import more_itertools
 
 from common import tf_util, code_util, rnn_util, util
 from common.rnn_cell import RNNWrapper
@@ -454,7 +455,6 @@ class MaskedTokenLevelMultiRnnModel(object):
         #     print(np.array(t).shape)
             # print(t)
         # print(self.input_placeholders+self.output_placeholders)
-
         flat_args = [flat_list(one_input) for one_input in args]
 
         eff_ids = get_effective_id(flat_args[0])
@@ -469,7 +469,7 @@ class MaskedTokenLevelMultiRnnModel(object):
         import more_itertools
         chunked_args = more_itertools.chunked(list(zip(*flat_args)), batch_size)
         train_chunk_fn = lambda chunked: self._train(*list(zip(*chunked)))
-        train_res = map(train_chunk_fn, chunked_args)
+        train_res = list(map(train_chunk_fn, chunked_args))
         train_res = list(zip(*train_res))
 
         weight_fn = lambda one_res: [one_res[i] * weight_array[i] for i in range(len(one_res))]
@@ -484,18 +484,9 @@ class MaskedTokenLevelMultiRnnModel(object):
         return loss, accracy, None
 
     def predict_model(self, *args,):
-        # print('predict iterator start')
         import copy
         import more_itertools
-        # print('before args shape: ')
-        # for i in range(5):
-        #     print(np.array(args[i]).shape)
         args = [copy.deepcopy([ti[0] for ti in one_input]) for one_input in args]
-        # print('args shape: ')
-        # for i in range(5):
-        #     print(np.array(args[i]).shape)
-        # token_input, token_input_length, charactere_input, character_input_length, identifier_mask = args
-        # start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
         batch_size = len(args[0])
         cur_beam_size = 1
         beam_size = 5
@@ -514,19 +505,9 @@ class MaskedTokenLevelMultiRnnModel(object):
         # shape = 5 * batch_size * beam_size * max_decode_iterator_num
         select_output_stack_list = [[[[]]*cur_beam_size]*batch_size]*5
 
-        # shape = batch_size * beam_size* start_label_length
-        # next_labels_stack = []
-        # shape = batch_size * beam_size * initial_state_length
-        # next_states_stack = []
-
-        # next_states_stack = np.expand_dims(np.array(initial_state), axis=1).tolist()
-        # next_labels_stack = [[start_label]] * len(initial_state)
-
         for i in range(max_decode_iterator_num):
 
             input_flat = [flat_list(inp) for inp in input_stack]
-            # next_labels_flat = flat_list(next_labels_stack)
-            # next_states_flat = flat_list(next_states_stack)
 
             one_predict_fn = lambda chunked: self._one_predict_fn(*list(zip(*chunked)))
 
@@ -536,19 +517,9 @@ class MaskedTokenLevelMultiRnnModel(object):
             outputs = predict_returns
 
             output_list = [flat_list(out) for out in outputs]
-            # state_list = flat_list(next_state)
-            # position_embedding_list = flat_list(position_embedding)
-            # code_embedding_list = flat_list(code_embedding)
 
             output_stack = [revert_batch_beam_stack(out_list, batch_size, cur_beam_size) for out_list in output_list]
-            # next_states_stack = revert_batch_beam_stack(state_list, batch_size, cur_beam_size)
-            # position_embedding_stack = revert_batch_beam_stack(position_embedding_list, batch_size, cur_beam_size)
-            # code_embedding_stack = revert_batch_beam_stack(code_embedding_list, batch_size, cur_beam_size)
 
-            # beam_args = (list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, next_states_stack,
-            #              position_embedding_stack, code_embedding_stack, mask_stack, beam_length_stack,
-            #              list(zip(*select_output_stack_list)), [beam_size] * batch_size)
-            # batch_returns = list(util.parallel_map(core_num=3, f=beam_calculate_fn, args=list(zip(*beam_args))))
             batch_returns = list(map(beam_calculate, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size] * batch_size, [beam_calculate_output_score] * batch_size, [[]]*batch_size))
             def create_next(ret):
                 ret = list(ret)
@@ -563,38 +534,12 @@ class MaskedTokenLevelMultiRnnModel(object):
             if np.sum(output_stack[0]) == 0:
                 break
 
-            # output_flat = [flat_list(out) for out in output_stack]
-            # position_embedding_flat = flat_list(position_embedding_stack)
-            # code_embedding_flat = flat_list(code_embedding_stack)
-
-            # create_label_lambda_fn = lambda is_continue, position, is_copy, keyword_id, copy_id, position_emb, code_emb: self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1),
-            #                                              np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1), position_emb, code_emb)[:, 0, :]
-            # create_label_lambda_chunked_fn = lambda chunked: create_label_lambda_fn(*list(zip(*chunked)))
-            # next_labels_stack = list(map(create_label_lambda_chunked_fn, more_itertools.chunked(list(zip(*list(output_flat + [position_embedding_flat] + [code_embedding_flat]))), batch_size)))
-            # next_labels_stack = flat_list(next_labels_stack)
-            # next_labels_stack = np.reshape(next_labels_stack, (batch_size, beam_size, -1)).tolist()
-            # [create_label_lambda_fn() for is_continue, position, is_copy, keyword_id, copy_id in more_itertools.chunked(list(zip(*output_stack)) + [position_embedding_stack] + [code_embedding_stack], batch_size)]
-
             input_stack = [[list(inp) for inp in one_input]for one_input in input_stack]
 
-            # print('before inputs shape: ')
-            # for i in range(5):
-            #     print(np.array(input_stack[i]).shape)
-
             input_stack = [list(util.padded(list(inp))) for inp in input_stack]
-            # print('after padded inputs shape: ')
-            # for i in range(5):
-            #     print(np.array(input_stack[i]).shape)
-                # if len(np.array(input_stack[i]).shape) <= 2:
-                #     print(input_stack[i])
             mask_input_with_end_fn = lambda token_input: list([util.mask_input_with_end(batch_mask, batch_inp, n_dim=1).tolist() for batch_mask, batch_inp in zip(mask_stack, token_input)])
             input_stack = list(map(mask_input_with_end_fn, input_stack))
             cur_beam_size = beam_size
-
-            # print('after inputs shape: ')
-            # for i in range(5):
-            #     print(np.array(input_stack[i]).shape)
-
 
         summary = copy.deepcopy(select_output_stack_list)
         tf_util.add_value_histogram("predict_is_continue", util.padded(summary[0]))
@@ -625,7 +570,8 @@ class MaskedTokenLevelMultiRnnModel(object):
             identifier_mask = identifier_mask[0:position] + identifier_mask[position + 1:]
         else:
             if is_copy:
-                copy_position_id = find_copy_input_position(identifier_mask, copy_id)
+                # copy_position_id = find_copy_input_position(identifier_mask, copy_id)
+                copy_position_id = copy_id
                 if copy_position_id >= code_length:
                     # copy position error
                     print('copy position error', copy_position_id, code_length)
@@ -674,7 +620,7 @@ class MaskedTokenLevelMultiRnnModel(object):
 
 
 def get_effective_id(one_flat_data):
-    ids = [i if np.sum(one_flat_data[i]) != 0 else -1 for i in range(len(one_flat_data))]
+    ids = [i if np.sum(list(more_itertools.collapse(one_flat_data[i]))) != 0 else -1 for i in range(len(one_flat_data))]
     fil_fn = lambda one: one != -1
     ids = list(filter(fil_fn, ids))
     return ids

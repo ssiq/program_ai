@@ -4,8 +4,8 @@ import unittest
 from common.beam_search_util import *
 from common.beam_search_util import beam_calculate
 from experiment.experiment_util import sample, create_embedding
-from experiment.token_level_multirnn_on_fake_cpp_data import parse_xy
-from model.token_level_multirnn_model import *
+from experiment.masked_token_level_multirnn_on_fake_cpp_data import parse_xy_with_identifier_mask
+from model.masked_token_level_multirnn_model import *
 
 
 class TestBeamSearch(unittest.TestCase):
@@ -14,7 +14,7 @@ class TestBeamSearch(unittest.TestCase):
         tf.reset_default_graph()
         with tf.Session():
             word_embedding, character_embedding = create_embedding()
-            self.model = TokenLevelMultiRnnModel(
+            self.model = MaskedTokenLevelMultiRnnModel(
                 word_embedding.create_embedding_layer(),
                 character_embedding.create_embedding_layer(),
                 200,
@@ -22,7 +22,9 @@ class TestBeamSearch(unittest.TestCase):
                 len(word_embedding.word_id_map),
                 word_embedding.word_to_id(word_embedding.end_label),
                 0.0001,
-                6,
+                1000,
+                0.96,
+                2,
                 word_embedding.word_to_id(word_embedding.identifier_label),
                 word_embedding.word_to_id(word_embedding.placeholder_label),
                 word_embedding.id_to_word,
@@ -31,9 +33,9 @@ class TestBeamSearch(unittest.TestCase):
         self.train, self.test, self.validation = sample()
         parse_xy_param = [word_embedding, character_embedding]
         self.train, self.test, self.validation = \
-            parse_xy(self.train, *parse_xy_param, max_bug_number=2, min_bug_number=2), \
-            parse_xy(self.test, *parse_xy_param, max_bug_number=2, min_bug_number=2), \
-            parse_xy(self.validation, *parse_xy_param, max_bug_number=2, min_bug_number=2)
+            parse_xy_with_identifier_mask(self.train, 'train', *parse_xy_param, max_bug_number=2, min_bug_number=2), \
+            parse_xy_with_identifier_mask(self.test, 'valid', *parse_xy_param, max_bug_number=2, min_bug_number=2), \
+            parse_xy_with_identifier_mask(self.validation, 'test', *parse_xy_param, max_bug_number=2, min_bug_number=2)
         self.character_embedding = character_embedding
         print('End SetUpClass')
 
@@ -194,8 +196,9 @@ class TestBeamSearch(unittest.TestCase):
         length_beam = [1, 1, 1]
         select_beam = [([1, 1], [1, 1], [1, 1]), ([], [], []), ([1, 0], [0, 1], [0, 0]), ([], [], []), ([], [], [])]
         beam_size = 3
-        res = beam_calculate(inputs, outputs_logit, beam_score, next_states, position_embedding, code_embedding, end_beam, length_beam, select_beam, beam_size, beam_calculate_output_score)
-        inputs, outputs, select_beam, end_beam, beam_score, next_states, position_embedding, code_embedding, length_beam = res
+        res = beam_calculate(inputs, outputs_logit, beam_score, end_beam, length_beam, select_beam, beam_size, beam_calculate_output_score, [next_states, position_embedding, code_embedding])
+        inputs, outputs, select_beam, end_beam, beam_score, length_beam, beam_args = res
+        next_states, position_embedding, code_embedding = list(zip(*beam_args))
         print(inputs[0][0])
         self.assertEqual(outputs[0][0], 1)
         self.assertEqual(outputs[1][0], 0)

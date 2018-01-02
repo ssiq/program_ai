@@ -131,12 +131,30 @@ def create_error_list(one):
     return one
 
 
+def create_identifier_mask_from_dict(name_list, iden_dict:dict, pre_defined_cpp_token):
+    iden_list = []
+    for token in name_list:
+        iden = [0] * len(iden_dict.keys())
+        if token not in iden_dict.keys() and token not in pre_defined_cpp_token:
+            return None
+        elif token in iden_dict.keys():
+            iden[iden_dict[token]-1] = 1
+        iden_list.append(iden)
+    return iden_list
+
+
 def create_token_identify_mask(one):
     token_name_list = one['token_name_list']
-    token_identify_mask = [create_identifier_mask(name_list, pre_defined_cpp_token) for name_list in token_name_list]
-    one['token_identify_mask'], one['copy_name_list'] = list(zip(*token_identify_mask))
-    one['token_identify_mask'] = list(one['token_identify_mask'])
-    one['copy_name_list'] = list(one['copy_name_list'])
+    _, iden_dict = create_identifier_mask(token_name_list[0], pre_defined_cpp_token)
+    if len(iden_dict.keys()) > 30:
+        one['res'] = None
+        return one
+    token_identify_mask = [create_identifier_mask_from_dict(name_list, iden_dict, pre_defined_cpp_token) for name_list in token_name_list]
+    for one_identify in token_identify_mask:
+        if one_identify == None:
+            one['res'] = None
+            return one
+    one['token_identify_mask'] = token_identify_mask
     return one
 
 
@@ -202,6 +220,7 @@ def create_full_output(one, keyword_voc, max_bug_number, min_bug_number, find_co
     action_list = one['action_list']
     token_name_list = one['token_name_list']
     copy_name_list = one['copy_name_list']
+    identifier_mask = one['token_identify_mask']
 
     position_list = []
     is_copy_list = []
@@ -222,7 +241,8 @@ def create_full_output(one, keyword_voc, max_bug_number, min_bug_number, find_co
                 keywordid_list.append(keyword_voc.word_to_id(act_token))
                 copyid_list.append(0)
             else:
-                name_list = copy_name_list[i]
+                name_list = token_name_list[i]
+                # name_list = copy_name_list[i]
                 copy_pos = find_copy_id_fn(act_token, name_list)
                 if copy_pos >= 0:
                     is_copy_list.append(1)
