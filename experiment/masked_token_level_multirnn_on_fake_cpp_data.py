@@ -28,8 +28,8 @@ def parse_xy_with_identifier_mask(df, data_type:str, keyword_voc, char_voc, max_
     df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
-    # df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict)
-    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_token_name)
+    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict)
+    # df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_token_name)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     returns = (df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['token_identify_mask'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list'])
@@ -52,6 +52,10 @@ if __name__ == '__main__':
 
 
     # print(train)
+
+    # res = parse_xy_with_identifier_mask(train, '', *parse_xy_param)
+    # print(res[4].iloc[2])
+    # print(res[9].iloc[2])
 
     # res = parse_xy(train, *parse_xy_param)
     # res = parse_xy_with_iden_mask(train, 'train', *parse_xy_param)

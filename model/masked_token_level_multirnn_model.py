@@ -404,18 +404,12 @@ class MaskedTokenLevelMultiRnnModel(object):
         metrics_model = self.metrics_model(*args)
         #TODO: You should calculate the loss just like what you do in train_model function
 
-        flat_args = [flat_list(one_input) for one_input in args]
-
-        eff_ids = get_effective_id(flat_args[0])
-        flat_args = [beam_gather(one, eff_ids) for one in flat_args]
+        flat_args, eff_ids = flat_and_get_effective_args(args)
 
         batch_size = len(args[0])
         total = len(flat_args[0])
-        weight_array = int(total / batch_size) * [batch_size]
-        if total % batch_size != 0:
-            weight_array = weight_array + [total % batch_size]
+        weight_array = make_weight_array(batch_size, total)
 
-        import more_itertools
         chunked_args = more_itertools.chunked(list(zip(*flat_args)), batch_size)
         train_chunk_fn = lambda chunked: self._loss_fn(*list(zip(*chunked)))
         train_res = list(map(train_chunk_fn, chunked_args))
@@ -455,18 +449,12 @@ class MaskedTokenLevelMultiRnnModel(object):
         #     print(np.array(t).shape)
             # print(t)
         # print(self.input_placeholders+self.output_placeholders)
-        flat_args = [flat_list(one_input) for one_input in args]
-
-        eff_ids = get_effective_id(flat_args[0])
-        flat_args = [beam_gather(one, eff_ids) for one in flat_args]
+        flat_args, eff_ids = flat_and_get_effective_args(args)
 
         batch_size = len(args[0])
         total = len(flat_args[0])
-        weight_array = int(total / batch_size) * [batch_size]
-        if total % batch_size != 0:
-            weight_array = weight_array + [total % batch_size]
+        weight_array = make_weight_array(batch_size, total)
 
-        import more_itertools
         chunked_args = more_itertools.chunked(list(zip(*flat_args)), batch_size)
         train_chunk_fn = lambda chunked: self._train(*list(zip(*chunked)))
         train_res = list(map(train_chunk_fn, chunked_args))
@@ -485,7 +473,6 @@ class MaskedTokenLevelMultiRnnModel(object):
 
     def predict_model(self, *args,):
         import copy
-        import more_itertools
         args = [copy.deepcopy([ti[0] for ti in one_input]) for one_input in args]
         batch_size = len(args[0])
         cur_beam_size = 1
@@ -570,8 +557,8 @@ class MaskedTokenLevelMultiRnnModel(object):
             identifier_mask = identifier_mask[0:position] + identifier_mask[position + 1:]
         else:
             if is_copy:
-                # copy_position_id = find_copy_input_position(identifier_mask, copy_id)
-                copy_position_id = copy_id
+                copy_position_id = find_copy_input_position(identifier_mask, copy_id)
+                # copy_position_id = copy_id
                 if copy_position_id >= code_length:
                     # copy position error
                     print('copy position error', copy_position_id, code_length)
@@ -617,6 +604,20 @@ class MaskedTokenLevelMultiRnnModel(object):
                 identifier_mask[position] = iden_mask
         next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
         return next_inputs
+
+
+def flat_and_get_effective_args(args):
+    flat_args = [flat_list(one_input) for one_input in args]
+    eff_ids = get_effective_id(flat_args[0])
+    flat_args = [beam_gather(one, eff_ids) for one in flat_args]
+    return flat_args, eff_ids
+
+
+def make_weight_array(batch_size, total):
+    weight_array = int(total / batch_size) * [batch_size]
+    if total % batch_size != 0:
+        weight_array = weight_array + [total % batch_size]
+    return weight_array
 
 
 def get_effective_id(one_flat_data):

@@ -155,6 +155,7 @@ def create_token_identify_mask(one):
             one['res'] = None
             return one
     one['token_identify_mask'] = token_identify_mask
+    one['copy_name_list'] = [iden_dict] * len(token_identify_mask)
     return one
 
 
@@ -204,7 +205,8 @@ def create_character_id_input(one, char_voc):
 
 def find_copy_id_by_identifier_dict(name, iden_token_id_dict:dict):
     if name in iden_token_id_dict.keys():
-        return iden_token_id_dict[name]
+        copy_id = iden_token_id_dict[name]-1
+        return copy_id
     return -1
 
 
@@ -241,8 +243,8 @@ def create_full_output(one, keyword_voc, max_bug_number, min_bug_number, find_co
                 keywordid_list.append(keyword_voc.word_to_id(act_token))
                 copyid_list.append(0)
             else:
-                name_list = token_name_list[i]
-                # name_list = copy_name_list[i]
+                # name_list = token_name_list[i]
+                name_list = copy_name_list[i]
                 copy_pos = find_copy_id_fn(act_token, name_list)
                 if copy_pos >= 0:
                     is_copy_list.append(1)

@@ -3,7 +3,7 @@ import tensorflow as tf
 import numpy as np
 
 from common.beam_search_util import _create_next_code, cal_metrics
-from model.masked_token_level_multirnn_model import MaskedTokenLevelMultiRnnModel
+from model.masked_token_level_multirnn_model import MaskedTokenLevelMultiRnnModel, flat_and_get_effective_args, get_effective_id, make_weight_array
 from embedding.wordembedding import load_vocabulary
 from embedding.character_embedding import load_character_vocabulary
 from experiment.masked_token_level_multirnn_on_fake_cpp_data import parse_xy_with_identifier_mask
@@ -92,6 +92,32 @@ class Test(unittest.TestCase):
             print("res:{}".format(a[error_position]))
             print("true:{}".format(b[error_position]))
             self.assertTrue(almost_equal_array(a, b))
+
+    def test_flat_and_get_effective_args(self):
+        args = [
+            [
+            [[1, 0, 0], [[0, 0], [0, 0], [0, 0, 0], [0], [0, 0]], [[[1], 0], [0, 0], [0, 0, 0], [0], [0, 0]]],
+            [[[0, 0], [0, 0], [0, 0, 0], [0], [0, 0]], [[[1], 0], [0, 0], [0, 0, 0], [0], [0, 0]]]
+        ]
+        ]
+        flat_args, eff_ids = flat_and_get_effective_args(args)
+        self.assertEqual(flat_args, [[[1, 0, 0], [[[1], 0], [0, 0], [0, 0, 0], [0], [0, 0]], [[[1], 0], [0, 0], [0, 0, 0], [0], [0, 0]]]])
+        self.assertEqual(eff_ids, [0, 2, 4])
+
+    def test_get_effective_id(self):
+        a = [[1, 0, 0], [[0, 0], [0, 0], [0, 0, 0], [0], [0, 0]], [[[1], 0], [0, 0], [0, 0, 0], [0], [0, 0]]]
+        res = get_effective_id(a)
+        self.assertEqual(res, [0, 2])
+
+    def test_make_weight_array(self):
+        weight_array = make_weight_array(2, 3)
+        self.assertEqual(weight_array, [2, 1])
+        weight_array = make_weight_array(2, 2)
+        self.assertEqual(weight_array, [2])
+        weight_array = make_weight_array(2, 1)
+        self.assertEqual(weight_array, [1])
+        weight_array = make_weight_array(2, 7)
+        self.assertEqual(weight_array, [2, 2, 2, 1])
 
 
 
