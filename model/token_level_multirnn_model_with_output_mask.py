@@ -167,7 +167,8 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         self.identifier_token = identifier_token
         self.rnn_layer_number = rnn_layer_number
         self.end_token_id = end_token_id
-        self.token_input, self.token_input_length, self.character_input, self.character_input_length, self.output_is_continue, \
+        self.token_input, self.token_input_length, self.character_input, self.character_input_length, self.token_identifier_mask, \
+        self.output_is_continue, \
         self.output_position_label, self.output_is_copy, self.output_keyword_id, self.output_copy_word_id, \
         self.predict_hidden_state, self.predict_input, self.position_embedding_placeholder, self.code_embedding_placeholder = placeholders
 
@@ -259,9 +260,15 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
     def position_length_op(self):
         return self.token_input_length * 2 + 1
 
-    def create_output_embedding(self, code_embedding, position_embedding):
+    def create_output_embedding(self, code_embedding, position_embedding, identifier_mask):
         keyword_embedding = self.word_embedding_layer_fn(self.output_keyword_id)
-        copyword_embedding = rnn_util.gather_sequence(code_embedding, self.output_copy_word_id)
+        identifier_mask_dims = len(tf_util.get_shape(identifier_mask))
+        identifier_mask = tf_util.cast_float(identifier_mask)
+        identifier_mask = identifier_mask / tf.reduce_mean(identifier_mask, axis=-2, keep_dims=True)
+        identifier_mask = tf.transpose(identifier_mask, perm=list(range(identifier_mask_dims-2))+
+                                                             [identifier_mask_dims-1, identifier_mask_dims-2])
+        copyword_embedding = rnn_util.gather_sequence(tf.matmul(identifier_mask, code_embedding),
+                                                      self.output_copy_word_id)
         output_word_embedding = tf.where(
             tf_util.expand_dims_and_tile(tf.cast(self.output_is_copy, tf.bool),
                                          [-1],
@@ -276,7 +283,7 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
     def output_embedding_op(self):
         code_embedding = self.code_embedding_op
         position_embedding = self.position_embedding_op
-        return self.create_output_embedding(code_embedding, position_embedding)
+        return self.create_output_embedding(code_embedding, position_embedding, self.token_identifier_mask)
 
     @tf_util.define_scope("decode_cell")
     def decode_cell_op(self):
@@ -321,7 +328,9 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         position_softmax = tf_util.variable_length_softmax(position_logit, self.position_length_op)
         is_copy = tf.nn.sigmoid(is_copy_logit)
         key_word_softmax = tf.nn.softmax(key_word_logit)
-        copy_word_softmax = tf_util.variable_length_softmax(copy_word_logit, self.token_input_length)
+        copy_word_softmax = self._token_softmax_masked(tf_util.variable_length_mask_softmax(copy_word_logit, self.token_input_length,
+                                                                 tf.equal(self.token_input, self.identifier_token)),
+                                                       self.token_identifier_mask)
         return is_continue, position_softmax, is_copy, key_word_softmax, copy_word_softmax
 
     @tf_util.define_scope("train_output_logit_op")
@@ -331,6 +340,12 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         print("output_logit:{}".format(output_logit))
         is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output_logit
         return copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, position_logit
+
+    def _token_softmax_masked(self, softmax, identifier_mask):
+        identifier_mask = tf_util.cast_float(identifier_mask)
+        softmax = tf.expand_dims(softmax, axis=[-2])
+        softmax = tf.matmul(softmax, identifier_mask)
+        return tf.squeeze(softmax, axis=[-2])
 
     @tf_util.define_scope("one_predict")
     def one_predict_op(self):
@@ -343,11 +358,13 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         ]
         output, next_state = self.decode_cell_op(predict_cell_input, self.predict_hidden_state)
         is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output
+        identifier_mask = self.token_identifier_mask[:, 0, :, :]
         output = (tf.nn.sigmoid(is_continue_logit),
                   tf_util.variable_length_softmax(position_logit, self.position_length_op[: ,0]),
                   tf.nn.sigmoid(is_copy_logit),
                   tf.nn.softmax(key_word_logit),
-                  tf_util.variable_length_softmax(copy_word_logit, self.token_input_length[:, 0]))
+                  self._token_softmax_masked(tf_util.variable_length_mask_softmax(copy_word_logit, self.token_input_length[:, 0],
+                                                       tf.equal(self.token_input[:, 0, :], self.identifier_token)), identifier_mask))
         return output, next_state, self.position_embedding_op, self.code_embedding_op
 
     @tf_util.define_scope("loss_op")
@@ -365,10 +382,12 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
                                                                                          labels=tf.cast(
                                                                                              self.output_is_copy,
                                                                                              tf.float32))))
-        sparse_softmax_loss = lambda x, y: tf.reduce_mean(tf.multiply(tf.cast(is_continue_mask, tf.float32),tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y)))
-        loss += sparse_softmax_loss(self.output_position_label, position_logit)
-        loss += sparse_softmax_loss(self.output_keyword_id, key_word_logit)
-        loss += sparse_softmax_loss(self.output_copy_word_id, copy_word_logit)
+        sparse_softmax_loss = lambda x, y: tf.multiply(tf.cast(is_continue_mask, tf.float32),tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y))
+        sparse_categorical_loss = lambda x, y: tf.multiply(tf.cast(is_continue_mask, tf.float32),tf_util.sparse_categorical_crossentropy(target=x, output=y))
+        loss += tf.reduce_mean(sparse_categorical_loss(self.output_position_label, self.softmax_op[1]))
+        keyword_loss = sparse_softmax_loss(self.output_keyword_id, key_word_logit)
+        copy_word_loss = sparse_categorical_loss(self.output_copy_word_id, self.softmax_op[4])
+        loss += tf.reduce_mean(tf.where(tf_util.cast_bool(self.output_is_copy), x=copy_word_loss, y=keyword_loss))
         return loss
 
 
@@ -406,6 +425,7 @@ class TokenLevelMultiRnnModel(object):
         self.token_input_length = tf.placeholder(dtype=tf.int32, shape=(None, None,), name="token_input_length")
         self.character_input = tf.placeholder(dtype=tf.int32, shape=(None, None, None, None), name="character_input")
         self.character_input_length = tf.placeholder(dtype=tf.int32, shape=(None, None, None), name="character_input_length")
+        self.token_identifier_mask = tf.placeholder(dtype=tf.int32, shape=(None, None, None, None), name="token_identifier_mask")
         #train output placeholder
         self.output_is_continue = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_length")
         self.output_position_label = tf.placeholder(dtype=tf.int32, shape=(None, None), name="output_position")
@@ -435,7 +455,7 @@ class TokenLevelMultiRnnModel(object):
             rnn_layer_number,
             end_token_id,
             [self.token_input, self.token_input_length, self.character_input, self.character_input_length,
-             self.output_is_continue,
+             self.token_identifier_mask, self.output_is_continue,
              self.output_position_label, self.output_is_copy, self.output_keyword_id, self.output_copy_word_id,
              self.predict_hidden_state, None, self.position_embedding_placeholder,
              self.code_embedding_placeholder],
@@ -480,7 +500,8 @@ class TokenLevelMultiRnnModel(object):
         tf_util.init_all_op(self.model)
         #create new input
         new_input = self.model.create_output_embedding(self.code_embedding_placeholder,
-                                                       self.position_embedding_placeholder)
+                                                       self.position_embedding_placeholder,
+                                                       tf.expand_dims(self.token_identifier_mask[:, 0, :, :], axis=1))
         sess = tf_util.get_session()
         init = tf.global_variables_initializer()
         sess.run(init)
@@ -491,6 +512,7 @@ class TokenLevelMultiRnnModel(object):
              self.token_input_length,
              self.character_input,
              self.character_input_length,
+             self.token_identifier_mask,
              self.output_is_continue,
              self.output_position_label,
              self.output_is_copy,
@@ -503,6 +525,7 @@ class TokenLevelMultiRnnModel(object):
              self.token_input_length,
              self.character_input,
              self.character_input_length,
+             self.token_identifier_mask,
              self.output_is_continue,
              self.output_position_label,
              self.output_is_copy,
@@ -515,6 +538,7 @@ class TokenLevelMultiRnnModel(object):
              self.token_input_length,
              self.character_input,
              self.character_input_length,
+             self.token_identifier_mask,
              self.predict_hidden_state,
              self.predict_input],
             self.model.one_predict_op)
@@ -523,11 +547,13 @@ class TokenLevelMultiRnnModel(object):
             [self.token_input,
              self.token_input_length,
              self.character_input,
-             self.character_input_length,],
+             self.character_input_length,
+             self.token_identifier_mask],
             [self.model.start_label_op, self.model.result_initial_state_op])
 
         self._create_next_input_fn = tf_util.function(
-            [self.output_position_label,
+            [self.token_identifier_mask,
+             self.output_position_label,
              self.output_is_copy,
              self.output_keyword_id,
              self.output_copy_word_id,
@@ -541,6 +567,7 @@ class TokenLevelMultiRnnModel(object):
              self.token_input_length,
              self.character_input,
              self.character_input_length,
+             self.token_identifier_mask,
              self.output_is_continue,
              self.output_position_label,
              self.output_is_copy,
@@ -603,9 +630,9 @@ class TokenLevelMultiRnnModel(object):
         # print('loss : {}. mertics: {}'.format(loss, metrics))
         return loss, metrics, train
 
-    def _create_next_input(self, output, position_embedding, code_embedding):
-        _, position, is_copy, key_word, copy_word = output
-        return self._create_next_input_fn([position, is_copy, key_word, copy_word, position_embedding, code_embedding])
+    # def _create_next_input(self, output, position_embedding, code_embedding):
+    #     _, position, is_copy, key_word, copy_word = output
+    #     return self._create_next_input_fn([position, is_copy, key_word, copy_word, position_embedding, code_embedding])
 
     def _create_one_next_code(self, action, token_input, token_input_length, character_input, character_input_length):
         is_continue, position, is_copy, keyword_id, copy_id = action
@@ -672,20 +699,21 @@ class TokenLevelMultiRnnModel(object):
     #     output, next_state, position_embedding, code_embedding = self._one_predict(inputs, labels, states)
     #     return self._create_output_and_next_input(code_embedding, next_state, output, position_embedding)
 
-    def _create_output_and_next_input(self, code_embedding, next_state, output, position_embedding):
-        is_continue, position, is_copy, keyword_id, copy_id = output
-        is_continue = np.array(is_continue > 0.5)
-        position = np.argmax(np.array(position), axis=1)
-        is_copy = np.array(is_copy > 0.5)
-        keyword_id = np.argmax(np.array(keyword_id), axis=1)
-        copy_id = np.argmax(np.array(copy_id), axis=1)
-        next_labels = self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1),
-                                                 np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1),
-                                                 position_embedding, code_embedding)[:, 0, :]
-        outputs = (is_continue, position, is_copy, keyword_id, copy_id)
-        return outputs, next_state, next_labels
+    # def _create_output_and_next_input(self, code_embedding, next_state, output, position_embedding):
+    #     is_continue, position, is_copy, keyword_id, copy_id = output
+    #     is_continue = np.array(is_continue > 0.5)
+    #     position = np.argmax(np.array(position), axis=1)
+    #     is_copy = np.array(is_copy > 0.5)
+    #     keyword_id = np.argmax(np.array(keyword_id), axis=1)
+    #     copy_id = np.argmax(np.array(copy_id), axis=1)
+    #     next_labels = self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1),
+    #                                              np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1),
+    #                                              position_embedding, code_embedding)[:, 0, :]
+    #     outputs = (is_continue, position, is_copy, keyword_id, copy_id)
+    #     return outputs, next_state, next_labels
 
-    def _one_predict(self, token_input, token_input_length, charactere_input, character_input_length, labels, states):
+    def _one_predict(self, token_input, token_input_length, charactere_input, character_input_length, token_identifier_mask,
+                     labels, states):
         # token_input, token_input_length, charactere_input, character_input_length = inputs
         output, next_state, position_embedding, code_embedding \
             = self._one_predict_fn(
@@ -693,6 +721,7 @@ class TokenLevelMultiRnnModel(object):
             token_input_length,
             charactere_input,
             character_input_length,
+            token_identifier_mask,
             states,
             labels
         )
