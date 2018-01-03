@@ -92,7 +92,7 @@ if __name__ == '__main__':
     # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_iden_mask, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
 
     train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_identifier_mask, parse_xy_param, experiment_name='masked_token_level_multirnn_model', batch_size=16, create_condition_fn=error_count_create_condition_fn, modify_condition=modify_condition)
-    param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -1]},
+    param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -3]},
                                                   choice_param={ },
                                                   constant_param={"hidden_size": 100,
                                                                   'rnn_layer_number': 2,

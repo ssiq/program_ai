@@ -31,6 +31,12 @@ class SequenceRNNCell(rnn_cell.RNNWrapper):
 
     def call(self, inputs, state):
         _memory, _memory_length, _position_embedding, _position_length,  inputs = inputs
+        copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, next_hidden_state, position_logit = self._cal_next(
+            _memory, _memory_length, _position_embedding, _position_length, inputs, state)
+
+        return (is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit,), next_hidden_state
+
+    def _cal_next(self, _memory, _memory_length, _position_embedding, _position_length, inputs, state):
         with tf.variable_scope("input_attention"):
             atten = rnn_util.soft_attention_reduce_sum(_memory,
                                                        inputs,
@@ -47,7 +53,7 @@ class SequenceRNNCell(rnn_cell.RNNWrapper):
         outputs, next_hidden_state = self._cell(cell_inputs, state)
         # a scalar indicating whether the code has been corrupted
         is_continue_logit = tf_util.weight_multiply("continue_weight", outputs, 1)[:, 0]
-        #position_logit
+        # position_logit
         with tf.variable_scope("poistion_logit"):
             position_logit = rnn_util.soft_attention_logit(self._attention_size,
                                                            outputs,
@@ -57,15 +63,16 @@ class SequenceRNNCell(rnn_cell.RNNWrapper):
         replace_input = rnn_util.reduce_sum_with_attention_softmax(_position_embedding,
                                                                    position_softmax)[0]
         replace_ouput = tf_util.weight_multiply("replace_output_weight", replace_input, self._attention_size)
-        #a scalar indicating whether copies from the code
+        # a scalar indicating whether copies from the code
         is_copy_logit = tf_util.weight_multiply("copy_weight", replace_ouput, 1)[:, 0]
-        #key_word_logit
+        # key_word_logit
         key_word_logit = tf_util.weight_multiply("key_word_logit_weight", replace_ouput, self._keyword_size)
-        #copy_word_logit
+        # copy_word_logit
         with tf.variable_scope("copy_word_logit"):
-            copy_word_logit = rnn_util.soft_attention_logit(self._attention_size, replace_ouput, _memory, _memory_length)
+            copy_word_logit = rnn_util.soft_attention_logit(self._attention_size, replace_ouput, _memory,
+                                                            _memory_length)
+        return copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, next_hidden_state, position_logit
 
-        return (is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit,), next_hidden_state
 
 def create_sample_fn():
     def sample_fn(time, outputs, state):

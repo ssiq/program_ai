@@ -107,7 +107,7 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
             graph=sess.graph)
         save_steps = 1000
         skip_steps = 100
-        print_skip_step = 100
+        print_skip_step = 1
         debug_steps = 10
 
         recordloggername = 'record'

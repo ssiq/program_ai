@@ -986,7 +986,8 @@ def variable_length_mask_softmax(logit, in_length, mask):
     mask = tf.reshape(mask, (-1, logit_shape[-1]))
     in_length = tf.reshape(in_length, (-1,))
     in_length = tf.cast(in_length, tf.int32)
-    mask = lengths_to_mask(in_length, get_shape(logit)[1]) * mask
+    mask = tf.logical_and(debug(lengths_to_mask(in_length, get_shape(logit)[1]), "length_mask"),
+                          debug(mask, "input_mask"))
     mask = tf.cast(mask, tf.float32)
     logit = logit * mask
     logit = logit - tf.reduce_max(logit, axis=-1, keep_dims=True)
@@ -1071,7 +1072,7 @@ def all_is_zero(x: tf.Tensor):
     return tf.reduce_all(tf.equal(x, tf.zeros_like(x)))
 
 def _create_debug_tool():
-    is_debug = False
+    is_debug = True
     @doublewrap
     def debug_print(function, msg: str):
 
@@ -1085,12 +1086,47 @@ def _create_debug_tool():
 
         return decorator
 
-    def debug(o, msg):
+    def debug(o, msg, f=lambda o:[all_is_nan(o), all_is_zero(o), tf.shape(o), o]):
         if is_debug:
-            return tf.Print(o, [all_is_nan(o), all_is_zero(o), tf.shape(o), o], msg)
+            return tf.Print(o, f(cast_float(o)), msg)
         else:
             return o
 
     return debug_print, debug
 
 debug_print, debug = _create_debug_tool()
+
+
+def sparse_categorical_crossentropy(target, output, from_logits=False):
+    """Categorical crossentropy with integer targets.
+
+    # Arguments
+        target: An integer tensor.
+        output: A tensor resulting from a softmax
+            (unless `from_logits` is True, in which
+            case `output` is expected to be the logits).
+        from_logits: Boolean, whether `output` is the
+            result of a softmax, or is a tensor of logits.
+
+    # Returns
+        Output tensor.
+    """
+    # Note: tf.nn.sparse_softmax_cross_entropy_with_logits
+    # expects logits, Keras expects probabilities.
+    if not from_logits:
+        _epsilon = tf.constant(1e-7, dtype=tf.float32)
+        output = tf.clip_by_value(output, _epsilon, tf.constant(1.0, dtype=tf.float32) - _epsilon)
+        output = tf.log(output)
+
+    output_shape = get_shape(output)
+    targets = tf.reshape(target, (-1, ))
+    logits = tf.reshape(output, [-1, output_shape[-1]])
+    res = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        labels=targets,
+        logits=logits)
+    if len(output_shape) >= 3:
+        # if our output includes timestep dimension
+        # or spatial dimensions we need to reshape
+        return tf.reshape(res, tf.shape(output)[:-1])
+    else:
+        return res
