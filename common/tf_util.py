@@ -211,9 +211,12 @@ def minimize_and_clip(optimizer, objective, var_list, global_step=None, clip_val
     """
     gradients = optimizer.compute_gradients(objective, var_list=var_list,
                                             aggregation_method=tf.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N)
-    ori_gradients = list(gradients)
+    ori_gradients = []
     for i, (grad, var) in enumerate(gradients):
         if grad is not None:
+            print("{}th grad:{}".format(i, grad))
+            print("{}th var:{}".format(i, var))
+            ori_gradients.append((grad, var))
             gradients[i] = (tf.clip_by_norm(grad, clip_val), var)
     return optimizer.apply_gradients(gradients, global_step=global_step)
 
@@ -1072,7 +1075,7 @@ def all_is_zero(x: tf.Tensor):
     return tf.reduce_all(tf.equal(x, tf.zeros_like(x)))
 
 def _create_debug_tool():
-    is_debug = True
+    is_debug = False
     @doublewrap
     def debug_print(function, msg: str):
 

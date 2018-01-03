@@ -264,7 +264,11 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         keyword_embedding = self.word_embedding_layer_fn(self.output_keyword_id)
         identifier_mask_dims = len(tf_util.get_shape(identifier_mask))
         identifier_mask = tf_util.cast_float(identifier_mask)
-        identifier_mask = identifier_mask / tf.reduce_mean(identifier_mask, axis=-2, keep_dims=True)
+        identifier_mask_sum = tf.reduce_sum(identifier_mask, axis=-2, keep_dims=True)
+        identifier_mask_sum = tf.where(tf.equal(identifier_mask_sum, tf.constant(0.0, dtype=tf.float32)),
+                                       x=tf.ones_like(identifier_mask_sum),
+                                       y=identifier_mask_sum)
+        identifier_mask = identifier_mask / identifier_mask_sum
         identifier_mask = tf.transpose(identifier_mask, perm=list(range(identifier_mask_dims-2))+
                                                              [identifier_mask_dims-1, identifier_mask_dims-2])
         copyword_embedding = rnn_util.gather_sequence(tf.matmul(identifier_mask, code_embedding),
@@ -324,13 +328,13 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
     @tf_util.define_scope("softmax_op")
     def softmax_op(self):
         copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, position_logit = self.train_output_logit_op
-        is_continue = tf.nn.sigmoid(is_continue_logit)
-        position_softmax = tf_util.variable_length_softmax(position_logit, self.position_length_op)
-        is_copy = tf.nn.sigmoid(is_copy_logit)
-        key_word_softmax = tf.nn.softmax(key_word_logit)
-        copy_word_softmax = self._token_softmax_masked(tf_util.variable_length_mask_softmax(copy_word_logit, self.token_input_length,
+        is_continue = tf_util.debug(tf.nn.sigmoid(is_continue_logit), "is_continue:")
+        position_softmax = tf_util.debug(tf_util.variable_length_softmax(position_logit, self.position_length_op), "position:")
+        is_copy = tf_util.debug(tf.nn.sigmoid(is_copy_logit), "is_copy:")
+        key_word_softmax = tf_util.debug(tf.nn.softmax(key_word_logit), "keyword:")
+        copy_word_softmax = tf_util.debug(self._token_softmax_masked(tf_util.variable_length_mask_softmax(copy_word_logit, self.token_input_length,
                                                                  tf.equal(self.token_input, self.identifier_token)),
-                                                       self.token_identifier_mask)
+                                                       self.token_identifier_mask), "copyword:")
         return is_continue, position_softmax, is_copy, key_word_softmax, copy_word_softmax
 
     @tf_util.define_scope("train_output_logit_op")
@@ -498,6 +502,7 @@ class TokenLevelMultiRnnModel(object):
 
         #graph init
         tf_util.init_all_op(self.model)
+        # self.model.inii_ops()
         #create new input
         new_input = self.model.create_output_embedding(self.code_embedding_placeholder,
                                                        self.position_embedding_placeholder,
@@ -619,13 +624,24 @@ class TokenLevelMultiRnnModel(object):
     def train_model(self, *args):
         # print("train_model_input:")
         # for t in args:
-        #     print(np.array(t).shape)
+        #     # print(np.array(t).shape)
         #     print("{}:{}".format(np.array(t).shape, np.array(t)))
         # print(np.array(args[4]))
         # l1, l2, _ = self.train(*args)
         # print(l1)
         # return l1, l2, None
         loss, _, train = self.train(*args)
+        # def is_nan(x):
+        #     return np.any(np.isnan(x))
+        # print("gradients:{}")
+        # for i, (a, b) in enumerate(train[1]):
+        #     print("type of a:{}".format(type(a)))
+            # if not isinstance(a, np.ndarray):
+            #     a = a.values
+            # if not isinstance(b, np.ndarray):
+            #     b = b.values
+            # print("a:{}".format(a))
+            # print("{}:a is nan?{},  b is nan?{}".format(i, is_nan(a), is_nan(b)))
         metrics = self.metrics_model(*args)
         # print('loss : {}. mertics: {}'.format(loss, metrics))
         return loss, metrics, train
