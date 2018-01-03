@@ -50,6 +50,63 @@ def error_count_without_train_condition_fn(data_type, error_count:int):
     return condition_fn
 
 
+# -------------------------------- parse_xy method -------------------------------- #
+
+@util.disk_cache(basename='identifier_mask_token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
+def parse_xy_with_identifier_mask(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
+
+    df['res'] = ''
+    df['ac_code_obj'] = df['ac_code'].map(get_token_list)
+    df = df[df['ac_code_obj'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_error_list, axis=1, raw=True)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_token_identify_mask, axis=1, raw=True)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict)
+    # df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_token_name)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    returns = (df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['token_identify_mask'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list'])
+
+    # if data_type == 'train':
+    #     returns = [flat_list(ret) for ret in returns]
+
+    return returns
+
+
+@util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
+def parse_xy(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
+
+    df['res'] = ''
+    df['ac_code_obj'] = df['ac_code'].map(get_token_list)
+    df = df[df['ac_code_obj'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_error_list, axis=1, raw=True)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_token_name)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
+
+
+# -------------------------------- parse_xy util method -------------------------------- #
+
 def create_error_list(one):
     import random
 
@@ -305,34 +362,3 @@ def create_identifier_category(tokens, keyword_set):
     token_set = set(tokens) - keyword_set
     token_id_dict = util.reverse_dict(dict(enumerate(token_set, start=1)))
     return [token_id_dict[t] if t in token_set else 0 for t in tokens], token_id_dict
-
-
-@util.disk_cache(basename='identifier_mask_token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
-def parse_xy_with_identifier_mask(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
-
-    df['res'] = ''
-    df['ac_code_obj'] = df['ac_code'].map(get_token_list)
-    df = df[df['ac_code_obj'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_error_list, axis=1, raw=True)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_token_identify_mask, axis=1, raw=True)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict)
-    # df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_token_name)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    returns = (df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['token_identify_mask'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list'])
-
-    # if data_type == 'train':
-    #     returns = [flat_list(ret) for ret in returns]
-
-    return returns

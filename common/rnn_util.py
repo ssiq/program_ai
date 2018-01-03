@@ -176,6 +176,9 @@ def gather_sequence(param, indices):
     :param indices: a index tensor [...] to difference batch along the time dimension
     :return:
     """
+    # param = tf.Print(param, [tf.shape(param), param], "origianl param:")
+    # indices = tf.Print(indices, [tf.shape(indices), indices], "indices" )
+
 
     ori_param_shape = get_shape(param)
     ori_indices_shape = get_shape(indices)
@@ -197,11 +200,15 @@ def gather_sequence(param, indices):
     batch_index = tf.tile(batch_index, indices_shape)
     # batch_index = tf.tile(batch_index, get_shape(indices))
 
-
-    result = tf.gather_nd(param,
-                          tf.concat(
+    gather_index = tf.concat(
                               (batch_index, indices),
                               axis=-1)
+
+    # gather_index = tf.Print(gather_index, [tf.shape(gather_index), gather_index], "gather_index:")
+    # param = tf.Print(param, [tf.shape(param), param], "param:")
+
+    result = tf.gather_nd(param,
+                            gather_index
                           )
 
     result = tf.reshape(result, ori_indices_shape + [ori_param_shape[-1], ])

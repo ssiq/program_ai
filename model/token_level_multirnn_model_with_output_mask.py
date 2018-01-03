@@ -4,7 +4,7 @@ from tensorflow.python.util import nest
 
 from common import tf_util, rnn_cell, rnn_util, code_util, util
 from common.beam_search_util import beam_cal_top_k, flat_list, \
-    select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code, cal_metrics
+    select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code, cal_metrics, find_copy_input_position
 
 
 class SequenceRNNCell(rnn_cell.RNNWrapper):
@@ -372,21 +372,21 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, position_logit = self.train_output_logit_op
         copy_length = tf.reduce_sum(self.output_is_continue, axis=1) + 1
         is_continue_mask = tf_util.lengths_to_mask(copy_length, tf_util.get_shape(self.output_is_continue)[1])
-        loss = tf.reduce_mean(
+        loss = tf_util.debug(tf.reduce_mean(
             tf.multiply(tf.cast(is_continue_mask, tf.float32), tf.nn.sigmoid_cross_entropy_with_logits(logits=is_continue_logit,
                                                                                          labels=tf.cast(
                                                                                              self.output_is_continue,
-                                                                                             tf.float32))))
-        loss += tf.reduce_mean(
+                                                                                             tf.float32)))), "is_continue_loss:")
+        loss += tf_util.debug(tf.reduce_mean(
             tf.multiply(tf.cast(is_continue_mask, tf.float32), tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
                                                                                          labels=tf.cast(
                                                                                              self.output_is_copy,
-                                                                                             tf.float32))))
+                                                                                             tf.float32)))), "is_copy_loss:")
         sparse_softmax_loss = lambda x, y: tf.multiply(tf.cast(is_continue_mask, tf.float32),tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y))
         sparse_categorical_loss = lambda x, y: tf.multiply(tf.cast(is_continue_mask, tf.float32),tf_util.sparse_categorical_crossentropy(target=x, output=y))
-        loss += tf.reduce_mean(sparse_categorical_loss(self.output_position_label, self.softmax_op[1]))
-        keyword_loss = sparse_softmax_loss(self.output_keyword_id, key_word_logit)
-        copy_word_loss = sparse_categorical_loss(self.output_copy_word_id, self.softmax_op[4])
+        loss += tf_util.debug(tf.reduce_mean(sparse_categorical_loss(self.output_position_label, self.softmax_op[1])), "position_loss:")
+        keyword_loss = tf_util.debug(sparse_softmax_loss(self.output_keyword_id, key_word_logit), "keyword_loss")
+        copy_word_loss = tf_util.debug(sparse_categorical_loss(self.output_copy_word_id, self.softmax_op[4]), "copy_word_loss:")
         loss += tf.reduce_mean(tf.where(tf_util.cast_bool(self.output_is_copy), x=copy_word_loss, y=keyword_loss))
         return loss
 
@@ -620,7 +620,7 @@ class TokenLevelMultiRnnModel(object):
         # print("train_model_input:")
         # for t in args:
         #     print(np.array(t).shape)
-            # print("{}:{}".format(np.array(t).shape, np.array(t)))
+        #     print("{}:{}".format(np.array(t).shape, np.array(t)))
         # print(np.array(args[4]))
         # l1, l2, _ = self.train(*args)
         # print(l1)
@@ -634,9 +634,9 @@ class TokenLevelMultiRnnModel(object):
     #     _, position, is_copy, key_word, copy_word = output
     #     return self._create_next_input_fn([position, is_copy, key_word, copy_word, position_embedding, code_embedding])
 
-    def _create_one_next_code(self, action, token_input, token_input_length, character_input, character_input_length):
+    def _create_one_next_code(self, action, token_input, token_input_length, character_input, character_input_length, identifier_mask):
         is_continue, position, is_copy, keyword_id, copy_id = action
-        next_inputs = token_input, token_input_length, character_input, character_input_length
+        next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
         code_length = token_input_length
 
         if position % 2 == 1 and is_copy == 0 and keyword_id == self.placeholder_token:
@@ -650,9 +650,11 @@ class TokenLevelMultiRnnModel(object):
             token_input_length -= 1
             character_input = character_input[0:position] + character_input[position + 1:]
             character_input_length = character_input_length[0:position] + character_input_length[position + 1:]
+            identifier_mask = identifier_mask[0:position] + identifier_mask[position + 1:]
         else:
             if is_copy:
-                copy_position_id = copy_id
+                copy_position_id = find_copy_input_position(identifier_mask, copy_id)
+                # copy_position_id = copy_id
                 if copy_position_id >= code_length:
                     # copy position error
                     print('copy position error', copy_position_id, code_length)
@@ -661,6 +663,7 @@ class TokenLevelMultiRnnModel(object):
                 word_token_id = token_input[copy_position_id]
                 word_character_id = character_input[copy_position_id]
                 word_character_length = character_input_length[copy_position_id]
+                iden_mask = identifier_mask[copy_position_id]
             else:
                 word_token_id = keyword_id
                 word = self.id_to_word(word_token_id)
@@ -670,6 +673,7 @@ class TokenLevelMultiRnnModel(object):
                     return next_inputs
                 word_character_id = self.parse_token(word, character_position_label=True)
                 word_character_length = len(word_character_id)
+                iden_mask = [0] * len(identifier_mask[0])
 
             if position % 2 == 0:
                 # insert
@@ -682,6 +686,7 @@ class TokenLevelMultiRnnModel(object):
                 token_input_length += 1
                 character_input = character_input[0:position] + [word_character_id] + character_input[position:]
                 character_input_length = character_input_length[0:position] + [word_character_length] + character_input_length[position:]
+                identifier_mask = identifier_mask[0:position] + [iden_mask] + identifier_mask[position:]
             elif position % 2 == 1:
                 # change
                 position = int(position / 2)
@@ -692,7 +697,8 @@ class TokenLevelMultiRnnModel(object):
                 token_input[position] = word_token_id
                 character_input[position] = word_character_id
                 character_input_length[position] = word_character_length
-        next_inputs = token_input, token_input_length, character_input, character_input_length
+                identifier_mask[position] = iden_mask
+        next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
         return next_inputs
 
     # def one_predict(self, inputs, states, labels):
@@ -810,9 +816,8 @@ class TokenLevelMultiRnnModel(object):
         import copy
         import more_itertools
         args = [copy.deepcopy([[ti[0]] for ti in one_input]) for one_input in args]
-        token_input, token_input_length, charactere_input, character_input_length = args
         start_label, initial_state = self._initial_state_and_initial_label_fn(*args)
-        batch_size = len(token_input)
+        batch_size = len(args[0])
         cur_beam_size = 1
         beam_size = 5
 
@@ -866,11 +871,11 @@ class TokenLevelMultiRnnModel(object):
             #              list(zip(*select_output_stack_list)), [beam_size] * batch_size)
             # batch_returns = list(util.parallel_map(core_num=3, f=beam_calculate_fn, args=list(zip(*beam_args))))
             batch_returns = list(map(beam_calculate, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size] * batch_size, [beam_calculate_output_score] * batch_size, beam_gather_args))
-            def create_next(ret):
-                ret = list(ret)
-                ret[0] = _create_next_code(ret[1], ret[0], create_one_fn=self._create_one_next_code)
-                return ret
-            batch_returns = [create_next(ret) for ret in batch_returns]
+            # def create_next(ret):
+            #     ret = list(ret)
+            #     ret[0] = _create_next_code(ret[1], ret[0], create_one_fn=self._create_one_next_code)
+            #     return ret
+            # batch_returns = [create_next(ret) for ret in batch_returns]
             input_stack, output_stack, select_output_stack_list, mask_stack, beam_stack, beam_length_stack, beam_gather_args = list(zip(*batch_returns))
             next_states_stack, position_embedding_stack, code_embedding_stack = list(zip(*beam_gather_args))
             input_stack = list(zip(*input_stack))
@@ -880,21 +885,33 @@ class TokenLevelMultiRnnModel(object):
             if np.sum(output_stack[0]) == 0:
                 break
 
+
+            input_flat = [flat_list(inp) for inp in input_stack]
             output_flat = [flat_list(out) for out in output_stack]
             position_embedding_flat = flat_list(position_embedding_stack)
             code_embedding_flat = flat_list(code_embedding_stack)
 
-            create_label_lambda_fn = lambda is_continue, position, is_copy, keyword_id, copy_id, position_emb, code_emb: self._create_next_input_fn(np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1),
-                                                         np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1), position_emb, code_emb)[:, 0, :]
+            create_label_lambda_fn = lambda token_mask, is_continue, position, is_copy, keyword_id, copy_id, position_emb, code_emb: self._create_next_input_fn(np.array(token_mask), np.expand_dims(position, axis=1), np.expand_dims(is_copy, axis=1),
+                                                                                                                                                                np.expand_dims(keyword_id, axis=1), np.expand_dims(copy_id, axis=1), position_emb, code_emb)[:, 0, :]
             create_label_lambda_chunked_fn = lambda chunked: create_label_lambda_fn(*list(zip(*chunked)))
-            next_labels_stack = list(map(create_label_lambda_chunked_fn, more_itertools.chunked(list(zip(*list(output_flat + [position_embedding_flat] + [code_embedding_flat]))), batch_size)))
+            next_labels_stack = list(map(create_label_lambda_chunked_fn, more_itertools.chunked(list(zip(*list([input_flat[4]] + output_flat + [position_embedding_flat] + [code_embedding_flat]))), batch_size)))
             next_labels_stack = flat_list(next_labels_stack)
             next_labels_stack = np.reshape(next_labels_stack, (batch_size, beam_size, -1)).tolist()
             # [create_label_lambda_fn() for is_continue, position, is_copy, keyword_id, copy_id in more_itertools.chunked(list(zip(*output_stack)) + [position_embedding_stack] + [code_embedding_stack], batch_size)]
 
+
+            def beam_create_next(args):
+                inputs, outputs = args
+                new_inputs = _create_next_code(outputs, inputs, create_one_fn=self._create_one_next_code)
+                return new_inputs
+            input_stack = list(map(beam_create_next, zip(list(zip(*input_stack)), list(zip(*output_stack)))))
+            input_stack = list(zip(*input_stack))
+            # print('input_stack:', input_stack)
+
             input_stack = [list(util.padded(list(inp))) for inp in input_stack]
             mask_input_with_end_fn = lambda token_input: list([util.mask_input_with_end(batch_mask, batch_inp, n_dim=1).tolist() for batch_mask, batch_inp in zip(mask_stack, token_input)])
             input_stack = list(map(mask_input_with_end_fn, input_stack))
+
             cur_beam_size = beam_size
 
 
@@ -912,8 +929,8 @@ class TokenLevelMultiRnnModel(object):
         # print("metrics input")
         # for t in args:
         #     print(np.array(t).shape)
-        input_data = args[0:4]
-        output_data = args[4:9]
+        input_data = args[0:5]
+        output_data = args[5:10]
         predict_data = self.predict_model(*input_data,)
         metrics_value = cal_metrics(self.max_decode_iterator_num, output_data, predict_data)
         # print('metrics_value: ', metrics_value)

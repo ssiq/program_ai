@@ -6,8 +6,7 @@ from common.beam_search_util import _create_next_code, cal_metrics
 from model.token_level_multirnn_model import TokenLevelMultiRnnModel
 from embedding.wordembedding import load_vocabulary
 from embedding.character_embedding import load_character_vocabulary
-from experiment.token_level_multirnn_on_fake_cpp_data import parse_xy
-from experiment.experiment_util import sample, create_embedding
+from experiment.experiment_util import sample, create_embedding, parse_xy
 from common.util import padded
 from test.test_package_util import almost_equal_array
 
@@ -51,7 +50,7 @@ class Test(unittest.TestCase):
         keyword_id = [[0, 0, 1], [0, 2,0, 0], [0]]
         copy_word_id = [[12, 32, 0], [21, 0, 32,32], [12]]
         o = (is_continue, position_label, is_copy, keyword_id, copy_word_id)
-        po = [np.array(padded(t)) for t in o]
+        po = [np.array(padded(t)).tolist() for t in o]
         res = cal_metrics(self.model.max_decode_iterator_num, o, po)
         self.assertAlmostEqual(res, 1.0)
 

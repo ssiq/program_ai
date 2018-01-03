@@ -1,34 +1,9 @@
-from code_data.constants import cache_data_path
 from common import util
 from common.supervision_util_increment import create_supervision_experiment
-from experiment.experiment_util import sample, create_embedding, error_count_create_condition_fn, create_error_list, \
-    create_token_id_input, create_character_id_input, find_token_name, create_full_output, get_token_list, parse_xy_with_identifier_mask
+from experiment.experiment_util import sample, create_embedding, error_count_create_condition_fn, parse_xy
 # from model.token_level_multirnn_model import TokenLevelMultiRnnModel
 from model.token_level_multirnn_model_with_output_mask import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
-
-
-@util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
-def parse_xy(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
-
-    df['res'] = ''
-    df['ac_code_obj'] = df['ac_code'].map(get_token_list)
-    df = df[df['ac_code_obj'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_error_list, axis=1, raw=True)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_token_name)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
-
 
 if __name__ == '__main__':
     util.initLogging()

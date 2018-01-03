@@ -986,8 +986,8 @@ def variable_length_mask_softmax(logit, in_length, mask):
     mask = tf.reshape(mask, (-1, logit_shape[-1]))
     in_length = tf.reshape(in_length, (-1,))
     in_length = tf.cast(in_length, tf.int32)
-    mask = tf.logical_and(debug(lengths_to_mask(in_length, get_shape(logit)[1]), "length_mask"),
-                          debug(mask, "input_mask"))
+    mask = tf.logical_and(lengths_to_mask(in_length, get_shape(logit)[1]),
+                          mask)
     mask = tf.cast(mask, tf.float32)
     logit = logit * mask
     logit = logit - tf.reduce_max(logit, axis=-1, keep_dims=True)
