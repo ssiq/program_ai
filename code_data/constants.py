@@ -1,7 +1,7 @@
 import os
 
-ROOT_PATH = '/home/lf/Project/program_ai'
-# ROOT_PATH = r'G:\Project\program_ai'
+# ROOT_PATH = '/home/lf/Project/program_ai'
+ROOT_PATH = r'G:\Project\program_ai'
 DATABASE_PATH = os.path.join(ROOT_PATH, 'data/train.db')
 BACKUP_PATH = os.path.join(ROOT_PATH, 'backup/')
 LOG_PATH = os.path.join(ROOT_PATH, 'logs/')
