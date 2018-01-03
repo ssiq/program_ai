@@ -134,10 +134,10 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                 accuracies.append(metrics)
                 # print("iteration {} with loss {} and metrics {}".format(current_step, loss, metrics))
                 if current_step % skip_steps == 0:
-                    # train_summary = model.summary(*data)
-                    # train_writer.add_summary(train_summary, global_step=model.global_step)
-                    # validation_summary = model.summary(*next(validation_data_itr))
-                    # validation_writer.add_summary(validation_summary, global_step=model.global_step)
+                    train_summary = model.summary(*data)
+                    train_writer.add_summary(train_summary, global_step=model.global_step)
+                    validation_summary = model.summary(*next(validation_data_itr))
+                    validation_writer.add_summary(validation_summary, global_step=model.global_step)
                     pass
                 if current_step % print_skip_step == 0:
                     loss_mean = np.mean(losses)
