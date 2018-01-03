@@ -6,8 +6,7 @@ from common.beam_search_util import _create_next_code, cal_metrics
 from model.masked_token_level_multirnn_model import MaskedTokenLevelMultiRnnModel, flat_and_get_effective_args, get_effective_id, make_weight_array
 from embedding.wordembedding import load_vocabulary
 from embedding.character_embedding import load_character_vocabulary
-from experiment.masked_token_level_multirnn_on_fake_cpp_data import parse_xy_with_identifier_mask
-from experiment.experiment_util import sample, create_embedding
+from experiment.experiment_util import sample, create_embedding, parse_xy_with_identifier_mask
 from common.util import padded
 from test.test_package_util import almost_equal_array
 

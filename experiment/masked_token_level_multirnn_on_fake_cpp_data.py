@@ -1,44 +1,9 @@
-from code_data.constants import cache_data_path
 from common import util
-from common.beam_search_util import flat_list
-from train.random_search import random_parameters_generator
 from common.supervision_util_increment import create_supervision_experiment
-from experiment.experiment_util import sample, create_embedding, error_count_without_train_condition_fn, create_error_list, \
-    create_token_id_input, create_character_id_input, find_token_name, create_full_output, get_token_list, create_token_identify_mask, find_copy_id_by_identifier_dict, error_count_create_condition_fn
+from experiment.experiment_util import sample, create_embedding, error_count_create_condition_fn, \
+    parse_xy_with_identifier_mask
 from model.masked_token_level_multirnn_model import MaskedTokenLevelMultiRnnModel
-from code_data.read_data import read_cpp_fake_code_records_set
-
-
-@util.disk_cache(basename='identifier_mask_token_level_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
-def parse_xy_with_identifier_mask(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
-
-    df['res'] = ''
-    df['ac_code_obj'] = df['ac_code'].map(get_token_list)
-    df = df[df['ac_code_obj'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_error_list, axis=1, raw=True)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_token_identify_mask, axis=1, raw=True)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict)
-    # df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_token_name)
-    df = df[df['res'].map(lambda x: x is not None)].copy()
-
-    returns = (df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['token_identify_mask'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list'])
-
-    # if data_type == 'train':
-    #     returns = [flat_list(ret) for ret in returns]
-
-    return returns
-
+from train.random_search import random_parameters_generator
 
 if __name__ == '__main__':
     util.initLogging()

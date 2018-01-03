@@ -3,8 +3,7 @@ import unittest
 
 from common.beam_search_util import *
 from common.beam_search_util import beam_calculate
-from experiment.experiment_util import sample, create_embedding
-from experiment.masked_token_level_multirnn_on_fake_cpp_data import parse_xy_with_identifier_mask
+from experiment.experiment_util import sample, create_embedding, parse_xy_with_identifier_mask
 from model.masked_token_level_multirnn_model import *
 
 
