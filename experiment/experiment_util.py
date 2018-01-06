@@ -65,7 +65,7 @@ def parse_xy_with_identifier_mask(df, data_type:str, keyword_voc, char_voc, max_
     df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
-    df = df.apply(create_token_identify_mask, axis=1, raw=True)
+    df = df.apply(create_token_identify_mask, axis=1, raw=True, pre_defined_token_set=pre_defined_cpp_token)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
@@ -121,13 +121,6 @@ def create_error_list(one):
                     start_ac_pos.append(ac_pos)
                     break
         return False
-
-    def create_name_list(code_obj):
-        name_list = []
-        for obj in code_obj:
-            name_list.append(obj.name)
-        return name_list
-
 
     import json
     action_character_list = json.loads(one['action_character_list'])
@@ -188,6 +181,13 @@ def create_error_list(one):
     return one
 
 
+def create_name_list(code_obj):
+    name_list = []
+    for obj in code_obj:
+        name_list.append(obj.name)
+    return name_list
+
+
 def create_identifier_mask_from_dict(name_list, iden_dict:dict, pre_defined_cpp_token):
     iden_list = []
     for token in name_list:
@@ -200,13 +200,13 @@ def create_identifier_mask_from_dict(name_list, iden_dict:dict, pre_defined_cpp_
     return iden_list
 
 
-def create_token_identify_mask(one):
+def create_token_identify_mask(one, pre_defined_token_set=pre_defined_cpp_token):
     token_name_list = one['token_name_list']
-    _, iden_dict = create_identifier_mask(token_name_list[0], pre_defined_cpp_token)
+    _, iden_dict = create_identifier_mask(token_name_list[0], pre_defined_token_set)
     if len(iden_dict.keys()) > 30:
         one['res'] = None
         return one
-    token_identify_mask = [create_identifier_mask_from_dict(name_list, iden_dict, pre_defined_cpp_token) for name_list in token_name_list]
+    token_identify_mask = [create_identifier_mask_from_dict(name_list, iden_dict, pre_defined_token_set) for name_list in token_name_list]
     for one_identify in token_identify_mask:
         if one_identify == None:
             one['res'] = None
@@ -331,8 +331,9 @@ def create_full_output(one, keyword_voc, max_bug_number, min_bug_number, find_co
 def get_token_list(code):
     try:
         code = code.replace('\r', '')
-        if code.find('define') != -1 or code.find('param') != -1 or code.find('ifndef') != -1 or code.find(
-                'endif') != -1:
+        if code.find('define') != -1 or code.find('defined') != -1 or code.find('undef') != -1 or \
+                        code.find('pragma') != -1 or code.find('ifndef') != -1 or \
+                        code.find('ifdef') != -1 or code.find('endif') != -1:
             return None
         tokens = list(GetTokens(code))
         if len(tokens) >= MAX_TOKEN_LENGTH:
