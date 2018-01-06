@@ -493,9 +493,9 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         # print(l1)
         # return l1, l2, None
         loss, _, train = self.train(*args)
-        metrics = self.metrics_model(*args)
+        # metrics = self.metrics_model(*args)
         # print('loss : {}. mertics: {}'.format(loss, metrics))
-        return loss, metrics, train
+        return loss, 0, train
 
     @tf_util.define_scope("one_predict")
     def one_predict_op(self):

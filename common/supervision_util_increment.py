@@ -109,6 +109,7 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
         skip_steps = 100
         print_skip_step = 100
         debug_steps = 10
+        metrics_steps = 10
 
         recordloggername = 'record'
         growthloggername = 'growth'
@@ -129,10 +130,12 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
             try:
                 current_step = model.global_step
                 # log_data_shape(*data, recordloggername=recordloggername)
-                loss, metrics, _ = model.train_model(*data)
+                loss, _, _ = model.train_model(*data)
                 losses.append(loss)
-                accuracies.append(metrics)
                 # print("iteration {} with loss {} and metrics {}".format(current_step, loss, metrics))
+                if current_step % metrics_steps == 0:
+                    metrics = model.metrics_model(*data)
+                    accuracies.append(metrics)
                 if current_step % skip_steps == 0:
                     train_summary = model.summary(*data)
                     train_writer.add_summary(train_summary, global_step=model.global_step)
