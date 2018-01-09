@@ -5,7 +5,7 @@ import json
 
 import pandas as pd
 
-from code_data.constants import cache_data_path, STUDENT_BUILD_INFO
+from code_data.constants import cache_data_path, STUDENT_BUILD_INFO, BUILD_ERROR_STAT
 from common import util
 
 
@@ -174,8 +174,24 @@ def read_student_cpp_data(conn:sqlite3.Connection):
     return build_df
 
 
+def read_build_error_stat_data(conn:sqlite3.Connection):
+    build_df = pd.read_sql(r'SELECT * from {}'.format(BUILD_ERROR_STAT), conn)
+    return build_df
+
+
 def read_student_local_data():
     from code_data.constants import local_student_db_path
     con = sqlite3.connect("file:{}?mode=ro".format(local_student_db_path), uri=True)
     return read_student_cpp_data(con)
 
+
+def read_build_error_stat_local_data():
+    from code_data.constants import local_student_db_path
+    con = sqlite3.connect("file:{}?mode=ro".format(local_student_db_path), uri=True)
+    return read_build_error_stat_data(con)
+
+
+if __name__ == '__main__':
+    df = read_build_error_stat_local_data()
+    print(df)
+    print(len(df.index))

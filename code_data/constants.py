@@ -14,6 +14,7 @@ FAKE_ERROR_TOKEN_CODE = 'fake_error_token_code'
 FAKE_CODE_RECORDS = 'fake_code_records'
 
 STUDENT_BUILD_INFO = 'student_build_info'
+BUILD_ERROR_STAT = 'build_error_stat'
 
 LOG_DIR = os.path.join('.', 'log')
 DEBUG_LOG_PATH = os.path.join(LOG_DIR, 'debug')
