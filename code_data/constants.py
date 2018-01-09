@@ -13,6 +13,8 @@ FAKE_ERROR_CODE = 'fake_error_code'
 FAKE_ERROR_TOKEN_CODE = 'fake_error_token_code'
 FAKE_CODE_RECORDS = 'fake_code_records'
 
+STUDENT_BUILD_INFO = 'student_build_info'
+
 LOG_DIR = os.path.join('.', 'log')
 DEBUG_LOG_PATH = os.path.join(LOG_DIR, 'debug')
 OUTPUT_LOG_PATH = os.path.join(LOG_DIR, 'output')
@@ -25,6 +27,7 @@ output_logger_name_list = []
 spider_key_path = 'key/id_rsa_spider'
 remote_db_path = '/home/lf/DataCrawl/scrapy_OJ/release_data/scrapyOJ.db'
 local_db_path = '/home/lf/Project/program_ai/data/scrapyOJ.db'
+local_student_db_path = '/home/lf/Project/program_ai/data/student_code.db'
 
 spider_ip = '218.94.159.108'
 spider_port = 22
