@@ -1,10 +1,11 @@
 import math
 import sqlite3
 import typing
+import json
 
 import pandas as pd
 
-from code_data.constants import cache_data_path
+from code_data.constants import cache_data_path, STUDENT_BUILD_INFO
 from common import util
 
 
@@ -49,19 +50,16 @@ def read_cpp_fake_records(conn: sqlite3.Connection) -> pd.DataFrame:
 
 def read_local_submit_data() -> pd.DataFrame:
     from code_data.constants import local_db_path
-    import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
     return read_submit_data(con)
 
 def read_local_fake_data() -> pd.DataFrame:
     from code_data.constants import local_db_path
-    import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
     return read_cpp_fake_data(con)
 
 def read_local_token_fake_data() -> pd.DataFrame:
     from code_data.constants import local_db_path
-    import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
     return read_cpp_token_fake_data(con)
 
@@ -167,4 +165,17 @@ def read_cpp_fake_code_records_set() -> pd.DataFrame:
     return (train, test, vaild)
 
 
+def read_student_cpp_data(conn:sqlite3.Connection):
+    build_df = pd.read_sql(r'SELECT * from {}'.format(STUDENT_BUILD_INFO), conn)
+    build_df['time'] = pd.to_datetime(build_df['time'])
+    build_df['files'] = build_df['files'].map(json.loads)
+    build_df['build_error_info'] = build_df['build_error_info'].map(json.loads)
+    build_df['code_len'] = build_df['file_content'].map(len)
+    return build_df
+
+
+def read_student_local_data():
+    from code_data.constants import local_student_db_path
+    con = sqlite3.connect("file:{}?mode=ro".format(local_student_db_path), uri=True)
+    return read_student_cpp_data(con)
 
