@@ -346,11 +346,11 @@ def create_multi_error(code, error_type_list=(5, 4, 1), error_count=1):
     action_maplist = []
     token_pos_list = []
     try_count = 0
-    while len(action_maplist) < error_count:
+    while len(action_maplist) < error_count and try_count < 6:
         error_action_fn = create_error_action_fn()
         # act_type, pos, token_pos, from_char, to_char = error_action_fn(code, code_tokens)
         action_tuple_list = error_action_fn(code, code_tokens)
-        if action_tuple_list == None and try_count < 6:
+        if action_tuple_list == None:
             try_count += 1
             continue
         token_pos_tmp_list = [i[2] for i in action_tuple_list]
@@ -367,7 +367,7 @@ def create_multi_error(code, error_type_list=(5, 4, 1), error_count=1):
             action_item = ACTION_MAPITEM(act_type=act_type, ac_pos=pos, token_pos=token_pos, from_char=from_char, to_char=to_char)
             action_maplist.append(action_item)
 
-    if try_count > 6:
+    if try_count >= 6:
         return []
 
     return action_maplist
