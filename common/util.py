@@ -134,6 +134,7 @@ def data_hash(key):
                 hash_val += val
         else:
             print('type {} cant be hashed.'.format(type(item)))
+        print("hash calculated")
     return str(hash_val)
 
 
@@ -344,6 +345,7 @@ def initLogging():
 def is_sequence(s):
     try:
         iterator = iter(s)
+        # print("next_in_is_sequence:{}".format(next(iterator)))
     except TypeError:
         return False
     else:

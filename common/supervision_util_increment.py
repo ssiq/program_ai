@@ -9,12 +9,9 @@ from common.debug_tool import record_memory, show_growth, show_diff_length_fn
 from common.iterator_condition import Condition
 
 
-def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_param, experiment_name='default', batch_size=32, create_condition_fn=None, modify_condition=[]):
+def create_supervision_experiment(load_data_fn, parse_xy_fn, parse_xy_param, experiment_name='default', batch_size=32, create_condition_fn=None, modify_condition=[]):
     '''
     create a supervision experiment method. you can train supervision in model by calling the returned methon.
-    :param train: all of train data
-    :param test: all of test data
-    :param vaild: all of vaild data
     :param parse_xy_fn: parse data to (X, y) tunple method
     :param experiment_name:  experiment name
     :param batch_size: batch size
@@ -68,10 +65,19 @@ def create_supervision_experiment(train, test, vaild, parse_xy_fn, parse_xy_para
 
         print("best accuracy:{}, best parameter:{}".format(best_accuracy, best_parameter))
 
+    print("begin load_data")
+    train, test, vaild = load_data_fn()
+    print("all data loaded")
     print('create supervision experiment.')
     train_data = parse_xy_fn(train, 'train', *parse_xy_param)
+    del train
+    print("train data parsed")
     vaild_data = parse_xy_fn(vaild, 'valid', *parse_xy_param)
+    del vaild
+    print("valid data parsed")
     test_data = parse_xy_fn(test, 'test', *parse_xy_param)
+    del test
+    print("test data parsed")
     print('train_data_length: {}'.format(len(train_data[0])))
     print('vaild_data_length: {}'.format(len(vaild_data[0])))
     print('test_data_length: {}'.format(len(test_data[0])))
@@ -107,8 +113,9 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
             graph=sess.graph)
         save_steps = 1000
         skip_steps = 10
-        print_skip_step = 1
+        print_skip_step = 100
         debug_steps = 10
+        metrics_steps = 10
 
         recordloggername = 'record'
         growthloggername = 'growth'
@@ -129,10 +136,13 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
             try:
                 current_step = model.global_step
                 # log_data_shape(*data, recordloggername=recordloggername)
-                loss, metrics, _ = model.train_model(*data)
+                loss, _, _ = model.train_model(*data)
                 losses.append(loss)
-                accuracies.append(metrics)
+                # accuracies.append(metrics)
                 # print("iteration {} with loss {} and metrics {}".format(current_step, loss, metrics))
+                if current_step % metrics_steps == 0:
+                    metrics = model.metrics_model(*data)
+                    accuracies.append(metrics)
                 if current_step % skip_steps == 0:
                     train_summary = model.summary(*data)
                     train_writer.add_summary(train_summary, global_step=model.global_step)

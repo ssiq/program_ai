@@ -11,11 +11,13 @@ class SequenceRNNCell(rnn_cell.RNNWrapper):
     def __init__(self,
                  cell:tf.nn.rnn_cell.RNNCell,
                  max_copy_length,
+                 max_token_word_number,
                  keyword_size,
                  attention_size,
                  reuse=False):
         super().__init__(cell=cell, reuse=reuse)
         self._max_copy_length = max_copy_length
+        self._max_token_word_number = max_token_word_number
         self._max_position_length = 2*max_copy_length + 1
         self._keyword_size = keyword_size
         self._attention_size = attention_size
@@ -28,15 +30,26 @@ class SequenceRNNCell(rnn_cell.RNNWrapper):
             tf.TensorShape([]),
             self._keyword_size,
             tf.expand_dims(self._max_copy_length, axis=0)])
+            # tf.expand_dims(self._max_token_word_number, axis=0)])
 
     def call(self, inputs, state):
+        # _memory, _memory_length, _position_embedding, _position_length,  _identifier_mask, inputs = inputs
         _memory, _memory_length, _position_embedding, _position_length,  inputs = inputs
+        # copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, next_hidden_state, position_logit = self._cal_next(
+        #     _memory, _memory_length, _position_embedding, _position_length, _identifier_mask, inputs, state)
         copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, next_hidden_state, position_logit = self._cal_next(
             _memory, _memory_length, _position_embedding, _position_length, inputs, state)
 
         return (is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit,), next_hidden_state
 
-    def _cal_next(self, _memory, _memory_length, _position_embedding, _position_length, inputs, state):
+    def _cal_next(self,
+                  _memory,
+                  _memory_length,
+                  _position_embedding,
+                  _position_length,
+                  # _identifier_mask,
+                  inputs,
+                  state):
         with tf.variable_scope("input_attention"):
             atten = rnn_util.soft_attention_reduce_sum(_memory,
                                                        inputs,
@@ -59,9 +72,13 @@ class SequenceRNNCell(rnn_cell.RNNWrapper):
                                                            outputs,
                                                            _position_embedding,
                                                            _position_length)
-        position_softmax = tf.nn.softmax(position_logit)
+        position_softmax = tf_util.variable_length_softmax(position_logit, _position_length)
         replace_input = rnn_util.reduce_sum_with_attention_softmax(_position_embedding,
                                                                    position_softmax)[0]
+        # replace_ouput = tf.nn.relu(tf_util.weight_multiply("replace_output_weight", replace_input, self._attention_size))
+        # with tf.variable_scope("output"):
+        #     replace_ouput = tf_util.dense(replace_input, self._attention_size, name="change_weight")
+        #     replace_ouput = tf_util.highway(replace_ouput, self._attention_size, activation=tf.nn.relu)
         replace_ouput = tf_util.weight_multiply("replace_output_weight", replace_input, self._attention_size)
         # a scalar indicating whether copies from the code
         is_copy_logit = tf_util.weight_multiply("copy_weight", replace_ouput, 1)[:, 0]
@@ -71,6 +88,10 @@ class SequenceRNNCell(rnn_cell.RNNWrapper):
         with tf.variable_scope("copy_word_logit"):
             copy_word_logit = rnn_util.soft_attention_logit(self._attention_size, replace_ouput, _memory,
                                                             _memory_length)
+            # copy_word_logit = tf.expand_dims(copy_word_logit, axis=1)
+            # _identifier_mask = _sample_mask(_identifier_mask)
+            # copy_word_logit = tf.matmul(copy_word_logit, _identifier_mask)
+            # copy_word_logit = tf.squeeze(copy_word_logit, axis=1)
         return copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, next_hidden_state, position_logit
 
 
@@ -95,6 +116,7 @@ def create_train_helper_function(sample_fn,
                                  position_length,
                                  output_length,
                                  output_embedding,
+                                 # identifier_mask,
                                  start_label,
                                  batch_size):
 
@@ -106,7 +128,9 @@ def create_train_helper_function(sample_fn,
                (memory[:, 0, :, :],
                memory_length[:, 0],
                position_embedding[:, 0, :, :],
-               position_length[:,0, ], start_batch)
+               position_length[:,0, ],
+               # identifier_mask[:, 0, :, :],
+               start_batch)
 
 
     def next_input_fn(time, outputs, state, sample_ids):
@@ -116,8 +140,10 @@ def create_train_helper_function(sample_fn,
             next_inputs = memory[:, time + 1, :, :], \
                           memory_length[:, time + 1], \
                           position_embedding[:, time + 1, :,:], \
-                          position_length[:, time+1],\
+                          position_length[:, time+1], \
                           output_embedding[:, time + 1, :]
+                          # identifier_mask[:, time + 1, :, :], \
+                          # output_embedding[:, time + 1, :]
             return next_inputs
 
         def true_fn():
@@ -126,6 +152,8 @@ def create_train_helper_function(sample_fn,
                           tf.zeros_like(position_embedding[:, 0, :, :]), \
                           tf.zeros_like(position_length[:, 0]), \
                           tf.zeros_like(output_embedding[:, 0, :])
+                          # tf.zeros_like(identifier_mask[:, 0, :, :]), \
+                          # tf.zeros_like(output_embedding[:, 0, :])
             return next_inputs
 
         next_inputs = tf.cond(tf.reduce_all(finished),
@@ -137,6 +165,37 @@ def create_train_helper_function(sample_fn,
            (tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([])), \
            (tf.bool, tf.int32, tf.bool, tf.int32, tf.int32)
 
+def _transpose_mask(identifier_mask):
+    identifier_mask_dims = len(tf_util.get_shape(identifier_mask))
+    return tf.transpose(identifier_mask, perm=list(range(identifier_mask_dims - 2)) +
+                                   [identifier_mask_dims - 1, identifier_mask_dims - 2])
+
+def _sample_mask(identifier_mask):
+    identifier_mask = tf_util.cast_float(identifier_mask)
+    identifier_mask = _transpose_mask(identifier_mask)
+    print("transposed_mask:{}".format(identifier_mask))
+    identifier_mask_shape = tf_util.get_shape(identifier_mask)
+    identifier_mask = tf.reshape(identifier_mask, (-1, identifier_mask_shape[-1]))
+    identifier_mask_sum = tf.reduce_sum(identifier_mask, axis=-1, keep_dims=True)
+    identifier_mask_mask = tf.greater(identifier_mask_sum, tf.constant(0.0, dtype=tf.float32))
+    identifier_mask_sum = tf.where(tf.equal(identifier_mask_sum, tf.constant(0.0, dtype=tf.float32)),
+                                   x=tf.ones_like(identifier_mask_sum),
+                                   y=identifier_mask_sum)
+    identifier_mask = identifier_mask / identifier_mask_sum
+    identifier_mask = tf.clip_by_value(identifier_mask, clip_value_min=1e-7, clip_value_max=1.0-1e-7)
+    identifier_mask = tf.log(identifier_mask)
+    sampled_mask = tf.multinomial(identifier_mask, 1)
+    print("sample_mask:{}".format(sampled_mask))
+    # sampled_mask = tf.Print(sampled_mask, [sampled_mask], "samples_mask")
+    diagnal = tf.diag(tf.ones((identifier_mask_shape[-1], ), dtype=tf.float32))
+    print("diagnal:{}".format(diagnal))
+    sampled_mask = tf.nn.embedding_lookup(diagnal, sampled_mask)
+    sampled_mask = tf.squeeze(sampled_mask, axis=-2)
+    print("looked_sample_mask:{}".format(sampled_mask))
+    sampled_mask = sampled_mask * tf_util.cast_float(identifier_mask_mask)
+    sampled_mask = tf.reshape(sampled_mask, identifier_mask_shape)
+    sampled_mask = _transpose_mask(sampled_mask)
+    return sampled_mask
 
 class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
     def __init__(self,
@@ -177,7 +236,8 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         return tf.nn.rnn_cell.GRUCell(hidden_size)
 
     def _multi_rnn_cell(self, hidden_size, layer_number):
-        return tf.nn.rnn_cell.MultiRNNCell([self._rnn_cell(hidden_size) for _ in range(layer_number)])
+        return tf.nn.rnn_cell.MultiRNNCell([self._rnn_cell(hidden_size)] +
+                                           [tf.contrib.rnn.HighwayWrapper(self._rnn_cell(hidden_size)) for _ in range(layer_number-1)])
 
     @tf_util.define_scope("batch_size")
     def batch_size_op(self):
@@ -262,15 +322,8 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
 
     def create_output_embedding(self, code_embedding, position_embedding, identifier_mask):
         keyword_embedding = self.word_embedding_layer_fn(self.output_keyword_id)
-        identifier_mask_dims = len(tf_util.get_shape(identifier_mask))
-        identifier_mask = tf_util.cast_float(identifier_mask)
-        identifier_mask_sum = tf.reduce_sum(identifier_mask, axis=-2, keep_dims=True)
-        identifier_mask_sum = tf.where(tf.equal(identifier_mask_sum, tf.constant(0.0, dtype=tf.float32)),
-                                       x=tf.ones_like(identifier_mask_sum),
-                                       y=identifier_mask_sum)
-        identifier_mask = identifier_mask / identifier_mask_sum
-        identifier_mask = tf.transpose(identifier_mask, perm=list(range(identifier_mask_dims-2))+
-                                                             [identifier_mask_dims-1, identifier_mask_dims-2])
+        identifier_mask = _sample_mask(identifier_mask)
+        identifier_mask = _transpose_mask(identifier_mask)
         copyword_embedding = rnn_util.gather_sequence(tf.matmul(identifier_mask, code_embedding),
                                                       self.output_copy_word_id)
         output_word_embedding = tf.where(
@@ -294,6 +347,7 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         return SequenceRNNCell(
             self._rnn_cell(self.hidden_state_size),
             tf_util.get_shape(self.code_embedding_op)[2],
+            tf_util.get_shape(self.token_identifier_mask)[-1],
             self.keyword_number,
             self.hidden_state_size
         )
@@ -316,6 +370,7 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
                                                        self.position_length_op,
                                                        self.output_is_continue,
                                                        self.output_embedding_op,
+                                                       # self.token_identifier_mask,
                                                        self.start_label_op,
                                                        self.batch_size_op)
         return rnn_util.create_train_decode(train_helper_fn[0],
@@ -334,7 +389,8 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         key_word_softmax = tf_util.debug(tf.nn.softmax(key_word_logit), "keyword:")
         copy_word_softmax = tf_util.debug(self._token_softmax_masked(tf_util.variable_length_mask_softmax(copy_word_logit, self.token_input_length,
                                                                  tf.equal(self.token_input, self.identifier_token)),
-                                                       self.token_identifier_mask), "copyword:")
+                                                       _sample_mask(self.token_identifier_mask)), "copyword:")
+        # copy_word_softmax = tf_util.debug(self._token_logit_masked(copy_word_logit, self.token_identifier_mask), "copyword:")
         return is_continue, position_softmax, is_copy, key_word_softmax, copy_word_softmax
 
     @tf_util.define_scope("train_output_logit_op")
@@ -345,28 +401,42 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output_logit
         return copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, position_logit
 
+    def _token_logit_masked(self, logit, identifier_mask):
+        identifier_mask = tf_util.cast_float(identifier_mask)
+        identifier_mask_sum = tf_util.cast_int(tf.greater(tf.reduce_sum(identifier_mask, axis=-2),
+                                                          tf.constant(0.0, dtype=tf.float32)))
+        identifier_mask_sum =  tf.reduce_sum(identifier_mask_sum, axis=-1)
+        return tf_util.variable_length_softmax(logit, identifier_mask_sum)
+
     def _token_softmax_masked(self, softmax, identifier_mask):
         identifier_mask = tf_util.cast_float(identifier_mask)
+        identifier_mask_sum = tf.reduce_sum(identifier_mask, axis=-2, keep_dims=True)
+        identifier_mask_sum = tf.where(tf.equal(identifier_mask_sum, tf.constant(0.0, dtype=tf.float32)),
+                                       x=tf.ones_like(identifier_mask_sum),
+                                       y=identifier_mask_sum)
+        identifier_mask = identifier_mask/identifier_mask_sum
         softmax = tf.expand_dims(softmax, axis=[-2])
         softmax = tf.matmul(softmax, identifier_mask)
         return tf.squeeze(softmax, axis=[-2])
 
     @tf_util.define_scope("one_predict")
     def one_predict_op(self):
+        identifier_mask = self.token_identifier_mask[:, 0, :, :]
         predict_cell_input = [
             tf.concat(self.bi_gru_encode_op, axis=-1)[:, 0, :, :],
             self.token_input_length[:, 0],
             self.position_embedding_op[:, 0, :, :],
             self.position_length_op[:, 0],
+            # identifier_mask,
             self.predict_input,
         ]
         output, next_state = self.decode_cell_op(predict_cell_input, self.predict_hidden_state)
         is_continue_logit, position_logit, is_copy_logit, key_word_logit, copy_word_logit = output
-        identifier_mask = self.token_identifier_mask[:, 0, :, :]
         output = (tf.nn.sigmoid(is_continue_logit),
                   tf_util.variable_length_softmax(position_logit, self.position_length_op[: ,0]),
                   tf.nn.sigmoid(is_copy_logit),
                   tf.nn.softmax(key_word_logit),
+                  # self._token_logit_masked(copy_word_logit, identifier_mask))
                   self._token_softmax_masked(tf_util.variable_length_mask_softmax(copy_word_logit, self.token_input_length[:, 0],
                                                        tf.equal(self.token_input[:, 0, :], self.identifier_token)), identifier_mask))
         return output, next_state, self.position_embedding_op, self.code_embedding_op
@@ -375,23 +445,31 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
     def loss_op(self):
         copy_word_logit, is_continue_logit, is_copy_logit, key_word_logit, position_logit = self.train_output_logit_op
         copy_length = tf.reduce_sum(self.output_is_continue, axis=1) + 1
-        is_continue_mask = tf_util.lengths_to_mask(copy_length, tf_util.get_shape(self.output_is_continue)[1])
-        loss = tf_util.debug(tf.reduce_mean(
-            tf.multiply(tf.cast(is_continue_mask, tf.float32), tf.nn.sigmoid_cross_entropy_with_logits(logits=is_continue_logit,
+        is_continue_mask = tf_util.cast_float(tf_util.lengths_to_mask(copy_length, tf_util.get_shape(self.output_is_continue)[1]))
+        is_continue_mask_sum = tf.reduce_sum(is_continue_mask)
+        is_continue_loss = tf_util.debug(tf.reduce_sum(
+            tf.multiply(is_continue_mask, tf.nn.sigmoid_cross_entropy_with_logits(logits=is_continue_logit,
                                                                                          labels=tf.cast(
                                                                                              self.output_is_continue,
-                                                                                             tf.float32)))), "is_continue_loss:")
-        loss += tf_util.debug(tf.reduce_mean(
-            tf.multiply(tf.cast(is_continue_mask, tf.float32), tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
+                                                                                             tf.float32))))/is_continue_mask_sum,
+                                         "is_continue_loss:")
+        is_copy_loss = tf_util.debug(tf.reduce_sum(
+            tf.multiply(is_continue_mask, tf.nn.sigmoid_cross_entropy_with_logits(logits=is_copy_logit,
                                                                                          labels=tf.cast(
                                                                                              self.output_is_copy,
-                                                                                             tf.float32)))), "is_copy_loss:")
-        sparse_softmax_loss = lambda x, y: tf.multiply(tf.cast(is_continue_mask, tf.float32),tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y))
-        sparse_categorical_loss = lambda x, y: tf.multiply(tf.cast(is_continue_mask, tf.float32),tf_util.sparse_categorical_crossentropy(target=x, output=y))
-        loss += tf_util.debug(tf.reduce_mean(sparse_categorical_loss(self.output_position_label, self.softmax_op[1])), "position_loss:")
+                                                                                             tf.float32))))/is_continue_mask_sum
+            , "is_copy_loss:")
+        sparse_softmax_loss = lambda x, y: tf.multiply(is_continue_mask,tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x,logits=y))
+        sparse_categorical_loss = lambda x, y: tf.multiply(is_continue_mask,tf_util.sparse_categorical_crossentropy(target=x, output=y))
+        position_loss = tf_util.debug(tf.reduce_sum(sparse_categorical_loss(self.output_position_label, self.softmax_op[1]))/is_continue_mask_sum, "position_loss:")
         keyword_loss = tf_util.debug(sparse_softmax_loss(self.output_keyword_id, key_word_logit), "keyword_loss")
         copy_word_loss = tf_util.debug(sparse_categorical_loss(self.output_copy_word_id, self.softmax_op[4]), "copy_word_loss:")
-        loss += tf.reduce_mean(tf.where(tf_util.cast_bool(self.output_is_copy), x=copy_word_loss, y=keyword_loss))
+        word_loss = tf.reduce_sum(tf.where(tf_util.cast_bool(self.output_is_copy), x=copy_word_loss, y=keyword_loss))/\
+                    is_continue_mask_sum
+        loss = tf.convert_to_tensor([is_continue_loss, is_copy_loss, position_loss, word_loss])
+        loss = tf.reduce_sum(loss * tf.convert_to_tensor([10, 10 ,1,  1], dtype=tf.float32))
+        # loss += keyword_loss
+        # loss += copy_word_loss
         return loss
 
 
@@ -948,6 +1026,9 @@ class TokenLevelMultiRnnModel(object):
         input_data = args[0:5]
         output_data = args[5:10]
         predict_data = self.predict_model(*input_data,)
+        name_list = ["is_continue", "position", "is_copy", "keyword", "copy_word"]
+        for n, p, o in zip(name_list, predict_data, output_data):
+            print("{}:predict:{}, output:{}".format(n, p, o))
         metrics_value = cal_metrics(self.max_decode_iterator_num, output_data, predict_data)
         # print('metrics_value: ', metrics_value)
         return metrics_value

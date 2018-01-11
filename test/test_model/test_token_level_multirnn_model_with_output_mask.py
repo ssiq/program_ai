@@ -9,6 +9,7 @@ from embedding.character_embedding import load_character_vocabulary
 from experiment.experiment_util import sample, create_embedding, parse_xy_with_identifier_mask
 from common.util import padded
 from test.test_package_util import almost_equal_array
+from model.token_level_multirnn_model_with_output_mask import _sample_mask
 
 """
 for one time only can run one test case
@@ -92,4 +93,26 @@ class Test(unittest.TestCase):
             print("true:{}".format(b[error_position]))
             self.assertTrue(almost_equal_array(a, b))
 
+
+    def test__sample_mask(self):
+        tf.set_random_seed(10)
+        mask = tf.constant(
+            [[
+                [1, 0],
+                [0, 0],
+                [0, 0],
+                [1, 0]
+            ],
+             [
+                 [1, 0],
+                 [0, 1],
+                 [0, 1],
+                 [1, 0]
+             ]]
+        )
+        o = _sample_mask(mask)
+        sess = tf.Session()
+        init = tf.global_variables_initializer()
+        sess.run(init)
+        print(sess.run(o))
 

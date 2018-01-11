@@ -74,7 +74,9 @@ def reduce_sum_with_attention_softmax(memory, attention_softmax):
 
 def soft_attention_logit(attention_size, inputs, memory, memory_length):
     if not is_sequence(memory):
+        print("memory is not a sequence")
         memory = [memory]
+    print("soft_attention_memory:{}".format(memory))
     memory = list(more_itertools.collapse(memory))
     weighted_memory_sum = sequence_sum(weight_multiply("memory_weighted_{}".format(i), m, attention_size)
                               for i, m in enumerate(memory))
