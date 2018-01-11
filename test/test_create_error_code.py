@@ -4,10 +4,17 @@ from code_data.code_preprocess import create_error_code
 if __name__ == '__main__':
     code = r'''
     #include <iostream>
+    
+    double add(double& a, double* b)
+    {
+        return a+*b;
+    }
+    
     int main() {
 	double x, y;
 	std::cin >> x >> y;
 	std::cout << std::pow(x, y);
+	std::cout << add(x,&y);
     }
     '''
 
