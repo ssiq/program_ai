@@ -84,6 +84,25 @@ def random_creator(code:str, tokens):
     return (type, pos, token_pos, from_char, to_char)
 
 
+def identifier_position_random(tokens,):
+    identifier_set = create_identifier_set(tokens, pre_defined_cpp_token)
+    identifiers_pos_list = list(
+        filter(lambda x: not isinstance(tokens[x].value, list) and tokens[x].value in identifier_set,
+               range(len(tokens))))
+    pos = random.sample(identifiers_pos_list, k=1)[0]
+    token = tokens[pos]
+    return token.lexpos, pos
+
+
+def create_undeclared_identifier(code:str, tokens):
+    type = CHANGE
+    pos, token_pos = identifier_position_random(tokens)
+    from_char, from_char_type = create_from_char(tokens, type, token_pos)
+    identifier_set = create_identifier_set(tokens, pre_defined_cpp_token)
+    to_char = to_char_random(type, from_char, list(identifier_set))
+    return (type, pos, token_pos, from_char, to_char)
+
+
 def create_error_action_fn():
     i = util.weight_choice(list(zip(*error_creator_list))[2])
     return error_creator_list[i][1]
