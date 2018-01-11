@@ -346,15 +346,22 @@ def create_multi_error(code, error_type_list=(5, 4, 1), error_count=1):
     action_maplist = []
     token_pos_list = []
     try_count = 0
-    for err_c in range(error_count):
+    while len(action_maplist) < error_count:
         error_action_fn = create_error_action_fn()
-        act_type, pos, token_pos, from_char, to_char = error_action_fn(code, code_tokens)
-        while token_pos in token_pos_list and try_count < 6:
-            act_type, pos, token_pos, from_char, to_char = error_action_fn(code, code_tokens)
+        # act_type, pos, token_pos, from_char, to_char = error_action_fn(code, code_tokens)
+        action_tuple_list = error_action_fn(code, code_tokens)
+        token_pos_tmp_list = [i[2] for i in action_tuple_list]
+        while len(set(token_pos_tmp_list) & set(token_pos_list)) > 0 and try_count < 6:
+            print(123)
+            action_tuple_list = error_action_fn(code, code_tokens)
+            token_pos_tmp_list = [i[2] for i in action_tuple_list]
             try_count += 1
-        token_pos_list.append(token_pos)
-        action_item = ACTION_MAPITEM(act_type=act_type, from_char=from_char, to_char=to_char, ac_pos=pos, token_pos=token_pos)
-        action_maplist.append(action_item)
+
+        token_pos_list.extend(token_pos_tmp_list)
+        for act in action_tuple_list:
+            act_type, pos, token_pos, from_char, to_char = act
+            action_item = ACTION_MAPITEM(act_type=act_type, ac_pos=pos, token_pos=token_pos, from_char=from_char, to_char=to_char)
+            action_maplist.append(action_item)
 
     return action_maplist
 

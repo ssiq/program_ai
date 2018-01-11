@@ -81,7 +81,7 @@ def random_creator(code:str, tokens):
     from_char, from_char_type = create_from_char(tokens, type, token_pos)
     identifier_set = create_identifier_set(tokens, pre_defined_cpp_token)
     to_char = to_char_random(type, from_char, list(identifier_set))
-    return (type, pos, token_pos, from_char, to_char)
+    return [(type, pos, token_pos, from_char, to_char)]
 
 
 def identifier_position_random(tokens,):
