@@ -70,6 +70,10 @@ keywords = util.reverse_dict({
     "TOK_VOLATILE": "volatile",
     "TOK_WCHAR_T": "wchar_t",
     "TOK_WHILE": "while",
+    "TOK_FINAL": "final",
+    "TOK_OVERRIDE": 'override',
+    "TOK_STATIC_ASSERT": 'static_assert',
+    "TOK_REQUIRES": 'requires',
 })
 
 

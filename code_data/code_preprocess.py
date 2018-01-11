@@ -1,6 +1,6 @@
 import re
 from code_data.read_data import read_cpp_code_list
-from code_data.constants import cpp_tmp_dir, cpp_tmp_path, sign_char_dict, FAKE_CODE_RECORDS, local_db_path
+from code_data.constants import cpp_tmp_dir, cpp_tmp_path, sign_char_dict, RANDOM_TOKEN_CODE_RECORDS, pre_defined_cpp_token, local_token_code_db
 import logging
 # from scripts.scripts_util import initLogging
 import random
@@ -9,8 +9,11 @@ import queue
 import os
 import json
 import time
+from common import util
 from code_data.action_mapitem import ACTION_MAPITEM, ERROR_CHARACTER_MAPITEM
 from database.database_util import insert_items, create_table, find_ids_by_user_problem_id
+from common.new_tokenizer import tokenize, keywords, operators
+from code_data.error_action_reducer import create_error_action_fn
 
 preprocess_logger = logging.getLogger('code_preprocess')
 # 设置logger的level为DEBUG
@@ -72,7 +75,7 @@ def preprocess():
 
 def push_code_to_queue(que, ids, items):
     ids = ["'" + t + "'" for t in ids]
-    result_list = find_ids_by_user_problem_id(db_full_path=local_db_path, table_name=FAKE_CODE_RECORDS, ids=ids)
+    result_list = find_ids_by_user_problem_id(db_full_path=local_token_code_db, table_name=RANDOM_TOKEN_CODE_RECORDS, ids=ids)
     ids_repeat = [row[0] for row in result_list]
     count = 0
     for it in items:
@@ -151,7 +154,7 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
 
 
 def save_fake_code(que:mp.Queue, all_data_count):
-    create_table(db_full_path=local_db_path, table_name=FAKE_CODE_RECORDS)
+    create_table(db_full_path=local_token_code_db, table_name=RANDOM_TOKEN_CODE_RECORDS)
     preprocess_logger.info('Start Save Fake Code Process')
     count = 0
     error_count = 0
@@ -171,14 +174,14 @@ def save_fake_code(que:mp.Queue, all_data_count):
             param.append(item)
             if len(param) > 1000:
                 preprocess_logger.info('Save {} recode. Total record: {}'.format(len(param), count))
-                insert_items(db_full_path=local_db_path, table_name=FAKE_CODE_RECORDS, params=dict_to_list(param))
+                insert_items(db_full_path=local_token_code_db, table_name=RANDOM_TOKEN_CODE_RECORDS, params=dict_to_list(param))
                 param = []
         elif que.empty() and count >= all_data_count:
             break
         else:
             time.sleep(10)
     preprocess_logger.info('Save {} recode. Total record: {}'.format(len(param), count))
-    insert_items(db_full_path=local_db_path, table_name=FAKE_CODE_RECORDS, params=dict_to_list(param))
+    insert_items(db_full_path=local_token_code_db, table_name=RANDOM_TOKEN_CODE_RECORDS, params=dict_to_list(param))
     preprocess_logger.info('End Save Fake Code Process')
 
 
@@ -233,17 +236,24 @@ def preprocess_code(code, cpp_file_path=cpp_tmp_path):
 
     return before_code, after_code, action_maplist, error_character_maplist, error_count
 
+CHANGE = 0
+INSERT = 1
+DELETE = 2
+STAY = 3
+FILL = 4
 
-def create_error_code(code, error_type_list=(1, 1, 1), error_count_range=(1, 1)):
+def fill_blank_to_error_code(error_character_maplist, ac_i, err_i):
+    item = ERROR_CHARACTER_MAPITEM(act_type=FILL, from_char=' ', err_pos=err_i, ac_pos=ac_i)
+    error_character_maplist.append(item)
+    return error_character_maplist
+
+
+def create_error_code(code, error_type_list=(5, 4, 1), error_count_range=(1, 1)):
     error_count = random.randint(*error_count_range)
     action_maplist = create_multi_error(code, error_type_list, error_count)
     action_mapposlist = list(map(lambda x: x.get_ac_pos(), action_maplist))
     error_character_maplist = []
     ac_code_list = list(code)
-    CHANGE = 0
-    INSERT = 1
-    DELETE = 2
-    STAY = 3
 
     ac_i = 0
     err_i = 0
@@ -254,73 +264,114 @@ def create_error_code(code, error_type_list=(1, 1, 1), error_count_range=(1, 1))
                 return i
         return None
 
-    for ac_i in range(len(ac_code_list)):
+    # for ac_i in range(len(ac_code_list)):
+    while ac_i < len(ac_code_list):
         if ac_i in action_mapposlist and get_action(act_type=DELETE, ac_pos=ac_i) != None:
             action = get_action(act_type=DELETE, ac_pos=ac_i)
+            error_character_maplist = fill_blank_to_error_code(error_character_maplist, ac_i, err_i)
+            err_i += 1
+
             action.err_pos = err_i
+            ac_i += len(action.from_char)
+
+            error_character_maplist = fill_blank_to_error_code(error_character_maplist, ac_i, err_i)
+            err_i += 1
             continue
 
         if ac_i in action_mapposlist and get_action(act_type=INSERT, ac_pos=ac_i) != None:
             action = get_action(act_type=INSERT, ac_pos=ac_i)
-            action.err_pos = err_i
-            err_item = ERROR_CHARACTER_MAPITEM(act_type=INSERT, from_char=action.to_char, err_pos=err_i, ac_pos=ac_i)
+            error_character_maplist = fill_blank_to_error_code(error_character_maplist, ac_i, err_i)
             err_i += 1
-            error_character_maplist.append(err_item)
+
+            action.err_pos = err_i
+            for i in range(len(action.to_char)):
+                err_item = ERROR_CHARACTER_MAPITEM(act_type=INSERT, from_char=action.to_char[i], err_pos=err_i, ac_pos=ac_i)
+                error_character_maplist.append(err_item)
+                err_i += 1
+
+            error_character_maplist = fill_blank_to_error_code(error_character_maplist, ac_i, err_i)
+            err_i += 1
 
         if ac_i in action_mapposlist and get_action(act_type=CHANGE, ac_pos=ac_i) != None:
             action = get_action(act_type=CHANGE, ac_pos=ac_i)
-            action.err_pos = err_i
-            err_item = ERROR_CHARACTER_MAPITEM(act_type=CHANGE, from_char=action.to_char, err_pos=err_i, to_char=action.from_char, ac_pos=ac_i)
+            error_character_maplist = fill_blank_to_error_code(error_character_maplist, ac_i, err_i)
             err_i += 1
-            error_character_maplist.append(err_item)
+
+            action.err_pos = err_i
+            for i in range(len(action.to_char)):
+                err_item = ERROR_CHARACTER_MAPITEM(act_type=CHANGE, from_char=action.to_char[i], err_pos=err_i, to_char=action.from_char, ac_pos=ac_i)
+                err_i += 1
+                error_character_maplist.append(err_item)
+            ac_i += len(action.from_char)
+
+            error_character_maplist = fill_blank_to_error_code(error_character_maplist, ac_i, err_i)
+            err_i += 1
+
         else:
             err_item = ERROR_CHARACTER_MAPITEM(act_type=STAY, from_char=code[ac_i], err_pos=err_i, to_char=code[ac_i],
                                                ac_pos=ac_i)
             err_i += 1
             error_character_maplist.append(err_item)
+            ac_i += 1
+
+    if ac_i in action_mapposlist and get_action(act_type=INSERT, ac_pos=ac_i) != None:
+        action = get_action(act_type=INSERT, ac_pos=ac_i)
+        error_character_maplist = fill_blank_to_error_code(error_character_maplist, ac_i, err_i)
+        err_i += 1
+
+        action.err_pos = err_i
+        for i in range(len(action.to_char)):
+            err_item = ERROR_CHARACTER_MAPITEM(act_type=INSERT, from_char=action.to_char[i], err_pos=err_i, ac_pos=ac_i)
+            error_character_maplist.append(err_item)
+            err_i += 1
+
+        error_character_maplist = fill_blank_to_error_code(error_character_maplist, ac_i, err_i)
+        err_i += 1
 
     error_code = ''.join(list(map(lambda x: x.from_char, error_character_maplist)))
 
     return code, error_code, action_maplist, error_character_maplist, error_count
 
 
-def create_multi_error(code, error_type_list=(1, 1, 1), error_count=1):
-    code_len = len(code)
+def create_multi_error(code, error_type_list=(5, 4, 1), error_count=1):
+    # code_len = len(code)
     if len(error_type_list) != 3:
         return code, -1
-    CHANGE = 0
-    INSERT = 1
-    DELETE = 2
+    try:
+        code_tokens = tokenize(code)
+    except Exception as e:
+        print('tokenize code error.')
+        return code, -1
 
     action_maplist = []
+    token_pos_list = []
+    try_count = 0
     for err_c in range(error_count):
-        res = random.uniform(0, sum(error_type_list))
-        act_type = 0
-        act_type = act_type + 1 if res > error_type_list[0] else act_type
-        act_type = act_type + 1 if res > error_type_list[1] + error_type_list[0] else act_type
-
-        if act_type == INSERT:
-            pos = random.randint(0, code_len)
-        else:
-            pos = random.randint(0, code_len-1)
-            while code[pos] == '\n' or code[pos] == ' ':
-                pos = random.randint(0, code_len-1)
-
-        if act_type == INSERT:
-            from_char = ''
-        else:
-            from_char = code[pos]
-
-        if act_type == DELETE:
-            to_char = ''
-        else:
-            to_char = sign_char_dict[random.randint(0, len(sign_char_dict) - 2)]
-
-        action_item = ACTION_MAPITEM(act_type=act_type, from_char=from_char, to_char=to_char, ac_pos=pos)
+        error_action_fn = create_error_action_fn()
+        act_type, pos, token_pos, from_char, to_char = error_action_fn(code, code_tokens)
+        while token_pos in token_pos_list and try_count < 6:
+            act_type, pos, token_pos, from_char, to_char = error_action_fn(code, code_tokens)
+            try_count += 1
+        token_pos_list.append(token_pos)
+        action_item = ACTION_MAPITEM(act_type=act_type, from_char=from_char, to_char=to_char, ac_pos=pos, token_pos=token_pos)
         action_maplist.append(action_item)
 
     return action_maplist
 
+
+def create_identifier_set(tokens, keyword_set=pre_defined_cpp_token):
+    tokens_value = [tok.value for tok in tokens]
+    tokens_value_set = set(filter(lambda x: not isinstance(x, list), tokens_value))
+    identify_set = tokens_value_set - keyword_set
+    return identify_set
+
+
+def create_keyword_weight(special_keyword_weight:dict=None):
+    token_weight_dict = dict((name, 1) for name in pre_defined_cpp_token)
+    if special_keyword_weight is not None:
+        for k in special_keyword_weight.keys():
+            token_weight_dict[k] = special_keyword_weight[k]
+    return token_weight_dict
 
 # def create_error(code, error_type_list=(1, 1, 1), error_count=1):
 #     code_len = len(code)

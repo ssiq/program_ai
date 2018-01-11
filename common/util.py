@@ -14,6 +14,7 @@ import logging
 import hashlib
 import pandas as pd
 import numpy as np
+import random
 
 
 def make_dir(*path: str) -> None:
@@ -394,6 +395,19 @@ def parallel_map(core_num, f, args):
     with Pool(core_num) as p:
         r = p.map(f, args)
         return r
+
+
+def weight_choice(weight):
+    """
+    :param weight: list对应的权重序列
+    :return:选取的值在原列表里的索引
+    """
+    t = random.uniform(0, sum(weight))
+    for i, val in enumerate(weight):
+        t -= val
+        if t < 0:
+            return i
+
 
 if __name__ == '__main__':
     make_dir('data', 'cache_data')

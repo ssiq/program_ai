@@ -40,8 +40,14 @@ class MAPITEM:
 
 class ACTION_MAPITEM(MAPITEM):
 
-    def __init__(self, act_type=-1, from_char='', to_char='', ac_pos=-1):
+    def __init__(self, act_type=-1, from_char='', to_char='', ac_pos=-1, token_pos=-1):
         super().__init__(act_type=act_type, from_char=from_char, to_char=to_char, err_pos=-1, ac_pos=ac_pos)
+        self.token_pos = token_pos
+
+    def __dict__(self):
+        di = super().__dict__()
+        di['token_pos'] = self.token_pos
+        return di
 
 
 class ERROR_CHARACTER_MAPITEM(MAPITEM):

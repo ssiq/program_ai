@@ -35,6 +35,8 @@ def fake_name(name):
     a = random.randint(0, 1)
     INSERT = 0
     DELETE = 1
+    if len(name) == 1:
+        a = INSERT
     if a == INSERT:
         index = random.randint(0, len(name))
         return name[:index] + c +name[index:]

@@ -9,6 +9,13 @@ from code_data.constants import cache_data_path, STUDENT_BUILD_INFO, BUILD_ERROR
 from common import util
 
 
+def change_database_to_csv(read_data_fn, file_path):
+    data = read_data_fn()
+    if not isinstance(data, pd.DataFrame):
+        pass
+    data.to_excel(file_path)
+
+
 def read_submit_data(conn: sqlite3.Connection) -> pd.DataFrame:
     problems_df = pd.read_sql('select problem_name, tags from {}'.format('problem'), conn)
     submit_df = pd.read_sql('select * from {}'.format('submit'), conn)
@@ -193,5 +200,6 @@ def read_build_error_stat_local_data():
 
 if __name__ == '__main__':
     df = read_build_error_stat_local_data()
-    print(df)
-    print(len(df.index))
+    change_database_to_csv(read_build_error_stat_local_data, './cvs/build_error_stat.xls')
+    # print(df)
+    # print(len(df.index))
