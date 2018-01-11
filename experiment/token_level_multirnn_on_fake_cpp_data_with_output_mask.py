@@ -1,15 +1,19 @@
+from code_data.read_data import read_cpp_fake_code_records_set
 from common import util
 from common.supervision_util_increment import create_supervision_experiment
 from experiment.experiment_util import sample, create_embedding, error_count_create_condition_fn, parse_xy_with_identifier_mask
 # from model.token_level_multirnn_model import TokenLevelMultiRnnModel
-from model.token_level_multirnn_model_with_output_mask import TokenLevelMultiRnnModel
+# from model.token_level_multirnn_model_with_output_mask import TokenLevelMultiRnnModel
+from model.new_token_level_multirnn_model_with_output_mask import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
 
 if __name__ == '__main__':
     util.initLogging()
-    util.set_cuda_devices(1)
+    util.set_cuda_devices(0)
     # train, test, vaild = read_cpp_fake_code_records_set()
-    train, test, vaild = sample()
+    # load_data_fn = read_cpp_fake_code_records_set
+    # train, test, vaild = sample()
+    load_data_fn = sample
     # train = train.sample(300000)
 
     key_val, char_voc = create_embedding()
@@ -31,12 +35,12 @@ if __name__ == '__main__':
 
     # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
 
-    train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_identifier_mask, parse_xy_param,
+    train_supervision = create_supervision_experiment(load_data_fn, parse_xy_with_identifier_mask, parse_xy_param,
                                                       experiment_name='token_level_multirnn_model_with_mask',
-                                                      batch_size=2,
+                                                      batch_size=16,
                                                       create_condition_fn=error_count_create_condition_fn,
                                                       modify_condition=modify_condition)
-    param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -1]},
+    param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -3]},
                                                   choice_param={ },
                                                   constant_param={"hidden_size": 100,
                                                                   'rnn_layer_number': 2,

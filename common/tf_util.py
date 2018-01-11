@@ -245,6 +245,22 @@ def weight_multiply(name, tensor, projected_size):
     return tf.reshape(tf.matmul(t, weigth_matrix),
                       t_shape[:-1] + [projected_size])
 
+
+def highway(x, size, activation, carry_bias=-1.0):
+    W_T = tf.get_variable(name="weight_transform", shape=[size, size], dtype=tf.float32)
+    b_T = tf.get_variable(name="bias_transform", shape=[size], dtype=tf.float32,
+                          initializer=tf.constant_initializer(carry_bias))
+
+    W = tf.get_variable(name="weight", shape=[size, size], dtype=tf.float32)
+    b = tf.get_variable(shape=[size], name="bias", dtype=tf.float32)
+
+    T = tf.sigmoid(tf.matmul(x, W_T) + b_T, name="transform_gate")
+    H = activation(tf.matmul(x, W) + b, name="activation")
+    C = tf.subtract(1.0, T, name="carry_gate")
+
+    y = tf.add(tf.multiply(H, T), tf.multiply(x, C), "y")
+    return y
+
 # ================================================================
 # Global session
 # ================================================================
@@ -1075,7 +1091,7 @@ def all_is_zero(x: tf.Tensor):
     return tf.reduce_all(tf.equal(x, tf.zeros_like(x)))
 
 def _create_debug_tool():
-    is_debug = False
+    is_debug = True
     @doublewrap
     def debug_print(function, msg: str):
 
