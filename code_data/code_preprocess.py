@@ -336,12 +336,12 @@ def create_error_code(code, error_type_list=(5, 4, 1), error_count_range=(1, 1))
 def create_multi_error(code, error_type_list=(5, 4, 1), error_count=1):
     # code_len = len(code)
     if len(error_type_list) != 3:
-        return code, -1
+        return []
     try:
         code_tokens = tokenize(code)
     except Exception as e:
         print('tokenize code error.')
-        return code, -1
+        return []
 
     action_maplist = []
     token_pos_list = []
@@ -350,18 +350,25 @@ def create_multi_error(code, error_type_list=(5, 4, 1), error_count=1):
         error_action_fn = create_error_action_fn()
         # act_type, pos, token_pos, from_char, to_char = error_action_fn(code, code_tokens)
         action_tuple_list = error_action_fn(code, code_tokens)
+        if action_tuple_list == None and try_count < 6:
+            try_count += 1
+            continue
         token_pos_tmp_list = [i[2] for i in action_tuple_list]
         while len(set(token_pos_tmp_list) & set(token_pos_list)) > 0 and try_count < 6:
-            print(123)
             action_tuple_list = error_action_fn(code, code_tokens)
             token_pos_tmp_list = [i[2] for i in action_tuple_list]
             try_count += 1
 
+        if try_count >= 6:
+            break
         token_pos_list.extend(token_pos_tmp_list)
         for act in action_tuple_list:
             act_type, pos, token_pos, from_char, to_char = act
             action_item = ACTION_MAPITEM(act_type=act_type, ac_pos=pos, token_pos=token_pos, from_char=from_char, to_char=to_char)
             action_maplist.append(action_item)
+
+    if try_count > 6:
+        return []
 
     return action_maplist
 
