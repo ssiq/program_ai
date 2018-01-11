@@ -356,6 +356,9 @@ def create_multi_error(code, error_type_list=(5, 4, 1), error_count=1):
         token_pos_tmp_list = [i[2] for i in action_tuple_list]
         while len(set(token_pos_tmp_list) & set(token_pos_list)) > 0 and try_count < 6:
             action_tuple_list = error_action_fn(code, code_tokens)
+            if action_tuple_list == None:
+                try_count += 1
+                continue
             token_pos_tmp_list = [i[2] for i in action_tuple_list]
             try_count += 1
 
