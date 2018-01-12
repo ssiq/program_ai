@@ -55,6 +55,11 @@ def read_cpp_fake_records(conn: sqlite3.Connection) -> pd.DataFrame:
     records_df = pd.read_sql('select * from {} LIMIT 400000'.format(FAKE_CODE_RECORDS), conn)
     return records_df
 
+def read_cpp_random_token_code_records(conn: sqlite3.Connection) -> pd.DataFrame:
+    from code_data.constants import RANDOM_TOKEN_CODE_RECORDS
+    records_df = pd.read_sql('select * from {}'.format(RANDOM_TOKEN_CODE_RECORDS), conn)
+    return records_df
+
 def read_local_submit_data() -> pd.DataFrame:
     from code_data.constants import local_db_path
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
@@ -95,6 +100,12 @@ def read_fake_code_records() -> pd.DataFrame:
     import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
     return read_cpp_fake_records(con)
+
+def read_local_random_token_code_records() -> pd.DataFrame:
+    from code_data.constants import local_token_code_db
+    import sqlite3
+    con = sqlite3.connect("file:{}?mode=ro".format(local_token_code_db), uri=True)
+    return read_cpp_random_token_code_records(con)
 
 @util.disk_cache(basename='cpp', directory=cache_data_path)
 def read_cpp_error_code_list() -> pd.DataFrame:
@@ -196,6 +207,15 @@ def read_build_error_stat_local_data():
     from code_data.constants import local_student_db_path
     con = sqlite3.connect("file:{}?mode=ro".format(local_student_db_path), uri=True)
     return read_build_error_stat_data(con)
+
+@util.disk_cache(basename='random_token_code_records_set', directory=cache_data_path)
+def read_cpp_random_token_code_records_set() -> pd.DataFrame:
+    df = read_local_random_token_code_records()
+    test = df.sample(10000, random_state=666)
+    df = df.drop(test.index)
+    vaild = df.sample(10000, random_state=888)
+    train = df.drop(vaild.index)
+    return (train, test, vaild)
 
 
 if __name__ == '__main__':

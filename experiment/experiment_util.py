@@ -1,9 +1,11 @@
 import more_itertools
 
 from code_data.constants import cache_data_path, pre_defined_cpp_token
-from code_data.read_data import read_cpp_fake_code_records_set
+from code_data.read_data import read_cpp_fake_code_records_set, read_cpp_random_token_code_records_set
 from common import util
 from common.code_tokenize import GetTokens
+from common.new_tokenizer import tokenize
+from ply.lex import LexToken
 
 MAX_TOKEN_LENGTH = 300
 CHANGE = 0
@@ -13,6 +15,15 @@ DELETE = 2
 @util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_sample_5000', directory=cache_data_path)
 def sample():
     train, test, vaild = read_cpp_fake_code_records_set()
+    train = train.sample(5000, random_state=1)
+    test = test.sample(5000, random_state=1)
+    vaild = vaild.sample(5000, random_state=1)
+    return (train, test, vaild)
+
+
+@util.disk_cache(basename='token_level_multirnn_on_random_token_code_records_sample_5000', directory=cache_data_path)
+def sample_on_random_token_code_records():
+    train, test, vaild = read_cpp_random_token_code_records_set()
     train = train.sample(5000, random_state=1)
     test = test.sample(5000, random_state=1)
     vaild = vaild.sample(5000, random_state=1)
@@ -105,6 +116,34 @@ def parse_xy(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug
     return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
 
 
+def parse_xy_token_level(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
+
+    df['res'] = ''
+    df['ac_code_obj'] = df['ac_code'].map(do_new_tokenize)
+    df = df[df['ac_code_obj'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_error_list_by_token_actionmap, axis=1, raw=True)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_token_identify_mask, axis=1, raw=True, pre_defined_token_set=pre_defined_cpp_token)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number,
+                  min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+
+    returns = (df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'],
+               df['token_identify_mask'], df['output_length'], df['position_list'], df['is_copy_list'],
+               df['keywordid_list'], df['copyid_list'])
+
+    return returns
+
 # -------------------------------- parse_xy util method -------------------------------- #
 
 def create_error_list(one):
@@ -181,10 +220,88 @@ def create_error_list(one):
     return one
 
 
+def create_error_list_by_token_actionmap(one):
+    import json
+    ac_code_obj = one['ac_code_obj']
+    action_token_list = json.loads(one['action_character_list'])
+
+    def cal_token_pos_bias(action_list, cur_action):
+        bias = 0
+        cur_token_pos = cur_action['token_pos']
+        for act in action_list:
+            if act['act_type'] == INSERT and cur_token_pos > act['token_pos']:
+                bias += 1
+            elif act['act_type'] == DELETE and cur_token_pos > act['token_pos']:
+                bias -= 1
+        return bias
+
+    token_pos_list = [act['token_pos'] for act in action_token_list]
+    has_repeat_action_fn = lambda x: len(set(x)) < len(x)
+    if has_repeat_action_fn(token_pos_list):
+        one['res'] = None
+        return one
+
+    token_bias_list = [cal_token_pos_bias(action_token_list[0:i], action_token_list[i]) for i in range(len(action_token_list))]
+
+    token_name_list = []
+    action_list = []
+    for act, token_bias in zip(action_token_list, token_bias_list):
+        ac_pos = act['ac_pos']
+        ac_type = act['act_type']
+        ac_token_pos = act['token_pos']
+        real_token_pos = ac_token_pos + token_bias
+
+        if ac_type == INSERT:
+            to_char = act['to_char']
+            tok = LexToken()
+            tok.value = to_char
+            tok.lineno = -1
+            tok.type = ""
+            tok.lexpos = -1
+            ac_code_obj = ac_code_obj[0:real_token_pos] + [tok] + ac_code_obj[real_token_pos:]
+            action = {'type': DELETE, 'pos': real_token_pos * 2 + 1, 'token': to_char}
+            name_list = create_name_list_by_LexToken(ac_code_obj)
+            token_name_list = [name_list] + token_name_list
+            action_list = [action] + action_list
+        elif ac_type == DELETE:
+            from_char = act['from_char']
+            ac_code_obj = ac_code_obj[0: real_token_pos] + ac_code_obj[real_token_pos+1:]
+            action = {'type': INSERT, 'pos': real_token_pos * 2, 'token': from_char}
+            name_list = create_name_list_by_LexToken(ac_code_obj)
+            token_name_list = [name_list] + token_name_list
+            action_list = [action] + action_list
+        elif ac_type == CHANGE:
+            from_char = act['from_char']
+            to_char = act['to_char']
+            tok = LexToken()
+            tok.value = to_char
+            tok.lineno = -1
+            tok.type = ""
+            tok.lexpos = -1
+            action = {'type': CHANGE, 'pos': real_token_pos * 2 + 1, 'token': from_char}
+            ac_code_obj = ac_code_obj[0: real_token_pos] + [tok] +ac_code_obj[real_token_pos + 1:]
+            name_list = create_name_list_by_LexToken(ac_code_obj)
+            token_name_list = [name_list] + token_name_list
+            action_list = [action] + action_list
+
+    if len(action_list) == 0:
+        one['res'] = None
+        return one
+    one['token_name_list'] = token_name_list
+    one['action_list'] = action_list
+    one['copy_name_list'] = token_name_list
+    return one
+
+
 def create_name_list(code_obj):
     name_list = []
     for obj in code_obj:
         name_list.append(obj.name)
+    return name_list
+
+
+def create_name_list_by_LexToken(code_obj_list):
+    name_list = [''.join(obj.value) if isinstance(obj.value, list) else obj.value for obj in code_obj_list]
     return name_list
 
 
@@ -344,6 +461,25 @@ def get_token_list(code):
         print('in runtime error')
         return None
     return tokens
+
+
+def do_new_tokenize(code):
+    try:
+        code = code.replace('\r', '')
+        if code.find('define') != -1 or code.find('defined') != -1 or code.find('undef') != -1 or \
+                        code.find('pragma') != -1 or code.find('ifndef') != -1 or \
+                        code.find('ifdef') != -1 or code.find('endif') != -1:
+            return None
+        code_tokens = tokenize(code)
+        if len(code_tokens) >= MAX_TOKEN_LENGTH:
+            return None
+        if None in code_tokens:
+            return None
+    except RuntimeError as e:
+        print('in runtime error')
+        return None
+    return code_tokens
+
 
 
 def create_identifier_mask(tokens, keyword_set):

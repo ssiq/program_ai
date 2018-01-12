@@ -134,7 +134,6 @@ def data_hash(key):
                 hash_val += val
         else:
             print('type {} cant be hashed.'.format(type(item)))
-        print("hash calculated")
     return str(hash_val)
 
 

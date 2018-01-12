@@ -340,7 +340,7 @@ def create_multi_error(code, error_type_list=(5, 4, 1), error_count=1):
     try:
         code_tokens = tokenize(code)
     except Exception as e:
-        print('tokenize code error.')
+        # print('tokenize code error.')
         return []
 
     action_maplist = []
