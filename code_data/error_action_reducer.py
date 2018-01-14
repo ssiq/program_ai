@@ -24,7 +24,7 @@ def create_identifier_set(tokens, keyword_set=pre_defined_cpp_token):
     return identify_set
 
 
-def action_type_random(type_list=(5, 4, 1)):
+def action_type_random(type_list=(5, 1, 4)):
     i = util.weight_choice(type_list)
     return i
 
@@ -204,11 +204,12 @@ def create_error_action_fn():
     return error_creator_list[i][1]
 
 error_creator_list = [
-    # ("RANDOM", random_creator, 1),
+    ("RANDOM", random_creator, 1),
+    ("RANDOM", random_creator, 1),
     # ("Undeclared_identifier", create_undeclared_identifier, 1),
     # ("delete_brace", delete_brace, 1),
     # ("delete_a_pair_of_braces", delete_a_pair_of_braces, 1),
     # ("delete_semicolon", delete_semicolon, 1),
     # ("delete_return_fn", delete_return_fn, 1),
-    ("change_between_pointer_and_reference", change_between_pointer_and_reference, 1)
+    # ("change_between_pointer_and_reference", change_between_pointer_and_reference, 1)
 ]

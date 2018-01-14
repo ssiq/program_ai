@@ -171,6 +171,8 @@ def save_fake_code(que:mp.Queue, all_data_count):
                 print(error_count, count)
                 continue
             count += 1
+            if count % 10000 == 0:
+                preprocess_logger.info('Total receive records: {}'.format(count))
             if not item:
                 continue
             param.append(item)
@@ -250,7 +252,7 @@ def fill_blank_to_error_code(error_character_maplist, ac_i, err_i):
     return error_character_maplist
 
 
-def create_error_code(code, error_type_list=(5, 4, 1), error_count_range=(1, 1)):
+def create_error_code(code, error_type_list=(5, 1, 4), error_count_range=(1, 1)):
     error_count = random.randint(*error_count_range)
     action_maplist = create_multi_error(code, error_type_list, error_count)
     action_mapposlist = list(map(lambda x: x.get_ac_pos(), action_maplist))
@@ -335,7 +337,7 @@ def create_error_code(code, error_type_list=(5, 4, 1), error_count_range=(1, 1))
     return code, error_code, action_maplist, error_character_maplist, error_count
 
 
-def create_multi_error(code, error_type_list=(5, 4, 1), error_count=1):
+def create_multi_error(code, error_type_list=(5, 1, 4), error_count=1):
     # code_len = len(code)
     if len(error_type_list) != 3:
         return []
