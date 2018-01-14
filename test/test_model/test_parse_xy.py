@@ -11,7 +11,7 @@ class TestParseXY(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         self.keyword_voc, self.char_voc = create_embedding()
-        self.train, self.test, self.vaild = sample()
+        # self.train, self.test, self.vaild = sample()
 
 
     def test_parse_xy_with_identifier_mask(self):

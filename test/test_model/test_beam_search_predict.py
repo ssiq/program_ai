@@ -8,35 +8,35 @@ from model.masked_token_level_multirnn_model import *
 
 
 class TestBeamSearch(unittest.TestCase):
-    @classmethod
-    def setUpClass(self):
-        tf.reset_default_graph()
-        with tf.Session():
-            word_embedding, character_embedding = create_embedding()
-            self.model = MaskedTokenLevelMultiRnnModel(
-                word_embedding.create_embedding_layer(),
-                character_embedding.create_embedding_layer(),
-                200,
-                2,
-                len(word_embedding.word_id_map),
-                word_embedding.word_to_id(word_embedding.end_label),
-                0.0001,
-                1000,
-                0.96,
-                2,
-                word_embedding.word_to_id(word_embedding.identifier_label),
-                word_embedding.word_to_id(word_embedding.placeholder_label),
-                word_embedding.id_to_word,
-                character_embedding.parse_token
-            )
-        self.train, self.test, self.validation = sample()
-        parse_xy_param = [word_embedding, character_embedding]
-        self.train, self.test, self.validation = \
-            parse_xy_with_identifier_mask(self.train, 'train', *parse_xy_param, max_bug_number=2, min_bug_number=2), \
-            parse_xy_with_identifier_mask(self.test, 'valid', *parse_xy_param, max_bug_number=2, min_bug_number=2), \
-            parse_xy_with_identifier_mask(self.validation, 'test', *parse_xy_param, max_bug_number=2, min_bug_number=2)
-        self.character_embedding = character_embedding
-        print('End SetUpClass')
+    # @classmethod
+    # def setUpClass(self):
+    #     tf.reset_default_graph()
+    #     with tf.Session():
+    #         word_embedding, character_embedding = create_embedding()
+    #         self.model = MaskedTokenLevelMultiRnnModel(
+    #             word_embedding.create_embedding_layer(),
+    #             character_embedding.create_embedding_layer(),
+    #             200,
+    #             2,
+    #             len(word_embedding.word_id_map),
+    #             word_embedding.word_to_id(word_embedding.end_label),
+    #             0.0001,
+    #             1000,
+    #             0.96,
+    #             2,
+    #             word_embedding.word_to_id(word_embedding.identifier_label),
+    #             word_embedding.word_to_id(word_embedding.placeholder_label),
+    #             word_embedding.id_to_word,
+    #             character_embedding.parse_token
+    #         )
+    #     self.train, self.test, self.validation = sample()
+    #     parse_xy_param = [word_embedding, character_embedding]
+    #     self.train, self.test, self.validation = \
+    #         parse_xy_with_identifier_mask(self.train, 'train', *parse_xy_param, max_bug_number=2, min_bug_number=2), \
+    #         parse_xy_with_identifier_mask(self.test, 'valid', *parse_xy_param, max_bug_number=2, min_bug_number=2), \
+    #         parse_xy_with_identifier_mask(self.validation, 'test', *parse_xy_param, max_bug_number=2, min_bug_number=2)
+    #     self.character_embedding = character_embedding
+    #     print('End SetUpClass')
 
     def setUp(self):
         pass

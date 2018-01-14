@@ -179,7 +179,7 @@ def _create_next_code(actions, inputs, create_one_fn):
 
 
 def fill_output_data(output:list, iter_len):
-    res = [t + [0]*(iter_len-len(t)) for t in output]
+    res = [t + [0 for i in range((iter_len-len(t)))] for t in output]
     return np.array(res)
 
 
@@ -193,7 +193,7 @@ def cal_metrics(max_decode_iterator_num, output_data, predict_data):
             iter_len = max_decode_iterator_num
         else:
             iter_len = np.min(zero_item) + 1
-        res_mask.append([1] * iter_len + [0] * (max_decode_iterator_num - iter_len))
+        res_mask.append([1 for i in range(iter_len)] + [0 for i in range(max_decode_iterator_num - iter_len)])
     res_mask = np.array(res_mask)
     # print("res_mask:{}".format(res_mask))
 
@@ -223,3 +223,17 @@ def find_copy_input_position(iden_mask, copy_id):
 
 def beam_calculate_fn(args):
     return beam_calculate(*args)
+
+
+def init_beam_search_stack(batch_size, cur_beam_size):
+    # shape = batch_size * beam_size
+    beam_stack = [[0] for i in range(batch_size)]
+    # shape = 5 * batch_size * beam_size * output_length
+    output_stack = []
+    # shape = batch_size * beam_size
+    mask_stack = [[1] for i in range(batch_size)]
+    # shape = batch_size * beam_size
+    beam_length_stack = [[0] for i in range(batch_size)]
+    # shape = 5 * batch_size * beam_size * max_decode_iterator_num
+    select_output_stack_list = [[[[] for i in range(cur_beam_size)] for j in range(batch_size)] for k in range(5)]
+    return beam_length_stack, beam_stack, mask_stack, select_output_stack_list

@@ -9,7 +9,7 @@ from common import tf_util, code_util, rnn_util, util
 from common.rnn_cell import RNNWrapper
 from common.tf_util import cast_float, cast_int, all_is_nan, all_is_zero
 from common.beam_search_util import beam_cal_top_k, flat_list, beam_gather, \
-    select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code_without_iter_dims, cal_metrics, find_copy_input_position
+    select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code_without_iter_dims, cal_metrics, find_copy_input_position, init_beam_search_stack
 
 
 def _transpose_mask(identifier_mask):
@@ -483,16 +483,8 @@ class TokenLevelMultiRnnModel(object):
 
         # shape = 5 * batch_size * beam_size * token_length
         input_stack = init_input_stack(args)
-        # shape = batch_size * beam_size
-        beam_stack = [[0]]*batch_size
-        # shape = 5 * batch_size * beam_size * output_length
-        output_stack = []
-        # shape = batch_size * beam_size
-        mask_stack = [[1]]*batch_size
-        # shape = batch_size * beam_size
-        beam_length_stack = [[0]]*batch_size
-        # shape = 5 * batch_size * beam_size * max_decode_iterator_num
-        select_output_stack_list = [[[[]]*cur_beam_size]*batch_size]*5
+        beam_length_stack, beam_stack, mask_stack, select_output_stack_list = init_beam_search_stack(batch_size,
+                                                                                                     cur_beam_size)
 
         for i in range(max_decode_iterator_num):
 
@@ -509,7 +501,7 @@ class TokenLevelMultiRnnModel(object):
 
             output_stack = [revert_batch_beam_stack(out_list, batch_size, cur_beam_size) for out_list in output_list]
 
-            batch_returns = list(map(beam_calculate, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size] * batch_size, [beam_calculate_output_score] * batch_size, [[]]*batch_size))
+            batch_returns = list(map(beam_calculate, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size for o in range(batch_size)], [beam_calculate_output_score for o in range(batch_size)], [[] for o in range(batch_size)]))
             def create_next(ret):
                 ret = list(ret)
                 ret[0] = _create_next_code_without_iter_dims(ret[1], ret[0], create_one_fn=self._create_one_next_code)
@@ -579,7 +571,7 @@ class TokenLevelMultiRnnModel(object):
                     return next_inputs
                 word_character_id = self.parse_token(word, character_position_label=True)
                 word_character_length = len(word_character_id)
-                iden_mask = [0] * len(identifier_mask[0])
+                iden_mask = [0 for i in range(len(identifier_mask[0]))]
 
             if position % 2 == 0:
                 # insert

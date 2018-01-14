@@ -4,7 +4,7 @@ from tensorflow.python.util import nest
 
 from common import tf_util, rnn_cell, rnn_util, code_util, util
 from common.beam_search_util import beam_cal_top_k, flat_list, \
-    select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code, cal_metrics
+    select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code, cal_metrics, init_beam_search_stack
 
 
 class SequenceRNNCell(rnn_cell.RNNWrapper):
@@ -729,16 +729,8 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
 
         # shape = 4 * batch_size * beam_size * 1 * token_length
         input_stack = init_input_stack(args)
-        # shape = batch_size * beam_size
-        beam_stack = [[0]]*batch_size
-        # shape = 5 * batch_size * beam_size * output_length
-        output_stack = []
-        # shape = batch_size * beam_size
-        mask_stack = [[1]]*batch_size
-        # shape = batch_size * beam_size
-        beam_length_stack = [[0]]*batch_size
-        # shape = 5 * batch_size * beam_size * max_decode_iterator_num
-        select_output_stack_list = [[[[]]*cur_beam_size]*batch_size]*5
+        beam_length_stack, beam_stack, mask_stack, select_output_stack_list = init_beam_search_stack(batch_size,
+                                                                                                     cur_beam_size)
 
         # shape = batch_size * beam_size* start_label_length
         next_labels_stack = []
@@ -746,7 +738,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
         next_states_stack = []
 
         next_states_stack = np.expand_dims(np.array(initial_state), axis=1).tolist()
-        next_labels_stack = [[start_label]] * len(initial_state)
+        next_labels_stack = [[start_label] for i in range(len(initial_state))]
 
         for i in range(self.max_decode_iterator_num):
 
@@ -776,7 +768,7 @@ class TokenLevelMultiRnnModel(tf_util.BaseModel):
             #              position_embedding_stack, code_embedding_stack, mask_stack, beam_length_stack,
             #              list(zip(*select_output_stack_list)), [beam_size] * batch_size)
             # batch_returns = list(util.parallel_map(core_num=3, f=beam_calculate_fn, args=list(zip(*beam_args))))
-            batch_returns = list(map(beam_calculate, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size] * batch_size, [beam_calculate_output_score] * batch_size, beam_gather_args))
+            batch_returns = list(map(beam_calculate, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size for o in range(batch_size)], [beam_calculate_output_score for o in range(batch_size)], beam_gather_args))
             def create_next(ret):
                 ret = list(ret)
                 ret[0] = _create_next_code(ret[1], ret[0], create_one_fn=self._create_one_next_code)

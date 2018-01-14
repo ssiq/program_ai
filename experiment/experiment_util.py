@@ -116,6 +116,7 @@ def parse_xy(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug
     return df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['output_length'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list']
 
 
+@util.disk_cache(basename='random_token_action_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
 def parse_xy_token_level(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
 
     df['res'] = ''
@@ -308,7 +309,7 @@ def create_name_list_by_LexToken(code_obj_list):
 def create_identifier_mask_from_dict(name_list, iden_dict:dict, pre_defined_cpp_token):
     iden_list = []
     for token in name_list:
-        iden = [0] * len(iden_dict.keys())
+        iden = [0 for i in range(len(iden_dict.keys()))]
         if token not in iden_dict.keys() and token not in pre_defined_cpp_token:
             return None
         elif token in iden_dict.keys():
@@ -329,7 +330,7 @@ def create_token_identify_mask(one, pre_defined_token_set=pre_defined_cpp_token)
             one['res'] = None
             return one
     one['token_identify_mask'] = token_identify_mask
-    one['copy_name_list'] = [iden_dict] * len(token_identify_mask)
+    one['copy_name_list'] = [iden_dict for i in range(len(token_identify_mask))]
     return one
 
 
@@ -441,7 +442,7 @@ def create_full_output(one, keyword_voc, max_bug_number, min_bug_number, find_co
     one['keywordid_list'] = keywordid_list
     one['copyid_list'] = copyid_list
 
-    one['output_length'] = [1] * (len(position_list)-1) + [0]
+    one['output_length'] = [1 for i in range(len(position_list)-1)] + [0]
     return one
 
 
