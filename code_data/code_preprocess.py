@@ -357,12 +357,16 @@ def create_multi_error(code, error_type_list=(5, 1, 4), error_count=1):
         if action_tuple_list == None:
             try_count += 1
             continue
+        action_tuple_list = [i[2] if i[0] != INSERT else -1 for i in action_tuple_list]
+        action_tuple_list = filter(lambda x: x != -1, action_tuple_list)
         token_pos_tmp_list = [i[2] for i in action_tuple_list]
         while len(set(token_pos_tmp_list) & set(token_pos_list)) > 0 and try_count < 6:
             action_tuple_list = error_action_fn(code, code_tokens)
             if action_tuple_list == None:
                 try_count += 1
                 continue
+            action_tuple_list = [i[2] if i[0] != INSERT else -1 for i in action_tuple_list]
+            action_tuple_list = filter(lambda x: x != -1, action_tuple_list)
             token_pos_tmp_list = [i[2] for i in action_tuple_list]
             try_count += 1
 

@@ -40,6 +40,16 @@ def insert_items(db_full_path, table_name, params, **kwargs):
 
 
 @with_connect()
+def run_sql_statment(db_full_path, table_name, sql_name, params, **kwargs):
+    assert 'con' in kwargs.keys()
+
+    sql = sql_dict[table_name][sql_name]
+    con = kwargs['con']
+    con.executemany(sql, params)
+    con.commit()
+
+
+@with_connect()
 def find_ids_by_user_problem_id(db_full_path, table_name, ids, **kwargs):
     assert 'con' in kwargs.keys()
 
