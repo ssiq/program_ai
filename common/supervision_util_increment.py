@@ -9,7 +9,7 @@ from common.debug_tool import record_memory, show_growth, show_diff_length_fn
 from common.iterator_condition import Condition
 
 
-def create_supervision_experiment(load_data_fn, parse_xy_fn, parse_xy_param, experiment_name='default', batch_size=32, create_condition_fn=None, modify_condition=[]):
+def create_supervision_experiment(load_data_fn, load_data_param, experiment_name='default', batch_size=32, create_condition_fn=None, modify_condition=[]):
     '''
     create a supervision experiment method. you can train supervision in model by calling the returned methon.
     :param parse_xy_fn: parse data to (X, y) tunple method
@@ -66,18 +66,7 @@ def create_supervision_experiment(load_data_fn, parse_xy_fn, parse_xy_param, exp
         print("best accuracy:{}, best parameter:{}".format(best_accuracy, best_parameter))
 
     print("begin load_data")
-    train, test, vaild = load_data_fn()
-    print("all data loaded")
-    print('create supervision experiment.')
-    train_data = parse_xy_fn(train, 'train', *parse_xy_param)
-    del train
-    print("train data parsed")
-    vaild_data = parse_xy_fn(vaild, 'valid', *parse_xy_param)
-    del vaild
-    print("valid data parsed")
-    test_data = parse_xy_fn(test, 'test', *parse_xy_param)
-    del test
-    print("test data parsed")
+    train_data, test_data, vaild_data = load_data_fn(*load_data_param)
     print('train_data_length: {}'.format(len(train_data[0])))
     print('vaild_data_length: {}'.format(len(vaild_data[0])))
     print('test_data_length: {}'.format(len(test_data[0])))
@@ -132,6 +121,7 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
         validation_data_itr = validation_data_iterator()
         util.make_dir('checkpoints', '{}_{}'.format(
             experiment_name + '_model', util.format_dict_to_string(model_parameters)))
+        print('start train enumerate')
         for i, data in enumerate(train_data_iterator()):
             try:
                 current_step = model.global_step

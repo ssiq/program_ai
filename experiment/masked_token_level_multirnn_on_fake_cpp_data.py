@@ -2,7 +2,7 @@ from code_data.read_data import read_cpp_fake_code_records_set, read_cpp_random_
 from common import util
 from common.supervision_util_increment import create_supervision_experiment
 from experiment.experiment_util import sample, create_embedding, error_count_create_condition_fn, \
-    parse_xy_with_identifier_mask, parse_xy_token_level, sample_on_random_token_code_records
+    parse_xy_with_identifier_mask, parse_xy_token_level, sample_on_random_token_code_records, load_data_token_level
 from model.masked_token_level_multirnn_model import MaskedTokenLevelMultiRnnModel
 from model.one_iteration_token_level_multirnn_model_with_output_mask import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
@@ -11,12 +11,13 @@ if __name__ == '__main__':
     util.initLogging()
     util.set_cuda_devices(1)
     # train, test, vaild = read_cpp_random_token_code_records_set()
-    load_data_fn = read_cpp_random_token_code_records_set
+    load_data_fn = load_data_token_level
     # train, test, vaild = sample_on_random_token_code_records()
     # load_data_fn = sample_on_random_token_code_records
 
     key_val, char_voc = create_embedding()
-    parse_xy_param = [key_val, char_voc, 5, 1]
+    # parse_xy_param = [key_val, char_voc, 5, 1]
+    load_data_param = [5, 1]
 
 
     # print(train)
@@ -49,17 +50,17 @@ if __name__ == '__main__':
     #     isPrint += 1
 
     modify_condition = [
-                        ({'error_count': 1}, 0.9),
-                        ({'error_count': 2}, 0.8),
-                        ({'error_count': 3}, 0.7),
-                        ({'error_count': 4}, 0.7),
+                        # ({'error_count': 1}, 0.9),
+                        # ({'error_count': 2}, 0.8),
+                        # ({'error_count': 3}, 0.7),
+                        # ({'error_count': 4}, 0.7),
                         ({'error_count': 5}, 1.0), ]
 
     MAX_ITERATOR_LEGNTH = 5
 
     # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_iden_mask, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
 
-    train_supervision = create_supervision_experiment(load_data_fn, parse_xy_token_level, parse_xy_param, experiment_name='one_iteration_token_level_multirnn_model', batch_size=16, create_condition_fn=error_count_create_condition_fn, modify_condition=modify_condition)
+    train_supervision = create_supervision_experiment(load_data_fn, load_data_param, experiment_name='one_iteration_token_level_multirnn_model', batch_size=16, create_condition_fn=error_count_create_condition_fn, modify_condition=modify_condition)
     param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -3]},
                                                   choice_param={ },
                                                   constant_param={"hidden_size": 100,

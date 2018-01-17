@@ -12,6 +12,20 @@ CHANGE = 0
 INSERT = 1
 DELETE = 2
 
+@util.disk_cache(basename='random_token_code_load_data', directory=cache_data_path)
+def load_data_token_level(max_bug_number=1, min_bug_number=0):
+    train, test, vaild = read_cpp_random_token_code_records_set()
+
+    key_val, char_voc = create_embedding()
+    parse_xy_param = [key_val, char_voc, max_bug_number, min_bug_number]
+    train_data = parse_xy_token_level(train, 'train', *parse_xy_param)
+    test_data = parse_xy_token_level(test, 'test', *parse_xy_param)
+    vaild_data = parse_xy_token_level(vaild, 'vaild', *parse_xy_param)
+    return train_data, test_data, vaild_data
+
+
+# ---------------------- sample ---------------------------#
+
 @util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_sample_5000', directory=cache_data_path)
 def sample():
     train, test, vaild = read_cpp_fake_code_records_set()
@@ -21,7 +35,7 @@ def sample():
     return (train, test, vaild)
 
 
-@util.disk_cache(basename='token_level_multirnn_on_random_token_code_records_sample_5000', directory=cache_data_path)
+@util.disk_cache(basename='random_token_code_token_level_multirnn_records_sample_5000', directory=cache_data_path)
 def sample_on_random_token_code_records():
     train, test, vaild = read_cpp_random_token_code_records_set()
     train = train.sample(5000, random_state=1)
@@ -230,7 +244,9 @@ def create_error_list_by_token_actionmap(one):
         bias = 0
         cur_token_pos = cur_action['token_pos']
         for act in action_list:
-            if act['act_type'] == INSERT and cur_token_pos > act['token_pos']:
+            if act['act_type'] == INSERT and (cur_action['act_type'] == DELETE or cur_action['act_type'] == CHANGE) and cur_token_pos >= act['token_pos']:
+                bias += 1
+            elif act['act_type'] == INSERT and cur_token_pos > act['token_pos']:
                 bias += 1
             elif act['act_type'] == DELETE and cur_token_pos > act['token_pos']:
                 bias -= 1
@@ -247,7 +263,7 @@ def create_error_list_by_token_actionmap(one):
     token_name_list = []
     action_list = []
     for act, token_bias in zip(action_token_list, token_bias_list):
-        ac_pos = act['ac_pos']
+        # ac_pos = act['ac_pos']
         ac_type = act['act_type']
         ac_token_pos = act['token_pos']
         real_token_pos = ac_token_pos + token_bias

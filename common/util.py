@@ -240,6 +240,7 @@ def batch_holder_with_condition(*data: typing.List, batch_size=32, epoches=15, c
             epoch_count += 1
             print('start {} epoch. total epoch {}'.format(epoch_count, epoches))
             i_data = list(map(list, zip(*sklearn.utils.shuffle(*data))))
+            print('after {} epoch shuffle'.format(epoch_count))
             if condition:
                 i_data = list(filter(condition, i_data))
                 # print('filter: ', i_data)
@@ -248,9 +249,13 @@ def batch_holder_with_condition(*data: typing.List, batch_size=32, epoches=15, c
             zip_with_batch_list = lambda a: list(map(lambda x: list(zip(*x)), a))
             i_data = list(zip_with_batch_list(i_data))
             i_data = list(map(lambda x: list(map(list, x)), i_data))
+            print('before padded with copy in {} epoch'.format(epoch_count))
             padded_with_copy = lambda x: list(padded(x, deepcopy=True))
-            i_data = list(map(
-                lambda x: list(map(padded_with_copy, x)), i_data))
+            # i_data = list(map(
+            #   lambda x: list(map(padded_with_copy, x)), i_data)
+            i_data = map(
+                lambda x: list(map(padded_with_copy, x)), i_data)
+            print('finish one epoch generator {} '.format(epoch_count))
             return i_data
 
         for m in more_itertools.repeatfunc(one_epoch, times=epoches):
