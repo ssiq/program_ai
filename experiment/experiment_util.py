@@ -24,6 +24,18 @@ def load_data_token_level(max_bug_number=1, min_bug_number=0):
     return train_data, test_data, vaild_data
 
 
+@util.disk_cache(basename='random_token_code_load_data_sample_5000', directory=cache_data_path)
+def load_data_token_level_sample(max_bug_number=1, min_bug_number=0):
+    train, test, vaild = sample_on_random_token_code_records()
+
+    key_val, char_voc = create_embedding()
+    parse_xy_param = [key_val, char_voc, max_bug_number, min_bug_number]
+    train_data = parse_xy_token_level(train, 'train', *parse_xy_param)
+    test_data = parse_xy_token_level(test, 'test', *parse_xy_param)
+    vaild_data = parse_xy_token_level(vaild, 'vaild', *parse_xy_param)
+    return train_data, test_data, vaild_data
+
+
 # ---------------------- sample ---------------------------#
 
 @util.disk_cache(basename='token_level_multirnn_on_fake_cpp_data_sample_5000', directory=cache_data_path)

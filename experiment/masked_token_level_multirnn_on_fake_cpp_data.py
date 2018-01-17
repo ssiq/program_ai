@@ -2,7 +2,7 @@ from code_data.read_data import read_cpp_fake_code_records_set, read_cpp_random_
 from common import util
 from common.supervision_util_increment import create_supervision_experiment
 from experiment.experiment_util import sample, create_embedding, error_count_create_condition_fn, \
-    parse_xy_with_identifier_mask, parse_xy_token_level, sample_on_random_token_code_records, load_data_token_level
+    parse_xy_with_identifier_mask, parse_xy_token_level, sample_on_random_token_code_records, load_data_token_level, load_data_token_level_sample
 from model.masked_token_level_multirnn_model import MaskedTokenLevelMultiRnnModel
 from model.one_iteration_token_level_multirnn_model_with_output_mask import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
@@ -11,9 +11,9 @@ if __name__ == '__main__':
     util.initLogging()
     util.set_cuda_devices(1)
     # train, test, vaild = read_cpp_random_token_code_records_set()
-    load_data_fn = load_data_token_level
+    # load_data_fn = load_data_token_level
     # train, test, vaild = sample_on_random_token_code_records()
-    # load_data_fn = sample_on_random_token_code_records
+    load_data_fn = load_data_token_level_sample
 
     key_val, char_voc = create_embedding()
     # parse_xy_param = [key_val, char_voc, 5, 1]
