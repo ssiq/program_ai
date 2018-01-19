@@ -474,29 +474,29 @@ class MaskedTokenLevelMultiRnnModel(object):
         #     print(np.array(t).shape)
             # print(t)
         # print(self.input_placeholders+self.output_placeholders)
-        flat_args, eff_ids = flat_and_get_effective_args(args)
+        # flat_args, eff_ids = flat_and_get_effective_args(args)
+        #
+        # batch_size = len(args[0])
+        # total = len(flat_args[0])
+        # weight_array = make_weight_array(batch_size, total)
+        #
+        #
+        # import more_itertools
+        # chunked_args = list(more_itertools.chunked(list(zip(*flat_args)), batch_size))
+        # train_chunk_fn = lambda chunked: self._train(*list(zip(*chunked)))
+        # # print("len(chunked_args):{}".format(len(chunked_args)))
+        # train_res = list(map(train_chunk_fn, chunked_args))
+        # train_res = list(zip(*train_res))
+        #
+        # weight_fn = lambda one_res: [one_res[i] * weight_array[i] for i in range(len(one_res))]
+        # loss_array = weight_fn(train_res[0])
+        # accracy_array = weight_fn(train_res[1])
+        # # tt_array = weight_fn(train_res[2])
+        # loss = np.sum(loss_array) / total
+        # accracy = np.sum(accracy_array) / total
+        # # tt = np.sum(tt_array) / total
 
-        batch_size = len(args[0])
-        total = len(flat_args[0])
-        weight_array = make_weight_array(batch_size, total)
-
-
-        import more_itertools
-        chunked_args = list(more_itertools.chunked(list(zip(*flat_args)), batch_size))
-        train_chunk_fn = lambda chunked: self._train(*list(zip(*chunked)))
-        # print("len(chunked_args):{}".format(len(chunked_args)))
-        train_res = list(map(train_chunk_fn, chunked_args))
-        train_res = list(zip(*train_res))
-
-        weight_fn = lambda one_res: [one_res[i] * weight_array[i] for i in range(len(one_res))]
-        loss_array = weight_fn(train_res[0])
-        accracy_array = weight_fn(train_res[1])
-        # tt_array = weight_fn(train_res[2])
-        loss = np.sum(loss_array) / total
-        accracy = np.sum(accracy_array) / total
-        # tt = np.sum(tt_array) / total
-
-        # loss, accracy, tt = self._train(*args)
+        loss, accracy, tt = self._train(*args)
         return loss, accracy, None
 
     def predict_model(self, *args,):

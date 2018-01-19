@@ -81,8 +81,10 @@ def disk_cache(basename, directory, method=False):
             if method and key:
                 key = key[1:]
             filename = '{}-{}.pickle'.format(basename, data_hash(key))
+            print('read data file name: {}'.format(filename))
             filepath = os.path.join(directory, filename)
             if os.path.isfile(filepath):
+                print('use disk_catch file name: {}'.format(filename))
                 with open(filepath, 'rb') as handle:
                     return pickle.load(handle)
             result = func(*args, **kwargs)
@@ -260,7 +262,9 @@ def batch_holder_with_condition(*data: typing.List, batch_size=32, epoches=15, c
 
         for m in more_itertools.repeatfunc(one_epoch, times=epoches):
             for t in m:
-                if not condition.is_modify():
+                if condition is not None and not condition.is_modify():
+                    yield t
+                elif condition is None:
                     yield t
                 else:
                     condition.modify = False

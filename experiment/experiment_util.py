@@ -5,6 +5,7 @@ from code_data.read_data import read_cpp_fake_code_records_set, read_cpp_random_
 from common import util
 from common.code_tokenize import GetTokens
 from common.new_tokenizer import tokenize
+from common.beam_search_util import flat_list
 from ply.lex import LexToken
 
 MAX_TOKEN_LENGTH = 300
@@ -18,10 +19,19 @@ def load_data_token_level(max_bug_number=1, min_bug_number=0):
 
     key_val, char_voc = create_embedding()
     parse_xy_param = [key_val, char_voc, max_bug_number, min_bug_number]
-    train_data = parse_xy_token_level(train, 'train', *parse_xy_param)
+    flat_train_data = parse_xy_token_level(train, 'flat_train', *parse_xy_param)
+    train_data = parse_xy_token_level(train, 'train', *parse_xy_param, sample_size=50000)
+    # train_data = get_part_of_train_data(train, parse_xy_param)
     test_data = parse_xy_token_level(test, 'test', *parse_xy_param)
     vaild_data = parse_xy_token_level(vaild, 'vaild', *parse_xy_param)
-    return train_data, test_data, vaild_data
+    # import gc
+    # del train, test, vaild
+    # gc.collect()
+    # train = None
+    # test = None
+    # vaild = None
+    # gc.collect()
+    return flat_train_data, train_data, test_data, vaild_data
 
 
 @util.disk_cache(basename='random_token_code_load_data_sample_5000', directory=cache_data_path)
@@ -30,10 +40,18 @@ def load_data_token_level_sample(max_bug_number=1, min_bug_number=0):
 
     key_val, char_voc = create_embedding()
     parse_xy_param = [key_val, char_voc, max_bug_number, min_bug_number]
+    flat_train_data = parse_xy_token_level(train, 'flat_train_data', *parse_xy_param)
+    # train_data = parse_xy_token_level(train, 'train', *parse_xy_param)
     train_data = parse_xy_token_level(train, 'train', *parse_xy_param)
     test_data = parse_xy_token_level(test, 'test', *parse_xy_param)
     vaild_data = parse_xy_token_level(vaild, 'vaild', *parse_xy_param)
-    return train_data, test_data, vaild_data
+    return flat_train_data, train_data, test_data, vaild_data
+    
+
+@util.disk_cache(basename='random_get_part_of_train_data_50000', directory=cache_data_path)
+def get_part_of_train_data(train, parse_xy_param):
+    train_data = parse_xy_token_level(train, 'train', *parse_xy_param, sample_size=50000)
+    return train_data
 
 
 # ---------------------- sample ---------------------------#
@@ -82,7 +100,7 @@ def error_count_without_train_condition_fn(data_type, error_count:int):
     def train_condition_fn(one):
         return True
 
-    if data_type == 'train':
+    if data_type == 'flat_train':
         return train_condition_fn
     return condition_fn
 
@@ -143,7 +161,7 @@ def parse_xy(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug
 
 
 @util.disk_cache(basename='random_token_action_multirnn_on_fake_cpp_data_parse_xy', directory=cache_data_path)
-def parse_xy_token_level(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0):
+def parse_xy_token_level(df, data_type:str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0, sample_size=None):
 
     df['res'] = ''
     df['ac_code_obj'] = df['ac_code'].map(do_new_tokenize)
@@ -164,10 +182,16 @@ def parse_xy_token_level(df, data_type:str, keyword_voc, char_voc, max_bug_numbe
     df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number,
                   min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict)
     df = df[df['res'].map(lambda x: x is not None)].copy()
+    
+    if sample_size is not None:
+        df = df.sample(sample_size)
 
     returns = (df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'],
                df['token_identify_mask'], df['output_length'], df['position_list'], df['is_copy_list'],
                df['keywordid_list'], df['copyid_list'])
+
+    if data_type == 'flat_train':
+        returns = [flat_list(ret) for ret in returns]
 
     return returns
 

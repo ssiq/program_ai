@@ -11,9 +11,9 @@ if __name__ == '__main__':
     util.initLogging()
     util.set_cuda_devices(1)
     # train, test, vaild = read_cpp_random_token_code_records_set()
-    # load_data_fn = load_data_token_level
+    load_data_fn = load_data_token_level
     # train, test, vaild = sample_on_random_token_code_records()
-    load_data_fn = load_data_token_level_sample
+    # load_data_fn = load_data_token_level_sample
 
     key_val, char_voc = create_embedding()
     # parse_xy_param = [key_val, char_voc, 5, 1]

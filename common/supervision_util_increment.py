@@ -32,7 +32,8 @@ def create_supervision_experiment(load_data_fn, load_data_param, experiment_name
                 condition_train_fn = create_condition_fn(**modify_condition[change_count][0])
                 condition = Condition(condition_train_fn)
                 print('start condition: {}'.format(str(modify_condition[change_count][0])))
-                train_batch_iterator = util.batch_holder_with_condition(*train_data, batch_size=batch_size, condition=condition)
+                flat_train_batch_iterator = util.batch_holder_with_condition(*flat_train_data, batch_size=batch_size, condition=None)
+                train_batch_iterator = util.batch_holder_with_condition(*train_data, batch_size=batch_size, condition=condition, epoches=None)
                 validation_data_iterator = util.batch_holder_with_condition(*vaild_data, batch_size=batch_size, epoches=None, condition=condition)
                 test_data_iterator = util.batch_holder_with_condition(*test_data, batch_size=batch_size, epoches=1, condition=condition)
 
@@ -46,7 +47,7 @@ def create_supervision_experiment(load_data_fn, load_data_param, experiment_name
                     with tf_util.summary_scope():
                         print('train model')
                         param_metrics = None
-                        for metrics in train_model_fn(train_batch_iterator, validation_data_iterator, test_data_iterator, experiment_name):
+                        for metrics in train_model_fn(flat_train_batch_iterator, train_batch_iterator, validation_data_iterator, test_data_iterator, experiment_name):
                             param_metrics = metrics
 
                             if metrics > modify_condition[change_count][1] and (len(modify_condition)-1) > change_count:
@@ -66,7 +67,15 @@ def create_supervision_experiment(load_data_fn, load_data_param, experiment_name
         print("best accuracy:{}, best parameter:{}".format(best_accuracy, best_parameter))
 
     print("begin load_data")
-    train_data, test_data, vaild_data = load_data_fn(*load_data_param)
+    # train_data, test_data, vaild_data = load_data_fn(*load_data_param)
+    loaded_data = load_data_fn(*load_data_param)
+    if len(loaded_data) == 3:
+        train_data, test_data, vaild_data = loaded_data
+        flat_train_data = train_data
+    else:
+        flat_train_data, train_data, test_data, vaild_data = loaded_data
+
+    print('flat_train_data_length: {}'.format(len(flat_train_data[0])))
     print('train_data_length: {}'.format(len(train_data[0])))
     print('vaild_data_length: {}'.format(len(vaild_data[0])))
     print('test_data_length: {}'.format(len(test_data[0])))
@@ -82,7 +91,8 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
     :return: the train method of the model
     '''
 
-    def train_model(train_data_iterator,
+    def train_model(flat_train_batch_iterator,
+                    train_data_iterator,
                     validation_data_iterator,
                     test_data_iterator,
                     experiment_name='default',
@@ -113,37 +123,42 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
 
         losses = []
         accuracies = []
+        metrics_list = []
         saver = tf.train.Saver()
         if restore:
             restore_dir = 'checkpoints/{}_{}/'.format(experiment_name + '_model', util.format_dict_to_string(model_parameters))
             util.load_check_point(restore_dir, sess, saver)
             print('model restore from {}'.format(restore_dir))
         validation_data_itr = validation_data_iterator()
+        train_data_itr = train_data_iterator()
         util.make_dir('checkpoints', '{}_{}'.format(
             experiment_name + '_model', util.format_dict_to_string(model_parameters)))
         print('start train enumerate')
-        for i, data in enumerate(train_data_iterator()):
+        for i, data in enumerate(flat_train_batch_iterator()):
             try:
                 current_step = model.global_step
                 # log_data_shape(*data, recordloggername=recordloggername)
-                loss, _, _ = model.train_model(*data)
+                loss, accuracy, _ = model.train_model(*data)
+                accuracies.append(accuracy)
                 losses.append(loss)
                 # accuracies.append(metrics)
                 # print("iteration {} with loss {} and metrics {}".format(current_step, loss, metrics))
                 if current_step % metrics_steps == 0:
-                    metrics = model.metrics_model(*data)
-                    accuracies.append(metrics)
+                    metrics = model.metrics_model(*next(train_data_itr))
+                    # metrics = model.metrics_model(*next(validation_data_itr))
+                    metrics_list.append(metrics)
                 if current_step % skip_steps == 0:
-                    train_summary = model.summary(*data)
+                    train_summary = model.summary(*next(train_data_itr))
                     train_writer.add_summary(train_summary, global_step=model.global_step)
                     validation_summary = model.summary(*next(validation_data_itr))
                     validation_writer.add_summary(validation_summary, global_step=model.global_step)
                     pass
                 if current_step % print_skip_step == 0:
                     loss_mean = np.mean(losses)
-                    metrics_mean = np.mean(accuracies)
+                    accuracy_mean = np.mean(accuracies)
+                    metrics_mean = np.mean(metrics_list)
                     valid = model.metrics_model(*next(validation_data_itr))
-                    print("iteration {} with loss {} and metrics {} and validation metrics {}".format(current_step, loss_mean, metrics_mean, valid))
+                    print("iteration {} with loss {} and accuracy {} and metrics {} and validation metrics {}".format(current_step, loss_mean, accuracy_mean, metrics_mean, valid))
                     yield metrics_mean
                     losses = []
                     accuracies = []
