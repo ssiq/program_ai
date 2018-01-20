@@ -63,15 +63,24 @@ def init_code(code):
     code = remove_blank_line(code)
     return code
 
+token_count = 0
+special_count = 0
+exception_count = 0
 def do_tokenize(code):
+    global token_count, special_count, exception_count
+    if token_count % 1000 == 0:
+        print('tokenize count: {}'.format(token_count))
+    token_count += 1
     code = code.replace('\r', '')
     if code.find('define') != -1 or code.find('defined') != -1 or code.find('undef') != -1 or \
                     code.find('pragma') != -1 or code.find('ifndef') != -1 or \
                     code.find('ifdef') != -1 or code.find('endif') != -1:
+        special_count += 1
         return None
     try:
         tokens = do_new_tokenize(code)
     except Exception as e:
+        exception_count += 1
         return None
     return tokens
 
@@ -99,7 +108,8 @@ def split_file_name(id:str):
 count = 0
 def find_closest_token_text(one, build_ac_bf):
     global count
-    print('find closest token. total {}'.format(count))
+    if count % 100 == 0:
+        print('find closest token. total {}'.format(count))
     count += 1
     a_tokenize = one['tokenize']
     file_name = one['file_name']
@@ -261,12 +271,13 @@ if __name__ == '__main__':
     build_bf = read_student_local_data()
     # build_bf = build_bf.sample(100)
     print('Start . Total {} code'.format(len(build_bf.index)))
+    build_bf = build_bf.drop([18634, 68286, 68287])
 
     build_bf['file_content'] = build_bf['file_content'].map(init_code)
 
     build_bf['tokenize'] = build_bf['file_content'].map(do_tokenize)
     build_bf = build_bf[build_bf['tokenize'].map(lambda x: x is not None)].copy()
-    print('After tokenize. Total {} code'.format(len(build_bf.index)))
+    print('After tokenize. Total {} code. special skip code {}, exception code {}'.format(len(build_bf.index), special_count, exception_count))
 
     build_bf['token_len'] = build_bf['tokenize'].map(len)
     build_bf = build_bf[build_bf['token_len'].map(lambda x: x < 300)].copy()
