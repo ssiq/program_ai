@@ -1,15 +1,12 @@
-import tensorflow as tf
-from tensorflow.python.ops.losses.losses_impl import Reduction
-import numpy as np
 import more_itertools
+import numpy as np
+import tensorflow as tf
 from tensorflow.python.util import nest
-from common.tf_util import sparse_categorical_crossentropy
 
 from common import tf_util, code_util, rnn_util, util
-from common.rnn_cell import RNNWrapper
-from common.tf_util import cast_float, cast_int, all_is_nan, all_is_zero
 from common.beam_search_util import beam_cal_top_k, flat_list, beam_gather, \
-    select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code_without_iter_dims, cal_metrics, find_copy_input_position, init_beam_search_stack
+    select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code_without_iter_dims, cal_metrics, \
+    find_copy_input_position, init_beam_search_stack, metrics_output_directly
 
 
 def _transpose_mask(identifier_mask):
@@ -416,15 +413,35 @@ class TokenLevelMultiRnnModel(object):
     def global_step(self):
         return self._model.global_step
 
+    def quick_metrics_model(self, *args):
+        input_data = args[0:5]
+        output_data = args[5:9]
+
+        predict_data = self._one_predict_fn(*input_data)
+        predict_data = list(predict_data)
+        predict_data[0] = np.argmax(predict_data[0], axis=1)
+        predict_data[1] = np.greater(predict_data[1], 0.5)
+        predict_data[2] = np.argmax(predict_data[2], axis=1)
+        predict_data[2] = np.where(predict_data[1], np.zeros_like(predict_data[1]), predict_data[2])
+        predict_data[3] = np.argmax(predict_data[3], axis=1)
+        predict_data[3] = np.where(predict_data[1], predict_data[3], np.zeros_like(predict_data[1]))
+        res_mask = metrics_output_directly(output_data, predict_data)
+        metrics_value = res_mask.mean()
+
+        name_list = ["position", "is_copy", "keyword", "copy_word"]
+        for n, p, o in zip(name_list, predict_data, output_data):
+            print("{}:predict:{}, output:{}".format(n, p, o))
+        return metrics_value
+
     def metrics_model(self, *args):
         # print("metrics input")
         # for t in args:
         #     print(np.array(t).shape)
         max_decode_iterator_num = 5
         input_data = args[0:5]
-        output_data = args[5:10]
+        output_data = args[5:9]
         predict_data = self.predict_model(*input_data, )
-        name_list = ["is_continue", "position", "is_copy", "keyword", "copy_word"]
+        name_list = ["position", "is_copy", "keyword", "copy_word"]
         for n, p, o in zip(name_list, predict_data, output_data):
             print("{}:predict:{}, output:{}".format(n, p, o))
         metrics_value = cal_metrics(max_decode_iterator_num, output_data, predict_data)

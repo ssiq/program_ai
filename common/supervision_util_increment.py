@@ -30,7 +30,8 @@ def create_supervision_experiment(load_data_fn, load_data_param, experiment_name
 
                 change_count = 0
                 condition_train_fn = create_condition_fn(**modify_condition[change_count][0])
-                condition = Condition(condition_train_fn)
+                # condition = Condition(condition_train_fn)
+                condition = None
                 print('start condition: {}'.format(str(modify_condition[change_count][0])))
                 flat_train_batch_iterator = util.batch_holder_with_condition(*flat_train_data, batch_size=batch_size, condition=None)
                 train_batch_iterator = util.batch_holder_with_condition(*train_data, batch_size=batch_size, condition=condition, epoches=None)
@@ -144,24 +145,27 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                 # accuracies.append(metrics)
                 # print("iteration {} with loss {} and metrics {}".format(current_step, loss, metrics))
                 if current_step % metrics_steps == 0:
-                    metrics = model.metrics_model(*next(train_data_itr))
+                    # metrics = model.metrics_model(*next(train_data_itr))
+                    metrics = model.quick_metrics_model(*next(train_data_itr))
                     # metrics = model.metrics_model(*next(validation_data_itr))
                     metrics_list.append(metrics)
-                if current_step % skip_steps == 0:
-                    train_summary = model.summary(*next(train_data_itr))
-                    train_writer.add_summary(train_summary, global_step=model.global_step)
-                    validation_summary = model.summary(*next(validation_data_itr))
-                    validation_writer.add_summary(validation_summary, global_step=model.global_step)
-                    pass
+                # if current_step % skip_steps == 0:
+                #     train_summary = model.summary(*next(train_data_itr))
+                #     train_writer.add_summary(train_summary, global_step=model.global_step)
+                #     validation_summary = model.summary(*next(validation_data_itr))
+                #     validation_writer.add_summary(validation_summary, global_step=model.global_step)
+                #     pass
                 if current_step % print_skip_step == 0:
                     loss_mean = np.mean(losses)
                     accuracy_mean = np.mean(accuracies)
                     metrics_mean = np.mean(metrics_list)
-                    valid = model.metrics_model(*next(validation_data_itr))
+                    # valid = model.metrics_model(*next(validation_data_itr))
+                    valid = 0
                     print("iteration {} with loss {} and accuracy {} and metrics {} and validation metrics {}".format(current_step, loss_mean, accuracy_mean, metrics_mean, valid))
                     yield metrics_mean
                     losses = []
                     accuracies = []
+                    metrics_list = []
                 if current_step % save_steps == 0:
                     saver.save(sess, 'checkpoints/{}_{}/bi_rnn'.format(
                         experiment_name + '_model', util.format_dict_to_string(model_parameters)),

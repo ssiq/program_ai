@@ -38,7 +38,8 @@ CREATE_STUDENT_BUILD_INFO = r'''CREATE TABLE IF NOT EXISTS student_build_info (
   build_result INTEGER, 
   file_content TEXT, 
   similar_code TEXT DEFAULT '', 
-  modify_action_list TEXT DEFAULT ''
+  modify_action_list TEXT DEFAULT '', 
+  distance INTEGER DEFAULT -1
 )'''
 
 CREATE_BUILD_ERROR_STAT = r'''CREATE TABLE IF NOT EXISTS build_error_stat (
@@ -53,7 +54,7 @@ INSERT_IGNORE_FAKE_CODE_RECORDS = r'''INSERT OR IGNORE INTO fake_code_records (i
 INSERT_IGNORE_RANDOM_TOKEN_CODE_RECORDS = r'''INSERT OR IGNORE INTO random_token_code_records (id, submit_id, problem_id, user_id, ac_code, code, error_count, error_character_maplist, action_character_list) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'''
 INSERT_IGNORE_STUDENT_BUILD_INFO = r'''INSERT OR IGNORE INTO student_build_info (id, time, build_start_time, build_end_time, solution_name, project_name, build_log_content, compile_command, files, build_error_info, build_result, file_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
 INSERT_IGNORE_BUILD_ERROR_STAT = r'''INSERT OR IGNORE INTO build_error_stat (id, count, error_codes, error_content, percent) VALUES (?, ?, ?, ?, ?)'''
-UPDATE_STUDENT_BUILD_SIMILAR_CODE = r'''UPDATE student_build_info SET similar_code=? , modify_action_list=? WHERE id=?'''
+UPDATE_STUDENT_BUILD_SIMILAR_CODE = r'''UPDATE student_build_info SET similar_code=? , modify_action_list=? , distance=? WHERE id=?'''
 
 FIND_IDS_BY_USER_PROBLEM_ID_FAKE_CODE_RECORDS = r'''SELECT id FROM fake_code_records WHERE id in ( {} )'''
 FIND_IDS_BY_USER_PROBLEM_ID_RANDOM_TOKEN_CODE_RECORDS = r'''SELECT id FROM random_token_code_records WHERE id in ( {} )'''

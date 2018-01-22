@@ -237,3 +237,11 @@ def init_beam_search_stack(batch_size, cur_beam_size):
     # shape = 5 * batch_size * beam_size * max_decode_iterator_num
     select_output_stack_list = [[[[] for i in range(cur_beam_size)] for j in range(batch_size)] for k in range(5)]
     return beam_length_stack, beam_stack, mask_stack, select_output_stack_list
+
+
+def metrics_output_directly(output_data, predict_data):
+    res_mask = [1] * len(output_data[0])
+    for i in range(len(output_data)):
+        res = np.equal(predict_data[i], output_data[i])
+        res_mask = np.logical_and(res_mask, res)
+    return res_mask

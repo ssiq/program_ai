@@ -2,13 +2,16 @@ import pandas as pd
 import Levenshtein
 import json
 import numpy as np
+from common import util
+from code_data.constants import cache_data_path
 from code_data.read_data import read_student_local_data
 from common.new_tokenizer import tokenize
 from scripts.scripts_util import remove_comments, remove_blank_line, remove_r_char, remove_blank
 from experiment.experiment_util import do_new_tokenize
 from database.database_util import run_sql_statment
 from database.sql_statment import sql_dict
-from code_data.constants import local_student_db_path, STUDENT_BUILD_INFO
+from code_data.constants import local_student_db_path, STUDENT_BUILD_INFO, cpp_tmp_path
+from code_data.code_preprocess import compile_code
 import random
 
 CHANGE = 0
@@ -103,7 +106,7 @@ def token_value_fn(x):
 
 def split_file_name(id:str):
     strs = id.split('_')
-    return strs[0]+strs[1]
+    return strs[0]+strs[1]+strs[2]
 
 count = 0
 def find_closest_token_text(one, build_ac_bf):
@@ -111,24 +114,50 @@ def find_closest_token_text(one, build_ac_bf):
     if count % 100 == 0:
         print('find closest token. total {}'.format(count))
     count += 1
+    # file_content = one['file_content']
+    # if compile_code(file_content, cpp_tmp_path):
+    #     one['similar_code'] = ''
+    #     one['action_list'] = []
+    #     one['distance'] = -1
+    #     return one
+
     a_tokenize = one['tokenize']
     file_name = one['file_name']
     build_ac_bf = build_ac_bf[build_ac_bf['file_name'].map(lambda x: x == file_name)]
 
-    cal_distance_fn = lambda x: levenshtenin_distance(a_tokenize, x, equal_fn=equal_fn, max_distance=5)[0]
-    distance_series = build_ac_bf['tokenize'].map(cal_distance_fn)
-    max_id = distance_series.idxmax()
-    max_value = distance_series.loc[max_id]
-    if max_value > 5:
+    if len(build_ac_bf.index) <= 0:
         one['similar_code'] = ''
         one['action_list'] = []
+        one['distance'] = -1
         return one
 
-    matrix = levenshtenin_distance(a_tokenize, build_ac_bf['tokenize'].loc[max_id], equal_fn=equal_fn, max_distance=5)[1]
-    b_tokenize = build_ac_bf['tokenize'].loc[max_id]
-    action_list = cal_action_list(matrix, a_tokenize, b_tokenize, equal_fn, token_value_fn)
+    # cal_distance_fn = lambda x: levenshtenin_distance(a_tokenize, x, equal_fn=equal_fn, max_distance=5)[0]
+    cal_distance_fn = lambda x: levenshtenin_distance(a_tokenize, x, equal_fn=equal_fn)[0]
+    distance_series = build_ac_bf['tokenize'].map(cal_distance_fn)
+    if len(distance_series.index) <= 0:
+        one['similar_code'] = ''
+        one['action_list'] = []
+        one['distance'] = -1
+        return one
+    min_id = distance_series.idxmin()
+    min_value = distance_series.loc[min_id]
+    # print(distance_series)
+    # print('min_id: {}, min_value: {}'.format(min_id, min_value))
+    #
+    # print(one['file_content'])
+    # print(build_ac_bf['file_content'].loc[min_id])
+    # if min_value > 5:
+    #     one['similar_code'] = ''
+    #     one['action_list'] = []
+    #     one['distance'] = -1
+    #     return one
 
-    one['similar_code'] = build_ac_bf['file_content'].loc[max_id]
+    matrix = levenshtenin_distance(a_tokenize, build_ac_bf['tokenize'].loc[min_id], equal_fn=equal_fn)[1]
+    b_tokenize = build_ac_bf['tokenize'].loc[min_id]
+    action_list = cal_action_list(matrix, a_tokenize, b_tokenize, equal_fn, token_value_fn)
+    # print(action_list)
+    one['distance'] = min_value
+    one['similar_code'] = build_ac_bf['file_content'].loc[min_id]
     one['action_list'] = action_list
 
     return one
@@ -151,12 +180,12 @@ def left_top_move_action(matrix, i, j, a_token, b_token, value_fn=lambda x: x):
     return action
 
 
-def check_action(token):
-    if token == None:
-        return True
-    if isinstance(token.value, list):
+def action_is_list(token):
+    if token is None:
         return False
-    return True
+    if isinstance(token.value, list):
+        return True
+    return False
 
 
 def get_action(matrix, i, j, a_token, b_token, equal_fn, value_fn=lambda x: x):
@@ -208,8 +237,9 @@ def cal_action_list(matrix, a_tokens, b_tokens, equal_fn=lambda x, y: x == y, va
     while i >= 0 and j >= 0:
         a_token = a_tokens[i-1] if i > 0 else None
         b_token = b_tokens[j-1] if j > 0 else None
-        if check_action(a_token) or check_action(b_token):
-            return None
+        # if (action_is_list(a_token) or action_is_list(b_token)) and not equal_fn(a_token, b_token):
+        #     print('in check action, {}, {}'.format(a_token, b_token))
+        #     return None
         action, i, j = get_action(matrix, i, j, a_token, b_token, equal_fn, value_fn)
         if action is not None:
             action_list = action_list + [action]
@@ -263,12 +293,24 @@ def testLe():
             assert b[i] == a[i]
         assert b == a
 
-
-if __name__ == '__main__':
-    # testLe()
-
-    print('Start')
+# @util.disk_cache(basename='student_local_data_for_closest_text', directory=cache_data_path)
+def read_build_bf():
     build_bf = read_student_local_data()
+    # build_bf['file_content'] = build_bf['file_content'].map(init_code)
+    # build_bf = build_bf.drop([18634, 68286, 68287])
+
+    # build_bf['file_name'] = build_bf['id'].map(split_file_name)
+    # build_error_bf = build_bf[build_bf['build_result'].map(lambda x: x == 0)].copy()
+    # build_ac_bf = build_bf[build_bf['build_result'].map(lambda x: x == 1)].copy()
+    # build_error_bf['tokenize'] = build_error_bf['file_content'].map(do_tokenize)
+    # build_error_bf = build_error_bf[build_error_bf['tokenize'].map(lambda x: x is not None)].copy()
+    # build_error_bf = build_error_bf.sample(1)
+    # build_ac_bf = build_ac_bf[build_ac_bf['file_name'].map(lambda x: x == build_error_bf.iloc[0]['file_name'])]
+    # build_ac_bf = build_ac_bf.append(build_error_bf.iloc[0])
+    # build_bf = build_ac_bf
+    # print(build_bf)
+
+
     # build_bf = build_bf.sample(100)
     print('Start . Total {} code'.format(len(build_bf.index)))
     build_bf = build_bf.drop([18634, 68286, 68287])
@@ -287,6 +329,15 @@ if __name__ == '__main__':
 
     build_error_bf = build_bf[build_bf['build_result'].map(lambda x: x == 0)].copy()
     build_ac_bf = build_bf[build_bf['build_result'].map(lambda x: x == 1)].copy()
+
+    return build_error_bf, build_ac_bf
+
+
+if __name__ == '__main__':
+    # testLe()
+
+    print('Start')
+    build_error_bf, build_ac_bf = read_build_bf()
     print('Build error. Total {} code'.format(len(build_error_bf.index)))
     print('Build success. Total {} code'.format(len(build_ac_bf.index)))
 
@@ -294,9 +345,9 @@ if __name__ == '__main__':
     build_effect_bf = build_error_bf[build_error_bf['similar_code'].map(lambda x: x != '')].copy()
     print('final effective code Total {}'.format(len(build_effect_bf.index)))
 
-    store_list = build_error_bf[['similar_code', 'action_list', 'id']].to_dict('list')
-    store_list = list(zip(store_list['similar_code'], store_list['action_list'], store_list['id']))
-    json_presist = lambda x: [x[0], json.dumps(x[1]), x[2]]
+    store_list = build_error_bf[['similar_code', 'action_list', 'distance', 'id']].to_dict('list')
+    store_list = list(zip(store_list['similar_code'], store_list['action_list'], store_list['distance'], store_list['id']))
+    json_presist = lambda x: [x[0], json.dumps(x[1]), x[2], x[3]]
     store_list = [json_presist(i) for i in store_list]
 
     run_sql_statment(local_student_db_path, STUDENT_BUILD_INFO, 'update_similar_code', store_list)
