@@ -54,7 +54,7 @@ def load_data_token_level_without_iscontinue(max_bug_number=1, min_bug_number=0)
 
     parse_xy_fn = parse_xy_token_level_without_iscontinue
     key_val, char_voc = create_embedding()
-    parse_xy_param = [key_val, char_voc, max_bug_number, min_bug_number]
+    parse_xy_param = [key_val, char_voc, max_bug_number, min_bug_number, action_list_sorted]
     flat_train_data = parse_xy_fn(train, 'flat_train', *parse_xy_param)
     # train_data = parse_xy_fn(train, 'train', *parse_xy_param, sample_size=50000)
     # train_data = get_part_of_train_data(train, parse_xy_param)
@@ -76,7 +76,7 @@ def load_data_token_level__without_iscontinue_sample(max_bug_number=1, min_bug_n
 
     parse_xy_fn = parse_xy_token_level_without_iscontinue
     key_val, char_voc = create_embedding()
-    parse_xy_param = [key_val, char_voc, max_bug_number, min_bug_number]
+    parse_xy_param = [key_val, char_voc, max_bug_number, min_bug_number, action_list_sorted]
     flat_train_data = parse_xy_fn(train, 'flat_train', *parse_xy_param)
     # train_data = parse_xy_token_level(train, 'train', *parse_xy_param)
     # train_data = parse_xy_fn(train, 'train', *parse_xy_param)
@@ -125,6 +125,11 @@ def error_count_create_condition_fn(error_count: int):
         for x in one:
             if len(x) > error_count:
                 return False
+        return True
+    return condition_fn
+
+def no_condition_create_fn():
+    def condition_fn(one):
         return True
     return condition_fn
 
@@ -234,13 +239,12 @@ def parse_xy_token_level(df, data_type:str, keyword_voc, char_voc, max_bug_numbe
 
 
 @util.disk_cache(basename='random_token_action_multirnn_on_fake_cpp_data_parse_xy_without_iscontinue', directory=cache_data_path)
-def parse_xy_token_level_without_iscontinue(df, data_type: str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0,
-                         sample_size=None):
+def parse_xy_token_level_without_iscontinue(df, data_type: str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0, sort_fn=None, sample_size=None):
     df['res'] = ''
     df['ac_code_obj'] = df['ac_code'].map(do_new_tokenize)
     df = df[df['ac_code_obj'].map(lambda x: x is not None)].copy()
 
-    df = df.apply(create_error_list_by_token_actionmap, axis=1, raw=True)
+    df = df.apply(create_error_list_by_token_actionmap, axis=1, raw=True, sort_fn=sort_fn)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
@@ -344,10 +348,12 @@ def create_error_list(one):
     return one
 
 
-def create_error_list_by_token_actionmap(one):
+def create_error_list_by_token_actionmap(one, sort_fn=None):
     import json
     ac_code_obj = one['ac_code_obj']
     action_token_list = json.loads(one['action_character_list'])
+    if sort_fn is not None:
+        action_token_list = sort_fn(action_token_list)
 
     def cal_token_pos_bias(action_list, cur_action):
         bias = 0
@@ -625,3 +631,12 @@ def create_identifier_category(tokens, keyword_set):
     token_set = set(tokens) - keyword_set
     token_id_dict = util.reverse_dict(dict(enumerate(token_set, start=1)))
     return [token_id_dict[t] if t in token_set else 0 for t in tokens], token_id_dict
+
+
+def action_list_sorted(action_list):
+    def sort_key(a):
+        bias = 0.5 if a['act_type'] == INSERT else 0
+        return a['token_pos'] - bias
+
+    action_list = sorted(action_list, key=sort_key, reverse=True)
+    return action_list

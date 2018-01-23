@@ -2,7 +2,9 @@ from code_data.read_data import read_cpp_fake_code_records_set, read_cpp_random_
 from common import util
 from common.supervision_util_increment import create_supervision_experiment
 from experiment.experiment_util import sample, create_embedding, error_count_create_condition_fn, \
-    parse_xy_with_identifier_mask, parse_xy_token_level, sample_on_random_token_code_records, load_data_token_level, load_data_token_level_sample, load_data_token_level__without_iscontinue_sample, load_data_token_level_without_iscontinue
+    parse_xy_with_identifier_mask, parse_xy_token_level, sample_on_random_token_code_records, load_data_token_level, \
+    load_data_token_level_sample, load_data_token_level__without_iscontinue_sample, load_data_token_level_without_iscontinue, \
+    no_condition_create_fn
 from model.masked_token_level_multirnn_model import MaskedTokenLevelMultiRnnModel
 from model.one_iteration_token_level_multirnn_model_with_output_mask_without_is_continue import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
@@ -83,7 +85,7 @@ if __name__ == '__main__':
     train_supervision(TokenLevelMultiRnnModel, param_generator, 1, debug=False, restore=False)
     # restore_param_generator = random_parameters_generator(random_param={ },
     #                                               choice_param={ },
-    #                                               constant_param={"learning_rate": 0.000948072915975,
+    #                                               constant_param={"learning_rate": 0.000451881609981,
     #                                                               "hidden_size": 100,
     #                                                               'rnn_layer_number': 2,
     #                                                               'keyword_number': len(key_val.word_id_map),
