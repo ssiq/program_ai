@@ -5,8 +5,9 @@ from tensorflow.python.util import nest
 
 from common import tf_util, code_util, rnn_util, util
 from common.beam_search_util import beam_cal_top_k, flat_list, beam_gather, \
-    select_max_output, revert_batch_beam_stack, beam_calculate, _create_next_code_without_iter_dims, cal_metrics, \
-    find_copy_input_position, init_beam_search_stack, metrics_output_directly
+    select_max_output, revert_batch_beam_stack, _create_next_code_without_iter_dims, cal_metrics, \
+    find_copy_input_position, init_beam_search_stack, metrics_output_directly, beam_calculate_without_iscontinue, \
+    calculate_length_by_one_input, make_mask_stack_by_length_list, cal_metrics_without_iscontinue
 
 
 def _transpose_mask(identifier_mask):
@@ -431,6 +432,7 @@ class TokenLevelMultiRnnModel(object):
         name_list = ["position", "is_copy", "keyword", "copy_word"]
         for n, p, o in zip(name_list, predict_data, output_data):
             print("{}:predict:{}, output:{}".format(n, p, o))
+        # print('metrics_value: ', metrics_value)
         return metrics_value
 
     def metrics_model(self, *args):
@@ -444,7 +446,7 @@ class TokenLevelMultiRnnModel(object):
         name_list = ["position", "is_copy", "keyword", "copy_word"]
         for n, p, o in zip(name_list, predict_data, output_data):
             print("{}:predict:{}, output:{}".format(n, p, o))
-        metrics_value = cal_metrics(max_decode_iterator_num, output_data, predict_data)
+        metrics_value = cal_metrics_without_iscontinue(max_decode_iterator_num, output_data, predict_data)
         # print('metrics_value: ', metrics_value)
         return metrics_value
 
@@ -479,6 +481,7 @@ class TokenLevelMultiRnnModel(object):
         return loss, accracy, None
 
     def predict_model(self, *args,):
+        length_list = calculate_length_by_one_input(args[0])
         import copy
         args = [copy.deepcopy([ti[0] for ti in one_input]) for one_input in args]
         batch_size = len(args[0])
@@ -489,7 +492,9 @@ class TokenLevelMultiRnnModel(object):
         # shape = 5 * batch_size * beam_size * token_length
         input_stack = init_input_stack(args)
         beam_length_stack, beam_stack, mask_stack, select_output_stack_list = init_beam_search_stack(batch_size,
-                                                                                                     cur_beam_size)
+                                                                                                     cur_beam_size, output_num=4)
+
+        mask_stack = make_mask_stack_by_length_list(cur_beam_size, 0, length_list)
 
         for i in range(max_decode_iterator_num):
 
@@ -506,10 +511,10 @@ class TokenLevelMultiRnnModel(object):
 
             output_stack = [revert_batch_beam_stack(out_list, batch_size, cur_beam_size) for out_list in output_list]
 
-            batch_returns = list(map(beam_calculate, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size for o in range(batch_size)], [beam_calculate_output_score for o in range(batch_size)], [[] for o in range(batch_size)]))
+            batch_returns = list(map(beam_calculate_without_iscontinue, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size for o in range(batch_size)], [beam_calculate_output_score_without_iscontinue for o in range(batch_size)], [[] for o in range(batch_size)]))
             def create_next(ret):
                 ret = list(ret)
-                ret[0] = _create_next_code_without_iter_dims(ret[1], ret[0], create_one_fn=self._create_one_next_code)
+                ret[0] = _create_next_code_without_iter_dims(ret[1], ret[0], create_one_fn=self._create_one_next_code_without_continue)
                 return ret
             batch_returns = [create_next(ret) for ret in batch_returns]
             input_stack, output_stack, select_output_stack_list, mask_stack, beam_stack, beam_length_stack, _ = list(zip(*batch_returns))
@@ -517,7 +522,10 @@ class TokenLevelMultiRnnModel(object):
             output_stack = list(zip(*output_stack))
             select_output_stack_list = list(zip(*select_output_stack_list))
 
-            if np.sum(output_stack[0]) == 0:
+            cur_beam_size = beam_size
+            mask_stack = make_mask_stack_by_length_list(cur_beam_size, i + 1, length_list)
+
+            if np.sum(mask_stack) == 0:
                 break
 
             input_stack = [[list(inp) for inp in one_input]for one_input in input_stack]
@@ -525,20 +533,86 @@ class TokenLevelMultiRnnModel(object):
             input_stack = [list(util.padded(list(inp))) for inp in input_stack]
             mask_input_with_end_fn = lambda token_input: list([util.mask_input_with_end(batch_mask, batch_inp, n_dim=1).tolist() for batch_mask, batch_inp in zip(mask_stack, token_input)])
             input_stack = list(map(mask_input_with_end_fn, input_stack))
-            cur_beam_size = beam_size
+
 
         summary = copy.deepcopy(select_output_stack_list)
-        tf_util.add_value_histogram("predict_is_continue", util.padded(summary[0]))
-        tf_util.add_value_histogram("predict_position_softmax", util.padded(summary[1]))
-        tf_util.add_value_histogram("predict_is_copy", util.padded(summary[2]))
-        tf_util.add_value_histogram("predict_key_word", util.padded(summary[3]))
-        tf_util.add_value_histogram("predict_copy_word", util.padded(summary[4]))
+        tf_util.add_value_histogram("predict_position_softmax", util.padded(summary[0]))
+        tf_util.add_value_histogram("predict_is_copy", util.padded(summary[1]))
+        tf_util.add_value_histogram("predict_key_word", util.padded(summary[2]))
+        tf_util.add_value_histogram("predict_copy_word", util.padded(summary[3]))
 
         final_output = select_max_output(beam_stack, select_output_stack_list)
         return final_output
 
     def _create_one_next_code(self, action, token_input, token_input_length, character_input, character_input_length, identifier_mask):
         is_continue, position, is_copy, keyword_id, copy_id = action
+        next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
+        code_length = token_input_length
+
+        if position % 2 == 1 and is_copy == 0 and keyword_id == self.placeholder_token:
+            # delete
+            position = int(position / 2)
+            if position >= code_length:
+                # action position error
+                print('delete action position error', position, code_length)
+                return next_inputs
+            token_input = token_input[0:position] + token_input[position + 1:]
+            token_input_length -= 1
+            character_input = character_input[0:position] + character_input[position + 1:]
+            character_input_length = character_input_length[0:position] + character_input_length[position + 1:]
+            identifier_mask = identifier_mask[0:position] + identifier_mask[position + 1:]
+        else:
+            if is_copy:
+                copy_position_id = find_copy_input_position(identifier_mask, copy_id)
+                # copy_position_id = copy_id
+                if copy_position_id >= code_length:
+                    # copy position error
+                    print('copy position error', copy_position_id, code_length)
+                    print('details:', position, is_copy, keyword_id, copy_position_id, code_length)
+                    return next_inputs
+                word_token_id = token_input[copy_position_id]
+                word_character_id = character_input[copy_position_id]
+                word_character_length = character_input_length[copy_position_id]
+                iden_mask = identifier_mask[copy_position_id]
+            else:
+                word_token_id = keyword_id
+                word = self.id_to_word(word_token_id)
+                if word == None:
+                    # keyword id error
+                    print('keyword id error', keyword_id)
+                    return next_inputs
+                word_character_id = self.parse_token(word, character_position_label=True)
+                word_character_length = len(word_character_id)
+                iden_mask = [0 for i in range(len(identifier_mask[0]))]
+
+            if position % 2 == 0:
+                # insert
+                position = int(position / 2)
+                if position > code_length:
+                    # action position error
+                    print('insert action position error', position, code_length)
+                    return next_inputs
+                token_input = token_input[0:position] + [word_token_id] + token_input[position:]
+                token_input_length += 1
+                character_input = character_input[0:position] + [word_character_id] + character_input[position:]
+                character_input_length = character_input_length[0:position] + [word_character_length] + character_input_length[position:]
+                identifier_mask = identifier_mask[0:position] + [iden_mask] + identifier_mask[position:]
+            elif position % 2 == 1:
+                # change
+                position = int(position / 2)
+                if position >= code_length:
+                    # action position error
+                    print('change action position error', position, code_length)
+                    return next_inputs
+                token_input[position] = word_token_id
+                character_input[position] = word_character_id
+                character_input_length[position] = word_character_length
+                identifier_mask[position] = iden_mask
+        next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
+        return next_inputs
+
+    def _create_one_next_code_without_continue(self, action, token_input, token_input_length, character_input, character_input_length, identifier_mask):
+        position, is_copy, keyword_id, copy_id = action
         next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
         code_length = token_input_length
 
@@ -656,10 +730,10 @@ def beam_calculate_output_score(output_beam_list, beam_size):
                             position_p = output_positions[beam_id][position_id]
                             is_copy_p = output_is_copys[beam_id][is_copy]
                             copy_id_p = output_copy_ids[beam_id][copy_id]
-                            is_continue_p = is_continue_p if is_continue_p > 0 else 0.00001
-                            position_p = position_p if position_p > 0 else 0.00001
-                            is_copy_p = is_copy_p if is_copy_p > 0 else 0.00001
-                            copy_id_p = copy_id_p if copy_id_p > 0 else 0.00001
+                            is_continue_p = is_continue_p if is_continue_p > 0 else 0.00000001
+                            position_p = position_p if position_p > 0 else 0.00000001
+                            is_copy_p = is_copy_p if is_copy_p > 0 else 0.00000001
+                            copy_id_p = copy_id_p if copy_id_p > 0 else 0.00000001
 
                             # action = {'is_continue': is_continue, 'position': position_id, 'is_copy': is_copy,
                             #           'keyword': keyword, 'copy_id': copy_id, 'beam_id': beam_id}
@@ -677,10 +751,10 @@ def beam_calculate_output_score(output_beam_list, beam_size):
                             position_p = output_positions[beam_id][position_id]
                             is_copy_p = output_is_copys[beam_id][is_copy]
                             keyword_p = output_keyword_ids[beam_id][keyword]
-                            is_continue_p = is_continue_p if is_continue_p > 0 else 0.00001
-                            position_p = position_p if position_p > 0 else 0.00001
-                            is_copy_p = is_copy_p if is_copy_p > 0 else 0.00001
-                            keyword_p = keyword_p if keyword_p > 0 else 0.00001
+                            is_continue_p = is_continue_p if is_continue_p > 0 else 0.00000001
+                            position_p = position_p if position_p > 0 else 0.00000001
+                            is_copy_p = is_copy_p if is_copy_p > 0 else 0.00000001
+                            keyword_p = keyword_p if keyword_p > 0 else 0.00000001
 
                             # action = {'is_continue': is_continue, 'position': position_id, 'is_copy': is_copy,
                             #           'keyword': keyword, 'copy_id': copy_id, 'beam_id': beam_id}
@@ -689,6 +763,65 @@ def beam_calculate_output_score(output_beam_list, beam_size):
                             beam_action_stack[beam_id].append((is_continue, position_id, is_copy, keyword, copy_id))
                             beam_p_stack[beam_id].append(p)
                             beam_id_stack[beam_id].append(beam_id)
+    return beam_p_stack, beam_id_stack, beam_action_stack
+
+
+def beam_calculate_output_score_without_iscontinue(output_beam_list, beam_size):
+    import math
+
+    output_positions, output_is_copys, output_keyword_ids, output_copy_ids = output_beam_list
+    cur_beam_size = len(output_positions)
+    # print('cur_beam_size:',cur_beam_size)
+    beam_action_stack = [[] for i in range(beam_size)]
+    beam_p_stack = [[] for i in range(beam_size)]
+    beam_id_stack = [[] for i in range(beam_size)]
+
+    top_position_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_positions]
+    top_keyword_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_keyword_ids]
+    top_copy_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_copy_ids]
+    sigmoid_to_p_distribute = lambda x: [1 - x, x]
+    output_is_copys = [sigmoid_to_p_distribute(beam) for beam in output_is_copys]
+    top_is_copy_beam_id_list = [beam_cal_top_k(beam, beam_size) for beam in output_is_copys]
+    for beam_id in range(cur_beam_size):
+
+        for position_id in top_position_beam_id_list[beam_id]:
+            for is_copy in top_is_copy_beam_id_list[beam_id]:
+                if is_copy == 1:
+                    for copy_id in top_copy_beam_id_list[beam_id]:
+                        keyword = 0
+                        position_p = output_positions[beam_id][position_id]
+                        is_copy_p = output_is_copys[beam_id][is_copy]
+                        copy_id_p = output_copy_ids[beam_id][copy_id]
+                        position_p = position_p if position_p > 0 else 0.00000001
+                        is_copy_p = is_copy_p if is_copy_p > 0 else 0.00000001
+                        copy_id_p = copy_id_p if copy_id_p > 0 else 0.00000001
+
+                        # action = {'is_continue': is_continue, 'position': position_id, 'is_copy': is_copy,
+                        #           'keyword': keyword, 'copy_id': copy_id, 'beam_id': beam_id}
+                        # print(is_continue_p, position_p, is_copy_p, copy_id_p)
+                        p = math.log(position_p) + math.log(is_copy_p) + math.log(copy_id_p)
+
+                        beam_action_stack[beam_id].append((position_id, is_copy, keyword, copy_id))
+                        beam_p_stack[beam_id].append(p)
+                        beam_id_stack[beam_id].append(beam_id)
+
+                else:
+                    for keyword in top_keyword_beam_id_list[beam_id]:
+                        copy_id = 0
+                        position_p = output_positions[beam_id][position_id]
+                        is_copy_p = output_is_copys[beam_id][is_copy]
+                        keyword_p = output_keyword_ids[beam_id][keyword]
+                        position_p = position_p if position_p > 0 else 0.00000001
+                        is_copy_p = is_copy_p if is_copy_p > 0 else 0.00000001
+                        keyword_p = keyword_p if keyword_p > 0 else 0.00000001
+
+                        # action = {'is_continue': is_continue, 'position': position_id, 'is_copy': is_copy,
+                        #           'keyword': keyword, 'copy_id': copy_id, 'beam_id': beam_id}
+                        p = math.log(position_p) + math.log(is_copy_p) + math.log(keyword_p)
+
+                        beam_action_stack[beam_id].append((position_id, is_copy, keyword, copy_id))
+                        beam_p_stack[beam_id].append(p)
+                        beam_id_stack[beam_id].append(beam_id)
     return beam_p_stack, beam_id_stack, beam_action_stack
 
 

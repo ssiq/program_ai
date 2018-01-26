@@ -2,7 +2,7 @@ import unittest
 import tensorflow as tf
 import numpy as np
 
-from common.beam_search_util import _create_next_code, cal_metrics
+from common.beam_search_util import _create_next_code, cal_metrics, cal_metrics_without_iscontinue
 from model.masked_token_level_multirnn_model import MaskedTokenLevelMultiRnnModel, flat_and_get_effective_args, get_effective_id, make_weight_array
 from embedding.wordembedding import load_vocabulary
 from embedding.character_embedding import load_character_vocabulary
@@ -54,6 +54,16 @@ class Test(unittest.TestCase):
         o = (is_continue, position_label, is_copy, keyword_id, copy_word_id)
         po = [np.array(padded(t)).tolist() for t in o]
         res = cal_metrics(5, o, po)
+        self.assertAlmostEqual(res, 1.0)
+
+    def test_cal_metrics_without_iscontinue(self):
+        position_label = [[2, 3, 3], [2,45,3, 1], [2]]
+        is_copy = [[1, 1, 0], [1, 0, 1, 1], [1]]
+        keyword_id = [[0, 0, 1], [0, 2,0, 0], [0]]
+        copy_word_id = [[12, 32, 0], [21, 0, 32,32], [12]]
+        o = (position_label, is_copy, keyword_id, copy_word_id)
+        po = [np.array(padded(t)).tolist() for t in o]
+        res = cal_metrics_without_iscontinue(5, o, po)
         self.assertAlmostEqual(res, 1.0)
 
     def test__create_next_code(self):

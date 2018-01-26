@@ -1,9 +1,9 @@
 import os
 from common.new_tokenizer import keywords, operators
 
-# ROOT_PATH = '/home/lf/Project/program_ai'
+ROOT_PATH = '/home/lf/Project/program_ai'
 # ROOT_PATH = r'G:\Project\program_ai'
-ROOT_PATH = r"D:\Machine Learning\program_ai"
+# ROOT_PATH = r"D:\Machine Learning\program_ai"
 DATABASE_PATH = os.path.join(ROOT_PATH, 'data/train.db')
 BACKUP_PATH = os.path.join(ROOT_PATH, 'backup/')
 LOG_PATH = os.path.join(ROOT_PATH, 'logs/')
@@ -15,9 +15,12 @@ FAKE_ERROR_CODE = 'fake_error_code'
 FAKE_ERROR_TOKEN_CODE = 'fake_error_token_code'
 FAKE_CODE_RECORDS = 'fake_code_records'
 RANDOM_TOKEN_CODE_RECORDS = 'random_token_code_records'
+COMMON_ERROR_TOKEN_CODE_RECORDS = 'common_error_token_code_records'
 
 STUDENT_BUILD_INFO = 'student_build_info'
 BUILD_ERROR_STAT = 'build_error_stat'
+STUDENT_TEST_BUILD_ERROR_STAT = 'student_test_build_error_stat'
+TEST_CODE_RECORDS = 'test_code_records'
 
 LOG_DIR = os.path.join('.', 'log')
 DEBUG_LOG_PATH = os.path.join(LOG_DIR, 'debug')

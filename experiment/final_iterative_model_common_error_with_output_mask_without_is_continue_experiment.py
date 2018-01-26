@@ -4,19 +4,19 @@ from common.supervision_util_increment import create_supervision_experiment
 from experiment.experiment_util import sample, create_embedding, error_count_create_condition_fn, \
     parse_xy_with_identifier_mask, parse_xy_token_level, sample_on_random_token_code_records, load_data_token_level, \
     load_data_token_level_sample, load_data_token_level__without_iscontinue_sample, load_data_token_level_without_iscontinue, \
-    no_condition_create_fn
+    no_condition_create_fn, load_data_common_error_token_level_without_iscontinue
 from model.masked_token_level_multirnn_model import MaskedTokenLevelMultiRnnModel
-from model.one_iteration_token_level_multirnn_model_with_output_mask_without_is_continue import TokenLevelMultiRnnModel
+from model.final_iterative_model import TokenLevelMultiRnnModel
 from train.random_search import random_parameters_generator
 
 if __name__ == '__main__':
     util.initLogging()
     util.set_cuda_devices(1)
     # train, test, vaild = read_cpp_random_token_code_records_set()
-    load_data_fn = load_data_token_level_without_iscontinue
+    load_data_fn = load_data_common_error_token_level_without_iscontinue
     # train, test, vaild = sample_on_random_token_code_records()
     # load_data_fn = load_data_token_level_sample
-    # load_data_fn = load_data_token_level__without_iscontinue_sample
+    # load_data_fn = load_data_common_error_token_level__without_iscontinue_sample
 
     key_val, char_voc = create_embedding()
     # parse_xy_param = [key_val, char_voc, 5, 1]
@@ -63,7 +63,8 @@ if __name__ == '__main__':
 
     # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_iden_mask, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
 
-    train_supervision = create_supervision_experiment(load_data_fn, load_data_param, experiment_name='one_iteration_token_level_multirnn_model_without_iscontinue', batch_size=16, create_condition_fn=error_count_create_condition_fn, modify_condition=modify_condition)
+    train_supervision = create_supervision_experiment(load_data_fn, load_data_param, experiment_name='final_iterative_model_using_common_error_without_iscontinue', batch_size=16, create_condition_fn=error_count_create_condition_fn, modify_condition=modify_condition)
+    # train_supervision = create_supervision_experiment(load_data_fn, load_data_param, experiment_name='final_iterative_model_using_common_error_without_iscontinue', batch_size=16, create_condition_fn=error_count_create_condition_fn, modify_condition=modify_condition)
     # param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -3]},
     #                                               choice_param={ },
     #                                               constant_param={"hidden_size": 100,
@@ -85,7 +86,7 @@ if __name__ == '__main__':
     # train_supervision(TokenLevelMultiRnnModel, param_generator, 1, debug=False, restore=False)
     restore_param_generator = random_parameters_generator(random_param={ },
                                                   choice_param={ },
-                                                  constant_param={"learning_rate": 0.000678127906854,
+                                                  constant_param={"learning_rate": 0.000103202489861,
                                                                   "hidden_size": 100,
                                                                   'rnn_layer_number': 2,
                                                                   'output_layer_num': 2,

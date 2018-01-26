@@ -97,10 +97,10 @@ def _catch_exception_wrapper(func):
     def wrapper(*args, **kwargs):
         try:
             res = func(*args, **kwargs)
-            print("Find the place")
+            # print("Find the place")
             return res
         except NotFoundChangePositionException:
-            print("Not found the place")
+            # print("Not found the place")
             return None
 
     return wrapper
@@ -204,12 +204,12 @@ def create_error_action_fn():
     return error_creator_list[i][1]
 
 error_creator_list = [
-    ("RANDOM", random_creator, 1),
-    ("RANDOM", random_creator, 1),
-    # ("Undeclared_identifier", create_undeclared_identifier, 1),
-    # ("delete_brace", delete_brace, 1),
-    # ("delete_a_pair_of_braces", delete_a_pair_of_braces, 1),
-    # ("delete_semicolon", delete_semicolon, 1),
-    # ("delete_return_fn", delete_return_fn, 1),
-    # ("change_between_pointer_and_reference", change_between_pointer_and_reference, 1)
+    # ("RANDOM", random_creator, 1),
+    ("RANDOM", random_creator, 63.4),
+    ("Undeclared_identifier", create_undeclared_identifier, 7.3),
+    ("delete_brace", delete_brace, 7.7),
+    ("delete_a_pair_of_braces", delete_a_pair_of_braces, 8.5),
+    ("delete_semicolon", delete_semicolon, 7),
+    ("delete_return_fn", delete_return_fn, 3.1),
+    ("change_between_pointer_and_reference", change_between_pointer_and_reference, 3)
 ]

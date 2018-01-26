@@ -4,9 +4,9 @@ import more_itertools
 import json
 
 from common.new_tokenizer import tokenize, operators, keywords
-from code_data.read_data import read_student_local_data
 from database.database_util import create_table, insert_items
-from code_data.constants import local_student_db_path, BUILD_ERROR_STAT
+from code_data.constants import local_student_db_path, STUDENT_TEST_BUILD_ERROR_STAT
+from scripts.scripts_util import get_student_test_set
 
 
 def add_dict(one_dict: dict, key, value):
@@ -125,12 +125,13 @@ def check_one_file(code:str):
 
 
 def save_build_error(build_res):
-    create_table(local_student_db_path, BUILD_ERROR_STAT)
-    insert_items(local_student_db_path, BUILD_ERROR_STAT, build_res)
+    create_table(local_student_db_path, STUDENT_TEST_BUILD_ERROR_STAT)
+    insert_items(local_student_db_path, STUDENT_TEST_BUILD_ERROR_STAT, build_res)
 
 
 if __name__ == '__main__':
-    build_df = read_student_local_data()
+    build_df = get_student_test_set()
+    print(len(build_df.index))
     # build_res = summary_build_info_by_error_code(build_df)
     # build_res = summary_build_info_by_message(build_df)
     # build_res = sort_dict_value(build_res)

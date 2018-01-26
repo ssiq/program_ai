@@ -215,6 +215,31 @@ class TestBeamSearch(unittest.TestCase):
         self.assertEqual(select_beam[1], [[0], [0], [0]])
         self.assertEqual(end_beam[0], 1)
 
+    def test_make_mask_by_iter_num(self):
+        length_list = [2, 2, 3, 3]
+        res = make_mask_by_iter_num(1, length_list)
+        self.assertEqual(res, [1, 1, 1, 1])
+        res = make_mask_by_iter_num(2, length_list)
+        self.assertEqual(res, [0, 0, 1, 1])
+        res = make_mask_by_iter_num(3, length_list)
+        self.assertEqual(res, [0, 0, 0, 0])
+
+    def test_calculate_length_by_one_input(self):
+        input_token = [[[1, 2, 0, 0, 0], [0, 0, 0, 0, 0]],
+                       [[7, 8, 9, 10, 11], [1, 2, 0, 0, 0]],
+                       [[15, 0, 0, 0, 0], [1, 2, 0, 0, 0]]]
+        res = calculate_length_by_one_input(input_token)
+        self.assertEqual(res, [1, 2, 2])
+
+    def test_reshape_batch_length_list_to_mask_stack(self):
+        res = reshape_batch_length_list_to_mask_stack([0, 0, 1, 1], 3)
+        self.assertEqual(res, [[0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1]])
+
+    def test_make_mask_stack_by_length_list(self):
+        length_list = [2, 2, 3, 3]
+        res = make_mask_stack_by_length_list(3, 2, length_list)
+        self.assertEqual(res, [[0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1]])
+
 
 if __name__ == '__main__':
     unittest.main()

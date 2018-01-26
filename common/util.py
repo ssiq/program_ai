@@ -41,6 +41,7 @@ def make_dir(*path: str) -> None:
 def load_check_point(checkpoint_path: str, sess: tf.Session, saver: tf.train.Saver) -> None:
     ckpt = tf.train.get_checkpoint_state(os.path.dirname(checkpoint_path))
     if ckpt and ckpt.model_checkpoint_path:
+        print('ckpt: ', ckpt)
         saver.restore(sess, ckpt.model_checkpoint_path)
 
 def format_dict_to_string(to_format_dict: dict) -> str:

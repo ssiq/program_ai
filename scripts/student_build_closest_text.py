@@ -1,18 +1,11 @@
-import pandas as pd
-import Levenshtein
 import json
-import numpy as np
-from common import util
-from code_data.constants import cache_data_path
+
+import Levenshtein
+
+from code_data.constants import local_student_db_path, STUDENT_BUILD_INFO
 from code_data.read_data import read_student_local_data
-from common.new_tokenizer import tokenize
-from scripts.scripts_util import remove_comments, remove_blank_line, remove_r_char, remove_blank
-from experiment.experiment_util import do_new_tokenize
 from database.database_util import run_sql_statment
-from database.sql_statment import sql_dict
-from code_data.constants import local_student_db_path, STUDENT_BUILD_INFO, cpp_tmp_path
-from code_data.code_preprocess import compile_code
-import random
+from scripts.scripts_util import init_code, do_tokenize
 
 CHANGE = 0
 INSERT = 1
@@ -56,36 +49,6 @@ def levenshtenin_distance(a_list, b_list, equal_fn=lambda a, b: a == b, max_dist
 
 def make_metrix(i, j):
     return [[None for k in range(j+1)] for o in range(i+1)]
-
-
-def init_code(code):
-    code = code.replace('\ufeff', '').replace('\u3000', ' ')
-    code = remove_blank(code)
-    code = remove_r_char(code)
-    code = remove_comments(code)
-    code = remove_blank_line(code)
-    return code
-
-token_count = 0
-special_count = 0
-exception_count = 0
-def do_tokenize(code):
-    global token_count, special_count, exception_count
-    if token_count % 1000 == 0:
-        print('tokenize count: {}'.format(token_count))
-    token_count += 1
-    code = code.replace('\r', '')
-    if code.find('define') != -1 or code.find('defined') != -1 or code.find('undef') != -1 or \
-                    code.find('pragma') != -1 or code.find('ifndef') != -1 or \
-                    code.find('ifdef') != -1 or code.find('endif') != -1:
-        special_count += 1
-        return None
-    try:
-        tokens = do_new_tokenize(code)
-    except Exception as e:
-        exception_count += 1
-        return None
-    return tokens
 
 
 def equal_fn(x, y):

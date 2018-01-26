@@ -9,7 +9,7 @@ import random
 import time
 
 from code_data.action_mapitem import ACTION_MAPITEM, ERROR_CHARACTER_MAPITEM
-from code_data.constants import cpp_tmp_dir, cpp_tmp_path, RANDOM_TOKEN_CODE_RECORDS, pre_defined_cpp_token, \
+from code_data.constants import cpp_tmp_dir, cpp_tmp_path, COMMON_ERROR_TOKEN_CODE_RECORDS, pre_defined_cpp_token, \
     local_token_code_db
 from code_data.error_action_reducer import create_error_action_fn
 from code_data.read_data import read_cpp_code_list
@@ -28,6 +28,10 @@ formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
 hdr.setFormatter(formatter)
 # 给logger添加上handler
 preprocess_logger.addHandler(hdr)
+
+
+error_max_count = 1
+failed_max_count = 1
 
 def preprocess():
     # initLogging()
@@ -77,7 +81,7 @@ def preprocess():
 
 def push_code_to_queue(que, ids, items):
     ids = ["'" + t + "'" for t in ids]
-    result_list = find_ids_by_user_problem_id(db_full_path=local_token_code_db, table_name=RANDOM_TOKEN_CODE_RECORDS, ids=ids)
+    result_list = find_ids_by_user_problem_id(db_full_path=local_token_code_db, table_name=COMMON_ERROR_TOKEN_CODE_RECORDS, ids=ids)
     ids_repeat = [row[0] for row in result_list]
     count = 0
     for it in items:
@@ -144,7 +148,7 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
             que_write.put(item)
         else:
             item['try_count'] += 1
-            if item['try_count'] <= 3:
+            if item['try_count'] <= error_max_count:
                 err_count += 1
                 que_read.put(item)
             else:
@@ -156,7 +160,7 @@ def make_fake_code(que_read:mp.Queue, que_write:mp.Queue, ind:int):
 
 
 def save_fake_code(que:mp.Queue, all_data_count):
-    create_table(db_full_path=local_token_code_db, table_name=RANDOM_TOKEN_CODE_RECORDS)
+    create_table(db_full_path=local_token_code_db, table_name=COMMON_ERROR_TOKEN_CODE_RECORDS)
     preprocess_logger.info('Start Save Fake Code Process')
     count = 0
     error_count = 0
@@ -178,14 +182,14 @@ def save_fake_code(que:mp.Queue, all_data_count):
             param.append(item)
             if len(param) > 1000:
                 preprocess_logger.info('Save {} recode. Total record: {}'.format(len(param), count))
-                insert_items(db_full_path=local_token_code_db, table_name=RANDOM_TOKEN_CODE_RECORDS, params=dict_to_list(param))
+                insert_items(db_full_path=local_token_code_db, table_name=COMMON_ERROR_TOKEN_CODE_RECORDS, params=dict_to_list(param))
                 param = []
         elif que.empty() and count >= all_data_count:
             break
         else:
             time.sleep(10)
     preprocess_logger.info('Save {} recode. Total record: {}'.format(len(param), count))
-    insert_items(db_full_path=local_token_code_db, table_name=RANDOM_TOKEN_CODE_RECORDS, params=dict_to_list(param))
+    insert_items(db_full_path=local_token_code_db, table_name=COMMON_ERROR_TOKEN_CODE_RECORDS, params=dict_to_list(param))
     preprocess_logger.info('End Save Fake Code Process')
 
 
@@ -350,27 +354,27 @@ def create_multi_error(code, error_type_list=(5, 1, 4), error_count=1):
     action_maplist = []
     token_pos_list = []
     try_count = 0
-    while len(action_maplist) < error_count and try_count < 6:
+    while len(action_maplist) < error_count and try_count < failed_max_count:
         error_action_fn = create_error_action_fn()
         # act_type, pos, token_pos, from_char, to_char = error_action_fn(code, code_tokens)
         action_tuple_list = error_action_fn(code, code_tokens)
         if action_tuple_list == None:
             try_count += 1
             continue
-        action_tuple_list = [i[2] if i[0] != INSERT else -1 for i in action_tuple_list]
-        action_tuple_list = filter(lambda x: x != -1, action_tuple_list)
-        token_pos_tmp_list = [i[2] for i in action_tuple_list]
-        while len(set(token_pos_tmp_list) & set(token_pos_list)) > 0 and try_count < 6:
+        without_insert_pos_list = [i[2] if i[0] != INSERT else -1 for i in action_tuple_list]
+        token_pos_tmp_list = filter(lambda x: x != -1, without_insert_pos_list)
+        # token_pos_tmp_list = [i[2] for i in action_tuple_list]
+        while len(set(token_pos_tmp_list) & set(token_pos_list)) > 0 and try_count < failed_max_count:
             action_tuple_list = error_action_fn(code, code_tokens)
             if action_tuple_list == None:
                 try_count += 1
                 continue
-            action_tuple_list = [i[2] if i[0] != INSERT else -1 for i in action_tuple_list]
-            action_tuple_list = filter(lambda x: x != -1, action_tuple_list)
-            token_pos_tmp_list = [i[2] for i in action_tuple_list]
+            without_insert_pos_list = [i[2] if i[0] != INSERT else -1 for i in action_tuple_list]
+            token_pos_tmp_list = filter(lambda x: x != -1, without_insert_pos_list)
+            # token_pos_tmp_list = [i[2] for i in action_tuple_list]
             try_count += 1
 
-        if try_count >= 6:
+        if try_count >= failed_max_count:
             break
         token_pos_list.extend(token_pos_tmp_list)
         for act in action_tuple_list:
@@ -378,7 +382,10 @@ def create_multi_error(code, error_type_list=(5, 1, 4), error_count=1):
             action_item = ACTION_MAPITEM(act_type=act_type, ac_pos=pos, token_pos=token_pos, from_char=from_char, to_char=to_char)
             action_maplist.append(action_item)
 
-    if try_count >= 6:
+    if try_count >= failed_max_count:
+        return []
+
+    if len(action_maplist) > 5:
         return []
 
     return action_maplist
