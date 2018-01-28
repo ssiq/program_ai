@@ -260,7 +260,7 @@ def parse_xy_token_level(df, data_type:str, keyword_voc, char_voc, max_bug_numbe
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number,
-                  min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict)
+                  min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict, find_identifier_mask_fn=find_pos_by_identifier_mask)
     df = df[df['res'].map(lambda x: x is not None)].copy()
 
     if sample_size is not None:
@@ -302,7 +302,7 @@ def parse_xy_token_level_without_iscontinue(df, data_type: str, keyword_voc, cha
     print('after create charactid: ', len(df.index))
 
     df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number,
-                  min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict)
+                  min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict, find_identifier_mask_fn=find_pos_by_identifier_mask)
     df = df[df['res'].map(lambda x: x is not None)].copy()
     print('after create output: ', len(df.index))
 
@@ -571,6 +571,14 @@ def find_copy_id_by_identifier_dict(name, iden_token_id_dict:dict):
     return -1
 
 
+def find_pos_by_identifier_mask(identifier_mask, copy_id):
+    for i in range(len(identifier_mask)):
+        iden = identifier_mask[i]
+        if iden[copy_id] == 1:
+            return i
+    return -1
+
+
 def find_token_name(name, token_name_list):
     for k in range(len(token_name_list)):
         token = token_name_list[k]
@@ -579,7 +587,7 @@ def find_token_name(name, token_name_list):
     return -1
 
 
-def create_full_output(one, keyword_voc, max_bug_number, min_bug_number, find_copy_id_fn):
+def create_full_output(one, keyword_voc, max_bug_number, min_bug_number, find_copy_id_fn, find_identifier_mask_fn=None):
     action_list = one['action_list']
     # token_name_list = one['token_name_list']
     copy_name_list = one['copy_name_list']
@@ -607,6 +615,11 @@ def create_full_output(one, keyword_voc, max_bug_number, min_bug_number, find_co
                 # name_list = token_name_list[i]
                 name_list = copy_name_list[i]
                 copy_pos = find_copy_id_fn(act_token, name_list)
+                if find_identifier_mask_fn!= None:
+                    cur_iden_mask = one['token_identify_mask'][i]
+                    res = find_identifier_mask_fn(cur_iden_mask, copy_pos)
+                    if res < 0:
+                        copy_pos = -1
                 if copy_pos >= 0:
                     is_copy_list.append(1)
                     keywordid_list.append(0)

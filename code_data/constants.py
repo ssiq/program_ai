@@ -21,6 +21,7 @@ STUDENT_BUILD_INFO = 'student_build_info'
 BUILD_ERROR_STAT = 'build_error_stat'
 STUDENT_TEST_BUILD_ERROR_STAT = 'student_test_build_error_stat'
 TEST_CODE_RECORDS = 'test_code_records'
+TEST_EXPERIMENT_RECORDS = 'test_experiment_records'
 
 LOG_DIR = os.path.join('.', 'log')
 DEBUG_LOG_PATH = os.path.join(LOG_DIR, 'debug')
@@ -36,6 +37,7 @@ remote_db_path = '/home/lf/DataCrawl/scrapy_OJ/release_data/scrapyOJ.db'
 local_db_path = os.path.join(ROOT_PATH, 'data/scrapyOJ.db')
 local_student_db_path = os.path.join(ROOT_PATH, 'data/student_code.db')
 local_token_code_db = os.path.join(ROOT_PATH, 'data/token_code.db')
+local_test_experiment_db = os.path.join(ROOT_PATH, 'data/test_experiment.db')
 
 spider_ip = '218.94.159.108'
 spider_port = 22

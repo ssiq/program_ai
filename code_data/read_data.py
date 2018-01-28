@@ -102,19 +102,16 @@ def read_code_list(filter_function: typing.Callable[[pd.DataFrame], pd.Series], 
 
 def read_fake_code_records() -> pd.DataFrame:
     from code_data.constants import local_db_path
-    import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
     return read_cpp_fake_records(con)
 
 def read_local_random_token_code_records() -> pd.DataFrame:
     from code_data.constants import local_token_code_db
-    import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_token_code_db), uri=True)
     return read_cpp_random_token_code_records(con)
 
 def read_local_common_error_token_code_records() -> pd.DataFrame:
     from code_data.constants import local_token_code_db
-    import sqlite3
     con = sqlite3.connect("file:{}?mode=ro".format(local_token_code_db), uri=True)
     return read_cpp_common_error_token_code_records(con)
 
@@ -236,6 +233,21 @@ def read_cpp_common_error_token_code_records_set() -> pd.DataFrame:
     vaild = df.sample(10000, random_state=888)
     train = df.drop(vaild.index)
     return (train, test, vaild)
+
+def read_test_code_records(conn: sqlite3.Connection) -> pd.DataFrame:
+    from code_data.constants import TEST_CODE_RECORDS
+    test_df = pd.read_sql('select * from {}'.format(TEST_CODE_RECORDS), conn)
+    return test_df
+
+def read_local_test_code_records() -> pd.DataFrame:
+    from code_data.constants import local_student_db_path
+    con = sqlite3.connect("file:{}?mode=ro".format(local_student_db_path), uri=True)
+    return read_test_code_records(con)
+
+def read_test_experiment_by_experiment_name(local_db_path, experiment_name):
+    con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
+    test_df = pd.read_sql('select * from {}'.format(experiment_name), con)
+    return test_df
 
 
 if __name__ == '__main__':

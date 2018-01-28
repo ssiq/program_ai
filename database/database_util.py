@@ -21,10 +21,12 @@ def with_connect():
     return wrapper
 
 @with_connect()
-def create_table(db_full_path, table_name, **kwargs):
+def create_table(db_full_path, table_name, replace_table_name=None, **kwargs):
     assert 'con' in kwargs.keys()
 
     sql = sql_dict[table_name]['create']
+    if replace_table_name is not None:
+        sql = sql.replace('TABLENAME', replace_table_name)
     con = kwargs['con']
     con.execute(sql)
     con.commit()
@@ -40,10 +42,12 @@ def insert_items(db_full_path, table_name, params, **kwargs):
 
 
 @with_connect()
-def run_sql_statment(db_full_path, table_name, sql_name, params, **kwargs):
+def run_sql_statment(db_full_path, table_name, sql_name, params, replace_table_name=None,  **kwargs):
     assert 'con' in kwargs.keys()
 
     sql = sql_dict[table_name][sql_name]
+    if replace_table_name is not None:
+        sql = sql.replace('TABLENAME', replace_table_name)
     con = kwargs['con']
     con.executemany(sql, params)
     con.commit()

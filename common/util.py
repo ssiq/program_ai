@@ -234,7 +234,7 @@ def batch_holder(*data: typing.List, batch_size=32, epoches=10, is_shufllw=True)
     return iterator
 
 
-def batch_holder_with_condition(*data: typing.List, batch_size=32, epoches=15, condition=None):
+def batch_holder_with_condition(*data: typing.List, batch_size=32, epoches=15, condition=None, shuffle=True):
 
     def iterator():
         epoch_count = 0
@@ -242,7 +242,11 @@ def batch_holder_with_condition(*data: typing.List, batch_size=32, epoches=15, c
             nonlocal epoch_count
             epoch_count += 1
             print('start {} epoch. total epoch {}'.format(epoch_count, epoches))
-            i_data = list(map(list, zip(*sklearn.utils.shuffle(*data))))
+            if shuffle:
+                s_data = sklearn.utils.shuffle(*data)
+            else:
+                s_data = data
+            i_data = list(map(list, zip(*s_data)))
             print('after {} epoch shuffle'.format(epoch_count))
             if condition:
                 i_data = list(filter(condition, i_data))
