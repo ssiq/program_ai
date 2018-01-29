@@ -7,6 +7,7 @@ def restore_model(model_fn, model_params, experiment_name):
     model = model_fn(**model_params)
     sess = tf_util.get_session()
     restore_dir = 'checkpoints/{}_{}/'.format(experiment_name + '_model', util.format_dict_to_string(model_params))
+    print('restore model from {}'.format(restore_dir))
     saver = tf.train.Saver()
     util.load_check_point(restore_dir, sess, saver)
     return model, sess
@@ -42,13 +43,13 @@ def create_test_experiment(test_df, parse_xy_fn, parse_params, experiment_name='
                         input_data = data[0:input_length]
                         output_data = data[input_length:]
                         print('{}: after get input and output'.format(i))
-                        # predict_data = model.predict_model(*input_data, )
-                        predict_data = [[[one_bat] for one_bat in out] for out in output_data]
+                        predict_data = list(model.record_predict_model(*input_data, ))
+                        # predict_data = [[[one_bat] for one_bat in out] for out in output_data]
                         print('{}: after predict'.format(i))
 
                         # input_list = [inp_list + inp_data for inp_list, inp_data in zip(input_list, input_data)]
                         # output_list = [out_list + out_data for out_list, out_data in zip(output_list, output_data)]
-                        predict_list = [pre_list + pre_data for pre_list, pre_data in zip(predict_list, predict_data)]
+                        predict_list = [list(pre_list + pre_data) for pre_list, pre_data in zip(predict_list, predict_data)]
         input_list = list(zip(*input_list))
         output_list = list(zip(*output_list))
         predict_list = list(zip(*predict_list))

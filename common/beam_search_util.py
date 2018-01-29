@@ -304,7 +304,7 @@ def cal_metrics_without_iscontinue(max_decode_iterator_num, output_data, predict
 def find_copy_input_position(iden_mask, copy_id):
     for i in range(len(iden_mask)):
         iden = iden_mask[i]
-        if iden[copy_id] == 1:
+        if iden[int(copy_id)] == 1:
             return i
     return -1
 

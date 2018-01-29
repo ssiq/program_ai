@@ -20,6 +20,7 @@ import multiprocessing
 
 def recovery_one_action_tokens(action, tokens, identifier_mask, placeholder_token, id_to_word_fn):
     position, is_copy, keyword_id, copy_id = action
+    position, is_copy, keyword_id, copy_id = int(position), int(is_copy), int(keyword_id), int(copy_id)
     next_inputs = tokens, identifier_mask
     code_length = len(tokens)
 
@@ -140,7 +141,7 @@ def check_result(args):
     one, key_val = args
 
     current = multiprocessing.current_process()
-    print('in {} process: '.format(count), current.name, current.pid)
+    print('iteration {} in process {} {}: '.format(count, current.pid, current.name))
     file_name = 'test'+str(current.pid)+'.cpp'
     file_path = os.path.join('G:\Project\program_ai', file_name)
 
@@ -150,7 +151,8 @@ def check_result(args):
     outputs = one['output_list']
     predicts = one['predict_list']
 
-    output_length = len(inputs[0])
+    # output_length = len(inputs[0])
+    output_length = None
     beam_actions = [[position_onebeam, is_copy_onebeam, keyword_id_onebeam, copy_id_onebeam] for position_onebeam, is_copy_onebeam, keyword_id_onebeam, copy_id_onebeam in zip(*predicts)]
     print('beam actions: ', beam_actions)
     tokens = do_tokenize(code)
@@ -158,14 +160,18 @@ def check_result(args):
     #     print(tok)
     identifier_list = inputs[-1][0]
 
+    print('iteration {} after tokenize in Process {} {}'.format(count, current.pid, current.name))
+
     file_path_list = [file_path for i in range(len(beam_actions))]
     identifier_list_list = [identifier_list for i in range(len(beam_actions))]
     key_val_list = [key_val for i in range(len(beam_actions))]
     tokens_list = [tokens for i in range(len(beam_actions))]
     output_length_list = [output_length for i in range(len(beam_actions))]
+    print('iteration {} before map beam action in Process {} {}'.format(count, current.pid, current.name))
     returns = map(check_beam_actions, zip(file_path_list, identifier_list_list, key_val_list, tokens_list, beam_actions, output_length_list))
     res_list, res_code_list, res_action_list = list(zip(*returns))
     # res, res_code, res_action = check_beam_actions(file_path, identifier_list, key_val, output_length, tokens, beam_actions)
+    print('iteration {} after map beam action in Process {} {}'.format(count, current.pid, current.name))
 
     res_list = [1 if res else 0 for res in res_list]
     final_res = 0
@@ -182,7 +188,7 @@ def check_result(args):
             final_res_action = res_action
             final_res_id = i
             break
-    print('compile result: ', final_res)
+    print('iteration {} compile result: {} in Process {} {}'.format(count, final_res, current.pid, current.name))
     # if not res:
     #     print('code: ')
     #     print(code)
@@ -195,11 +201,10 @@ def check_result(args):
 
 def check_beam_actions(args):
     file_path, identifier_list, key_val, tokens, actions, output_length = args
-    print('output_length: ', output_length)
     tokens = copy.copy(tokens)
     identifier_list = copy.copy(identifier_list)
     actions = list(zip(*actions))
-    print('actions in one beam: ', actions)
+    print('actions in one beam: {}'.format(actions))
     tokens = recovery_tokens(actions, tokens, identifier_list, key_val, output_length)
     res_code = convert_token_to_code(tokens)
     # res = compile_code(res_code, r'G:\Project\program_ai\test.cpp')
@@ -227,6 +232,7 @@ if __name__ == '__main__':
     key_val, char_voc = create_embedding()
 
     experiment_name = 'final_iterative_model_using_common_error_without_iscontinue'
+    experiment_name = 'final_iterative_model_without_iscontinue'
     core_num = 3
 
     test_df = read_test_experiment_by_experiment_name(local_test_experiment_db, experiment_name)
@@ -270,7 +276,7 @@ if __name__ == '__main__':
             err += 1
         else:
             scc += 1
-    print('1: total {} code, recovery success {}, failed {}'.format(total, scc, err))
+    print('total {} code, recovery success {}, failed {}'.format(total, scc, err))
     print('parallel map time: {}'.format(end1-start1))
 
 
