@@ -143,7 +143,7 @@ def check_result(args):
     current = multiprocessing.current_process()
     print('iteration {} in process {} {}: '.format(count, current.pid, current.name))
     file_name = 'test'+str(current.pid)+'.cpp'
-    file_path = os.path.join('G:\Project\program_ai', file_name)
+    file_path = os.path.join(compile_file_path, file_name)
 
     code = one['code']
     ac_code = one['ac_code']
@@ -225,7 +225,7 @@ def save_check_result(test_df, experiment_name, local_db_path=local_test_experim
 
     run_sql_statment(local_db_path, TEST_EXPERIMENT_RECORDS, 'update_predict_result', store_list, replace_table_name=experiment_name)
 
-
+compile_file_path = 'G:\Project\program_ai'
 if __name__ == '__main__':
     from code_data.constants import local_test_experiment_db
 
