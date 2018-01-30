@@ -2,6 +2,7 @@ from collections import Counter
 
 from scripts.build_type_analyse import sort_dict_value
 from scripts.scripts_util import get_student_test_set
+from code_data.read_data import read_local_test_code_records
 
 
 def split_include(one):
@@ -41,19 +42,20 @@ def get_effective_student_test_set():
 
 if __name__ == '__main__':
     # build_df = get_student_test_set()
-    build_df = get_effective_student_test_set()
+    # build_df = get_effective_student_test_set()
+    build_df = read_local_test_code_records()
     from scripts.scripts_util import include_error_count, from_char_error_count
     print('include error: {}  from_char error: {}'.format(include_error_count, from_char_error_count))
     print(len(build_df.index))
 
-    build_df = build_df.apply(split_include, raw=True, axis=1)
+    # build_df = build_df.apply(split_include, raw=True, axis=1)
 
     print('------------- include stat -------------')
-    inc_dict = stat_include(build_df)
-    inc_sorted_list = sort_dict_value(inc_dict)
-    for item in inc_sorted_list:
-        print('{}, {}'.format(item[0], item[1]))
-    print(len(inc_sorted_list))
+    # inc_dict = stat_include(build_df)
+    # inc_sorted_list = sort_dict_value(inc_dict)
+    # for item in inc_sorted_list:
+    #     print('{}, {}'.format(item[0], item[1]))
+    # print(len(inc_sorted_list))
 
     print('------------- error stat -------------')
     error_count_dict = {}

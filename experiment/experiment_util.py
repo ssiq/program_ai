@@ -276,7 +276,7 @@ def parse_xy_token_level(df, data_type:str, keyword_voc, char_voc, max_bug_numbe
     return returns
 
 
-# @util.disk_cache(basename='random_token_action_multirnn_on_fake_cpp_data_parse_xy_without_iscontinue', directory=cache_data_path)
+@util.disk_cache(basename='random_token_action_multirnn_on_fake_cpp_data_parse_xy_without_iscontinue', directory=cache_data_path)
 def parse_xy_token_level_without_iscontinue(df, data_type: str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0, sort_fn=None, sample_size=None):
     print('start :', len(df.index))
 
