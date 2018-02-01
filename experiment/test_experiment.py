@@ -7,6 +7,7 @@ from code_data.code_preprocess import compile_code
 from code_data.constants import local_test_experiment_db, TEST_EXPERIMENT_RECORDS
 from common import util
 from database.database_util import run_sql_statment
+from scripts.student_build_closest_text import levenshtenin_distance, equal_fn
 
 import pandas as pd
 import random
@@ -144,20 +145,7 @@ def check_result(args):
     file_name = 'test'+str(current.pid)+'.cpp'
     file_path = os.path.join(compile_file_path, file_name)
 
-    code = one['code']
-    ac_code = one['ac_code']
-    inputs = one['input_list']
-    outputs = one['output_list']
-    predicts = one['predict_list']
-
-    # output_length = len(inputs[0])
-    output_length = None
-    beam_actions = [[position_onebeam, is_copy_onebeam, keyword_id_onebeam, copy_id_onebeam] for position_onebeam, is_copy_onebeam, keyword_id_onebeam, copy_id_onebeam in zip(*predicts)]
-    print('beam actions: ', beam_actions)
-    tokens = do_tokenize(code)
-    # for tok in tokens:
-    #     print(tok)
-    identifier_list = inputs[-1][0]
+    beam_actions, identifier_list, output_length, tokens, ac_tokens = init_one_records(one)
 
     print('iteration {} after tokenize in Process {} {}'.format(count, current.pid, current.name))
 
@@ -198,17 +186,84 @@ def check_result(args):
     return res_code_list, res_list, final_res, final_res_action, final_res_code, final_res_id
 
 
+def check_result_distance(args):
+    global count
+    count += 1
+    one, key_val = args
+
+    current = multiprocessing.current_process()
+    print('iteration {} in process {} {}: '.format(count, current.pid, current.name))
+
+    beam_actions, identifier_list, output_length, tokens, ac_tokens = init_one_records(one)
+    distance = one['distance']
+
+    print('iteration {} after tokenize in Process {} {}'.format(count, current.pid, current.name))
+
+    identifier_list_list = [identifier_list for i in range(len(beam_actions))]
+    key_val_list = [key_val for i in range(len(beam_actions))]
+    tokens_list = [tokens for i in range(len(beam_actions))]
+    ac_tokens_list = [ac_tokens for i in range(len(beam_actions))]
+    output_length_list = [output_length for i in range(len(beam_actions))]
+    print('iteration {} before map beam action in Process {} {}'.format(count, current.pid, current.name))
+    distance_list = list(map(check_beam_actions_distance, zip(identifier_list_list, key_val_list, tokens_list, ac_tokens_list, beam_actions, output_length_list)))
+    print('iteration {} after map beam action in Process {} {}'.format(count, current.pid, current.name))
+
+    print(distance_list)
+    success_id = int(one['success_id'])
+    if success_id != -1:
+        print('success id: {}, success distance: {}'.format(success_id, distance_list[success_id]))
+    min_distance = -1
+    min_distance_id = -1
+    for i in range(len(distance_list)):
+        cur_distance = distance_list[i]
+        if min_distance == -1 or (min_distance != -1 and cur_distance < min_distance):
+            min_distance = cur_distance
+            min_distance_id = i
+    print('iteration {} min distance: {} actual distance: {} in Process {} {}'.format(count, min_distance, distance, current.pid, current.name))
+    return distance_list, min_distance, min_distance_id
+
+
+def init_one_records(one):
+    code = one['code']
+    ac_code = one['ac_code']
+    inputs = one['input_list']
+    outputs = one['output_list']
+    predicts = one['predict_list']
+    # output_length = len(inputs[0])
+    output_length = None
+    beam_actions = [[position_onebeam, is_copy_onebeam, keyword_id_onebeam, copy_id_onebeam] for
+                    position_onebeam, is_copy_onebeam, keyword_id_onebeam, copy_id_onebeam in zip(*predicts)]
+    # print('beam actions: ', beam_actions)
+    tokens = do_tokenize(code)
+    ac_tokens = do_tokenize(ac_code)
+    # for tok in tokens:
+    #     print(tok)
+    identifier_list = inputs[-1][0]
+    return beam_actions, identifier_list, output_length, tokens, ac_tokens
+
+
 def check_beam_actions(args):
     file_path, identifier_list, key_val, tokens, actions, output_length = args
-    tokens = copy.copy(tokens)
+    new_tokens = copy.copy(tokens)
     identifier_list = copy.copy(identifier_list)
     actions = list(zip(*actions))
-    print('actions in one beam: {}'.format(actions))
-    tokens = recovery_tokens(actions, tokens, identifier_list, key_val, output_length)
-    res_code = convert_token_to_code(tokens)
+    # print('actions in one beam: {}'.format(actions))
+    new_tokens = recovery_tokens(actions, new_tokens, identifier_list, key_val, output_length)
+    res_code = convert_token_to_code(new_tokens)
     # res = compile_code(res_code, r'G:\Project\program_ai\test.cpp')
     res = compile_code(res_code, file_path)
     return res, res_code, actions
+
+
+def check_beam_actions_distance(args):
+    identifier_list, key_val, tokens, ac_tokens, actions, output_length = args
+    new_tokens = copy.copy(tokens)
+    identifier_list = copy.copy(identifier_list)
+    actions = list(zip(*actions))
+    # print('actions in one beam: {}'.format(actions))
+    new_tokens = recovery_tokens(actions, new_tokens, identifier_list, key_val, output_length)
+    distance = levenshtenin_distance(ac_tokens, new_tokens, equal_fn=equal_fn)[0]
+    return distance
 
 
 def save_check_result(test_df, experiment_name, local_db_path=local_test_experiment_db):
@@ -224,16 +279,43 @@ def save_check_result(test_df, experiment_name, local_db_path=local_test_experim
 
     run_sql_statment(local_db_path, TEST_EXPERIMENT_RECORDS, 'update_predict_result', store_list, replace_table_name=experiment_name)
 
+
+def save_check_result_distance(test_df, experiment_name, local_db_path=local_test_experiment_db):
+    test_df['distance_list'] = test_df['distance_list'].map(json.dumps)
+    test_df['min_distance'] = test_df['min_distance'].map(str)
+    test_df['min_distance_id'] = test_df['min_distance_id'].map(str)
+
+    store_list = [[*one] for one in zip(test_df['distance_list'], test_df['min_distance'], test_df['min_distance_id'], test_df['id'])]
+    run_sql_statment(local_db_path, TEST_EXPERIMENT_RECORDS, 'update_distance_result', store_list, replace_table_name=experiment_name)
+
+
 compile_file_path = 'R:\Temp'
+
+
+def parallel_map_check_distance(test_dict, key_val_list):
+    returns = util.parallel_map(core_num=core_num, f=check_result_distance, args=list(zip(test_dict, key_val_list)))
+    # returns = map(check_result_distance, list(zip(test_dict, key_val_list)))
+    distance_list, min_distance, min_distance_id = list(zip(*returns))
+    return distance_list, min_distance, min_distance_id
+
+
+def parallel_map_check_result(test_dict, key_val_list):
+    returns = util.parallel_map(core_num=core_num, f=check_result, args=list(zip(test_dict, key_val_list)))
+    res_code_list, res_list, final_res, final_res_action, final_res_code, final_res_id = list(zip(*returns))
+    return res_code_list, res_list, final_res, final_res_action, final_res_code, final_res_id
+
+
 if __name__ == '__main__':
-    from code_data.constants import local_test_experiment_db
+    from code_data.constants import local_test_experiment_db, local_test_experiment_finish_db
 
     key_val, char_voc = create_embedding()
 
     # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue'
     # experiment_name = 'final_iterative_model_without_iscontinue'
-    experiment_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
     # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
+    experiment_name = 'final_iterative_model_using_common_error_without_iscontinue_without_beam_search'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_beam_search'
     core_num = 8
 
     test_df = read_test_experiment_by_experiment_name(local_test_experiment_db, experiment_name)
@@ -249,13 +331,12 @@ if __name__ == '__main__':
     start1 = time.time()
     print('start1: {}'.format(start1))
 
-    returns = util.parallel_map(core_num=core_num, f=check_result, args=list(zip(test_dict, key_val_list)))
     test_df['res_code_list'], test_df['res_list'], test_df['final_res'], test_df['final_res_action'], \
-        test_df['final_res_code'], test_df['final_res_id'] = list(zip(*returns))
-    print(test_df['final_res'])
-    print(test_df['final_res_id'])
-
+    test_df['final_res_code'], test_df['final_res_id'] = parallel_map_check_result(test_dict, key_val_list)
     save_check_result(test_df, experiment_name, local_test_experiment_db)
+
+    test_df['distance_list'], test_df['min_distance'], test_df['min_distance_id'] = parallel_map_check_distance(test_dict, key_val_list)
+    save_check_result_distance(test_df, experiment_name, local_test_experiment_db)
 
     end1 = time.time()
     print('end1: {}'.format(end1))

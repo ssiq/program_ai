@@ -87,7 +87,7 @@ CREATE_TEST_EXPERIMENT_RECORDS = r'''CREATE TABLE IF NOT EXISTS TABLENAME (
   code TEXT, 
   ac_code TEXT DEFAULT '', 
   action_character_list TEXT DEFAULT '', 
-  distance TEXT DEFAULT -1, 
+  distance TEXT DEFAULT '-1', 
   input_list TEXT DEFAULT '', 
   output_list TEXT DEFAULT '', 
   predict_list TEXT DEFAULT '', 
@@ -96,7 +96,10 @@ CREATE_TEST_EXPERIMENT_RECORDS = r'''CREATE TABLE IF NOT EXISTS TABLENAME (
   result TEXT DEFAULT '', 
   success_action TEXT DEFAULT '',
   success_code TEXT DEFAULT '', 
-  success_id TEXT DEFAULT ''
+  success_id TEXT DEFAULT '', 
+  distance_list TEXT DEFAULT '', 
+  min_distance TEXT DEFAULT '-1', 
+  min_distance_id TEXT DEFAULT '-1'
 )'''
 
 CREATE_BUILD_ERROR_STAT = r'''CREATE TABLE IF NOT EXISTS build_error_stat (
@@ -125,6 +128,7 @@ INSERT_IGNORE_BUILD_ERROR_STAT = r'''INSERT OR IGNORE INTO build_error_stat (id,
 INSERT_IGNORE_STUDENT_TEST_BUILD_ERROR_STAT = r'''INSERT OR IGNORE INTO student_test_build_error_stat (id, count, error_codes, error_content, percent) VALUES (?, ?, ?, ?, ?)'''
 UPDATE_STUDENT_BUILD_SIMILAR_CODE = r'''UPDATE student_build_info SET similar_code=? , modify_action_list=? , distance=? WHERE id=?'''
 UPDATE_TEST_EXPERIMENT_RECORDS_RESULT = r'''UPDATE TABLENAME SET predict_code_list=? , test_result_list=? , result=?, success_action=?, success_code=?, success_id=? WHERE id=?'''
+UPDATE_TEST_EXPERIMENT_DISTANCE_RESULT = r'''UPDATE TABLENAME SET distance_list=? , min_distance=? , min_distance_id=? WHERE id=?'''
 
 FIND_IDS_BY_USER_PROBLEM_ID_FAKE_CODE_RECORDS = r'''SELECT id FROM fake_code_records WHERE id in ( {} )'''
 FIND_IDS_BY_USER_PROBLEM_ID_RANDOM_TOKEN_CODE_RECORDS = r'''SELECT id FROM random_token_code_records WHERE id in ( {} )'''
@@ -142,4 +146,5 @@ sql_dict = {FAKE_CODE_RECORDS: {'create': CREATE_FAKE_CODE_RECORDS, 'insert_igno
                                 'find_ids_by_user_problem_id': FIND_IDS_BY_USER_PROBLEM_ID_COMMON_ERROR_TOKEN_CODE_RECORDS},
             TEST_CODE_RECORDS: {'create': CREATE_TEST_CODE_RECORDS, 'insert_ignore': INSERT_IGNORE_TEST_CODE_RECORDS},
             TEST_EXPERIMENT_RECORDS: {'create': CREATE_TEST_EXPERIMENT_RECORDS, 'insert_ignore': INSERT_IGNORE_TEST_EXPERIMENT_RECORDS,
-                                      'update_predict_result': UPDATE_TEST_EXPERIMENT_RECORDS_RESULT}}
+                                      'update_predict_result': UPDATE_TEST_EXPERIMENT_RECORDS_RESULT,
+                                      'update_distance_result': UPDATE_TEST_EXPERIMENT_DISTANCE_RESULT}}

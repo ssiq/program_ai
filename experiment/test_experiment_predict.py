@@ -43,10 +43,18 @@ if __name__ == '__main__':
     # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue'
     # experiment_name = 'final_iterative_model_without_iscontinue'
     # experiment_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
-    experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
+    experiment_name = 'final_iterative_model_using_common_error_without_iscontinue_without_beam_search'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_beam_search'
+
+    model_name = 'final_iterative_model_using_common_error_without_iscontinue'
+    # model_name = 'final_iterative_model_without_iscontinue'
+    # model_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
+    # model_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
+
 
     test_model_fn = create_test_experiment(test_df, parse_xy_fn, parse_xy_param,
-                                           experiment_name=experiment_name,
+                                           experiment_name=model_name,
                                            batch_size=16, input_length=5)
 
     model, restore_param_generator = load_model_and_params_by_name(experiment_name)

@@ -38,6 +38,7 @@ local_db_path = os.path.join(ROOT_PATH, 'data/scrapyOJ.db')
 local_student_db_path = os.path.join(ROOT_PATH, 'data/student_code.db')
 local_token_code_db = os.path.join(ROOT_PATH, 'data/token_code.db')
 local_test_experiment_db = os.path.join(ROOT_PATH, 'data/test_experiment.db')
+local_test_experiment_finish_db = os.path.join(ROOT_PATH, 'data/test_experiment_finish.db')
 
 spider_ip = '218.94.159.108'
 spider_port = 22
