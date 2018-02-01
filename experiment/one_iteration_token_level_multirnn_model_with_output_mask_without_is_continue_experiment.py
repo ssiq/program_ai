@@ -85,7 +85,7 @@ if __name__ == '__main__':
     train_supervision(TokenLevelMultiRnnModel, param_generator, 1, debug=False, restore=False)
     # restore_param_generator = random_parameters_generator(random_param={ },
     #                                               choice_param={ },
-    #                                               constant_param={"learning_rate": 0.000678127906854,
+    #                                               constant_param={"learning_rate": 0.000929280128196,
     #                                                               "hidden_size": 100,
     #                                                               'rnn_layer_number': 2,
     #                                                               'output_layer_num': 2,

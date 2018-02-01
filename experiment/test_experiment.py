@@ -5,7 +5,6 @@ from common.beam_search_util import find_copy_input_position
 from scripts.scripts_util import do_tokenize
 from code_data.code_preprocess import compile_code
 from code_data.constants import local_test_experiment_db, TEST_EXPERIMENT_RECORDS
-from experiment.load_experiment_util import load_model_and_params_by_name
 from common import util
 from database.database_util import run_sql_statment
 
@@ -225,18 +224,20 @@ def save_check_result(test_df, experiment_name, local_db_path=local_test_experim
 
     run_sql_statment(local_db_path, TEST_EXPERIMENT_RECORDS, 'update_predict_result', store_list, replace_table_name=experiment_name)
 
-compile_file_path = 'G:\Project\program_ai'
+compile_file_path = 'R:\Temp'
 if __name__ == '__main__':
     from code_data.constants import local_test_experiment_db
 
     key_val, char_voc = create_embedding()
 
-    experiment_name = 'final_iterative_model_using_common_error_without_iscontinue'
-    experiment_name = 'final_iterative_model_without_iscontinue'
-    core_num = 3
+    # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue'
+    # experiment_name = 'final_iterative_model_without_iscontinue'
+    experiment_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
+    core_num = 8
 
     test_df = read_test_experiment_by_experiment_name(local_test_experiment_db, experiment_name)
-    test_df = test_df.sample(48)
+    # test_df = test_df.sample(48)
 
     test_df['input_list'] = test_df['input_list'].map(json.loads)
     test_df['predict_list'] = test_df['predict_list'].map(json.loads)
@@ -272,7 +273,7 @@ if __name__ == '__main__':
     total = 0
     for res in test_df['final_res']:
         total += 1
-        if not res:
+        if res == '0':
             err += 1
         else:
             scc += 1

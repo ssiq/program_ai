@@ -28,7 +28,7 @@ def save_records(test_df, experiment_name='test_experiment_default', local_db_pa
 
 
 if __name__ == '__main__':
-    util.set_cuda_devices(0)
+    util.set_cuda_devices(1)
     test_df = read_local_test_code_records()
     # test_df = test_df.sample(10)
 
@@ -41,7 +41,9 @@ if __name__ == '__main__':
     # res = parse_xy_token_level_without_iscontinue(test_df, '', *parse_xy_param)
 
     # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue'
-    experiment_name = 'final_iterative_model_without_iscontinue'
+    # experiment_name = 'final_iterative_model_without_iscontinue'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
+    experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
 
     test_model_fn = create_test_experiment(test_df, parse_xy_fn, parse_xy_param,
                                            experiment_name=experiment_name,

@@ -544,6 +544,75 @@ class TokenLevelMultiRnnModel(object):
         final_output = select_max_output(beam_stack, select_output_stack_list)
         return final_output
 
+
+    def record_predict_model(self, *args,):
+        import copy
+        args = [copy.deepcopy([ti[0] for ti in one_input]) for one_input in args]
+        batch_size = len(args[0])
+        cur_beam_size = 1
+        beam_size = 5
+        max_decode_iterator_num = 5
+        output_num = 4
+
+        length_list = [max_decode_iterator_num for i in range(batch_size)]
+
+        # shape = 5 * batch_size * beam_size * token_length
+        input_stack = init_input_stack(args)
+        beam_length_stack, beam_stack, mask_stack, select_output_stack_list = init_beam_search_stack(batch_size,
+                                                                                                     cur_beam_size, output_num=4)
+
+        record_output_list = [[[] for j in range(batch_size)] for i in range(output_num)]
+        mask_stack = make_mask_stack_by_length_list(cur_beam_size, 0, length_list)
+
+        for i in range(max_decode_iterator_num):
+
+            input_flat = [flat_list(inp) for inp in input_stack]
+
+            one_predict_fn = lambda chunked: self._one_predict_fn(*list(zip(*chunked)))
+
+            chunked_input = more_itertools.chunked(list(zip(*input_flat)), batch_size)
+            predict_returns = list(map(one_predict_fn, chunked_input))
+            predict_returns = list(zip(*predict_returns))
+            outputs = predict_returns
+
+            output_list = [flat_list(out) for out in outputs]
+
+            output_stack = [revert_batch_beam_stack(out_list, batch_size, cur_beam_size) for out_list in output_list]
+
+            batch_returns = list(map(beam_calculate_without_iscontinue, list(zip(*input_stack)), list(zip(*output_stack)), beam_stack, mask_stack, beam_length_stack, list(zip(*select_output_stack_list)), [beam_size for o in range(batch_size)], [beam_calculate_output_score_without_iscontinue for o in range(batch_size)], [[] for o in range(batch_size)]))
+            def create_next(ret):
+                ret = list(ret)
+                ret[0] = _create_next_code_without_iter_dims(ret[1], ret[0], create_one_fn=self._create_one_next_code_without_continue)
+                return ret
+            batch_returns = [create_next(ret) for ret in batch_returns]
+            input_stack, output_stack, select_output_stack_list, mask_stack, beam_stack, beam_length_stack, _ = list(zip(*batch_returns))
+            input_stack = list(zip(*input_stack))
+            output_stack = list(zip(*output_stack))
+            select_output_stack_list = list(zip(*select_output_stack_list))
+            record_output_list = [[record_one_batch+copy.deepcopy(select_one_batch)  for record_one_batch, select_one_batch in zip(record_one_output, select_one_output)] for record_one_output, select_one_output in zip(record_output_list, select_output_stack_list)]
+
+            cur_beam_size = beam_size
+            mask_stack = make_mask_stack_by_length_list(cur_beam_size, i + 1, length_list)
+
+            if np.sum(mask_stack) == 0:
+                break
+
+            input_stack = [[list(inp) for inp in one_input]for one_input in input_stack]
+
+            input_stack = [list(util.padded(list(inp))) for inp in input_stack]
+            mask_input_with_end_fn = lambda token_input: list([util.mask_input_with_end(batch_mask, batch_inp, n_dim=1).tolist() for batch_mask, batch_inp in zip(mask_stack, token_input)])
+            input_stack = list(map(mask_input_with_end_fn, input_stack))
+
+        summary = copy.deepcopy(select_output_stack_list)
+        tf_util.add_value_histogram("predict_position_softmax", util.padded(summary[0]))
+        tf_util.add_value_histogram("predict_is_copy", util.padded(summary[1]))
+        tf_util.add_value_histogram("predict_key_word", util.padded(summary[2]))
+        tf_util.add_value_histogram("predict_copy_word", util.padded(summary[3]))
+
+        final_output = select_max_output(beam_stack, select_output_stack_list)
+        return record_output_list
+
+
     def _create_one_next_code(self, action, token_input, token_input_length, character_input, character_input_length, identifier_mask):
         is_continue, position, is_copy, keyword_id, copy_id = action
         next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
