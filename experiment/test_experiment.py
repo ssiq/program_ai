@@ -209,9 +209,9 @@ def check_result_distance(args):
     print('iteration {} after map beam action in Process {} {}'.format(count, current.pid, current.name))
 
     print(distance_list)
-    success_id = int(one['success_id'])
-    if success_id != -1:
-        print('success id: {}, success distance: {}'.format(success_id, distance_list[success_id]))
+    # success_id = int(one['success_id'])
+    # if success_id != -1:
+    #     print('success id: {}, success distance: {}'.format(success_id, distance_list[success_id]))
     min_distance = -1
     min_distance_id = -1
     for i in range(len(distance_list)):

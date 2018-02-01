@@ -276,18 +276,23 @@ def parse_xy_without_iscontinue_without_identifier_mask(df, data_type:str, keywo
     df['res'] = ''
     df['ac_code_obj'] = df['ac_code'].map(do_new_tokenize)
     df = df[df['ac_code_obj'].map(lambda x: x is not None)].copy()
+    print('after tokenize: ', len(df.index))
 
     df = df.apply(create_error_list_by_token_actionmap, axis=1, raw=True, sort_fn=sort_fn)
     df = df[df['res'].map(lambda x: x is not None)].copy()
+    print('after create error: ', len(df.index))
 
     df = df.apply(create_token_id_input, axis=1, raw=True, keyword_voc=keyword_voc)
     df = df[df['res'].map(lambda x: x is not None)].copy()
+    print('after create token id: ', len(df.index))
 
     df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
     df = df[df['res'].map(lambda x: x is not None)].copy()
+    print('after create charactid: ', len(df.index))
 
     df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number, min_bug_number=min_bug_number, find_copy_id_fn=find_token_name)
     df = df[df['res'].map(lambda x: x is not None)].copy()
+    print('after create output: ', len(df.index))
 
     returns = (df['token_id_list'], df['token_length_list'], df['character_id_list'], df['character_length_list'], df['position_list'], df['is_copy_list'], df['keywordid_list'], df['copyid_list'])
     if data_type == 'flat_train':
