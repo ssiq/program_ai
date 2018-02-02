@@ -10,18 +10,25 @@ import plotly.graph_objs as go
 
 import os
 
-from code_data.constants import local_test_experiment_db
+from code_data.constants import local_test_experiment_finish_db
 from code_data.read_data import read_test_experiment_by_experiment_name
 
-experiment_name = 'final_iterative_model_using_common_error_without_iscontinue'
-# experiment_name = 'final_iterative_model_without_iscontinue'
-# experiment_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
-# experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
+
+experiment_name_list = ['final_iterative_model_using_common_error_without_iscontinue',
+                   'one_iteration_token_level_multirnn_model_without_iscontinue',
+                   'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue',
+                   'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_beam_search']
 
 
-def read_data():
-    db_path = local_test_experiment_db
+def read_data(experiment_name):
+    db_path = local_test_experiment_finish_db
     return read_test_experiment_by_experiment_name(db_path, experiment_name)
+
+
+def dm_metrics(m):
+    ori_distance = float(len(json.loads(m['output_list'])[0]))
+    min_distance = float(m['min_distance'])
+    return float(min_distance < ori_distance and m['success_id'] == '-1')
 
 
 def plot_error_and_success_rate(df: pd.DataFrame, accuracy_fn, name):
@@ -31,9 +38,8 @@ def plot_error_and_success_rate(df: pd.DataFrame, accuracy_fn, name):
 
     def key_map_fn(code_list):
         code_list = list(code_list)
-        distance_l = [float(t[1]['min_distance']) for t in filter(lambda x: x[1]['success_id'] == '-1', code_list)]
         return np.mean([accuracy_fn(t[1]) for t in code_list]), \
-               np.mean(distance_l) if distance_l else "No failed",\
+               np.mean([dm_metrics(t[1]) for t in code_list]),\
                len(code_list)
 
     error_tuple_dict = toolz.valmap(key_map_fn, error_tuple_list)
@@ -77,9 +83,8 @@ def plot_accuracy_with_different_length(df: pd.DataFrame, accuracy_fn, name):
 
     def key_map_fn(code_list):
         code_list = list(code_list)
-        distance_l = [float(t[1]['min_distance']) for t in filter(lambda x: x[1]['success_id'] == '-1', code_list)]
         return np.mean([accuracy_fn(t[1]) for t in code_list]), \
-               np.mean(distance_l) if distance_l else "No failed"
+               np.mean([dm_metrics(t[1]) for t in code_list])
 
     error_tuple_dict = toolz.valmap(key_map_fn, different_length_accuracy)
     out_df = pd.DataFrame(
@@ -94,9 +99,7 @@ def plot_accuracy_with_different_length(df: pd.DataFrame, accuracy_fn, name):
 
 
 if __name__ == '__main__':
-    df = read_data()
-    print(df.head(10))
-    print()
-    print(os.getcwd())
-    plot_error_and_success_rate(df, exact_accuracy, "{}_em_accuracy".format(experiment_name))
-    plot_accuracy_with_different_length(df, exact_accuracy, "{}_em_accuracy".format(experiment_name))
+    for experiment_name in experiment_name_list:
+        df = read_data(experiment_name)
+        plot_error_and_success_rate(df, exact_accuracy, "{}_em_accuracy".format(experiment_name))
+        plot_accuracy_with_different_length(df, exact_accuracy, "{}_em_accuracy".format(experiment_name))

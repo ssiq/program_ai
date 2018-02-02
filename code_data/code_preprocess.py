@@ -449,8 +449,9 @@ def compile_code(code, file_path) -> bool:
     f.write(code)
     f.flush()
     f.close()
-    disk_path = 'E:'
-    bat_path = 'E:\Program Files (x86)\Microsoft Visual Studio 12.0\VC'
+    disk_path = 'D:'
+    # bat_path = 'E:\Program Files (x86)\Microsoft Visual Studio 12.0\VC'
+    bat_path = 'D:\Program Files (x86)\Microsoft Visual Studio 12.0\VC'
     # res = os.system('g++ -O0 {} >/dev/null 2>&1'.format(file_path))
     res = os.system(r'{} & cd {} & vcvarsall.bat & cl {} /Fet.exe /nologo /EHsc /c > nul 2>&1'.format(disk_path, bat_path, file_path))
     # res = os.system(r'E: & cd E:\Program Files (x86)\Microsoft Visual Studio 12.0\VC & vcvarsall.bat & cl {} /Fet.exe /nologo /EHsc /c'.format(file_path))

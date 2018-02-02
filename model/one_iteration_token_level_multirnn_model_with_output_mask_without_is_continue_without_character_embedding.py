@@ -75,7 +75,7 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         self.identifier_token = identifier_token
         self.rnn_layer_number = rnn_layer_number
         self.end_token_id = end_token_id
-        self.token_input, self.token_input_length, self.character_input, self.character_input_length, self.token_identifier_mask, \
+        self.token_input, self.token_input_length, self.token_identifier_mask, \
         self.output_position_label, self.output_is_copy, self.output_keyword_id, self.output_copy_word_id = placeholders
 
     def _rnn_cell(self, hidden_size):
@@ -93,16 +93,10 @@ class TokenLevelMultiRnnModelGraph(tf_util.BaseModel):
         input_embedding_op = self.word_embedding_layer_fn(self.token_input)
         return input_embedding_op
 
-    @tf_util.define_scope("character_embedding_op")
-    def character_embedding_op(self):
-        input_embedding_op = self.character_embedding_layer_fn(self.character_input, self.character_input_length)
-        return input_embedding_op
-
     @tf_util.define_scope("code_embedding_op")
     def code_embedding_op(self):
         token_embedding = self.word_embedding_op
-        character_embedding = self.character_embedding_op
-        return code_util.code_embedding(token_embedding, character_embedding, self.token_input, self.identifier_token)
+        return token_embedding
 
     @tf_util.define_scope("bi_gru_encode_op")
     def bi_gru_encode_op(self):
@@ -285,13 +279,10 @@ class TokenLevelMultiRnnModel(object):
         #input
         self.token_input = tf.placeholder(dtype=tf.int32, shape=(None, None), name="token_input")
         self.token_input_length = tf.placeholder(dtype=tf.int32, shape=(None, ), name="token_input_length")
-        self.character_input = tf.placeholder(dtype=tf.int32, shape=(None, None, None), name="character_input")
-        self.character_input_length = tf.placeholder(dtype=tf.int32, shape=(None, None),
-                                                     name="character_input_length")
         self.token_input_mask = tf.placeholder(dtype=tf.int32, shape=(None, None, None),
                                                      name="token_input_mask")
 
-        self.input_placeholders = [self.token_input, self.token_input_length, self.character_input, self.character_input_length,
+        self.input_placeholders = [self.token_input, self.token_input_length,
          self.token_input_mask]
         #output
         # self.output_is_continue = tf.placeholder(dtype=tf.int32, shape=(None, ), name="output_length")
