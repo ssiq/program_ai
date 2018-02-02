@@ -32,7 +32,8 @@ def recovery_one_action_tokens(action, tokens, identifier_mask, placeholder_toke
             print('delete action position error', position, code_length)
             return next_inputs
         tokens = tokens[0:position] + tokens[position + 1:]
-        identifier_mask = identifier_mask[0:position] + identifier_mask[position + 1:]
+        if identifier_mask is not None:
+            identifier_mask = identifier_mask[0:position] + identifier_mask[position + 1:]
     else:
         if is_copy:
             # print(copy_id, identifier_mask)
@@ -48,7 +49,8 @@ def recovery_one_action_tokens(action, tokens, identifier_mask, placeholder_toke
             word_token.value = tokens[copy_position_id].value
             word_token.lineno = -1
             word_token.lexpos = -1
-            iden_mask = identifier_mask[copy_position_id]
+            if identifier_mask is not None:
+                iden_mask = identifier_mask[copy_position_id]
         else:
             word = id_to_word_fn(keyword_id)
             if word == None:
@@ -60,7 +62,8 @@ def recovery_one_action_tokens(action, tokens, identifier_mask, placeholder_toke
             word_token.type = ''
             word_token.lineno = -1
             word_token.lexpos = -1
-            iden_mask = [0 for i in range(len(identifier_mask[0]))]
+            if identifier_mask is not None:
+                iden_mask = [0 for i in range(len(identifier_mask[0]))]
 
         if position % 2 == 0:
             # insert
@@ -70,7 +73,8 @@ def recovery_one_action_tokens(action, tokens, identifier_mask, placeholder_toke
                 print('insert action position error', position, code_length)
                 return next_inputs
             tokens = tokens[0:position] + [word_token] + tokens[position:]
-            identifier_mask = identifier_mask[0:position] + [iden_mask] + identifier_mask[position:]
+            if identifier_mask is not None:
+                identifier_mask = identifier_mask[0:position] + [iden_mask] + identifier_mask[position:]
         elif position % 2 == 1:
             # change
             position = int(position / 2)
@@ -79,7 +83,8 @@ def recovery_one_action_tokens(action, tokens, identifier_mask, placeholder_toke
                 print('change action position error', position, code_length)
                 return next_inputs
             tokens[position] = word_token
-            identifier_mask[position] = iden_mask
+            if identifier_mask is not None:
+                identifier_mask[position] = iden_mask
     next_inputs = tokens, identifier_mask
     return next_inputs
 
@@ -88,6 +93,7 @@ def recovery_tokens(actions, tokens, identifiers, key_val, output_length=None):
     plh_token_id = key_val.word_to_id(key_val.placeholder_label)
     id_to_word_fn = key_val.id_to_word
     i = 0
+    # identifiers = None
     for position, is_copy, keyword_id, copy_id in actions:
         if output_length != None and i == output_length:
             break
@@ -314,8 +320,9 @@ if __name__ == '__main__':
     # experiment_name = 'final_iterative_model_without_iscontinue'
     # experiment_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
     # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
-    experiment_name = 'final_iterative_model_using_common_error_without_iscontinue_without_beam_search'
+    # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue_without_beam_search'
     # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_beam_search'
+    experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_identifier_mask'
     core_num = 8
 
     test_df = read_test_experiment_by_experiment_name(local_test_experiment_db, experiment_name)

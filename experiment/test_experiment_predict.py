@@ -1,5 +1,5 @@
 from code_data.read_data import read_local_test_code_records
-from experiment.experiment_util import parse_xy_token_level_without_iscontinue, create_embedding, action_list_sorted
+from experiment.experiment_util import parse_xy_token_level_without_iscontinue, create_embedding, action_list_sorted, parse_xy_without_iscontinue_without_identifier_mask
 from common.test_supervision_util import create_test_experiment
 from experiment.load_experiment_util import load_model_and_params_by_name
 from database.database_util import create_table, run_sql_statment
@@ -33,6 +33,7 @@ if __name__ == '__main__':
     # test_df = test_df.sample(10)
 
     parse_xy_fn = parse_xy_token_level_without_iscontinue
+    # parse_xy_fn = parse_xy_without_iscontinue_without_identifier_mask
     key_val, char_voc = create_embedding()
     max_bug_number = 5
     min_bug_number = 1
@@ -43,14 +44,16 @@ if __name__ == '__main__':
     # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue'
     # experiment_name = 'final_iterative_model_without_iscontinue'
     # experiment_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
-    # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
-    experiment_name = 'final_iterative_model_using_common_error_without_iscontinue_without_beam_search'
+    experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
+    # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue_without_beam_search'
     # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_beam_search'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_identifier_mask'
 
-    model_name = 'final_iterative_model_using_common_error_without_iscontinue'
+    # model_name = 'final_iterative_model_using_common_error_without_iscontinue'
     # model_name = 'final_iterative_model_without_iscontinue'
     # model_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
-    # model_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
+    model_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
+    # model_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_identifier_mask'
 
 
     test_model_fn = create_test_experiment(test_df, parse_xy_fn, parse_xy_param,
