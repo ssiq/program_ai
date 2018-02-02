@@ -322,7 +322,8 @@ if __name__ == '__main__':
     # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
     # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue_without_beam_search'
     # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_beam_search'
-    experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_identifier_mask'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_identifier_mask'
+    experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_sample_mask'
     core_num = 8
 
     test_df = read_test_experiment_by_experiment_name(local_test_experiment_db, experiment_name)

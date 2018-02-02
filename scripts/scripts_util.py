@@ -5,7 +5,7 @@ import re
 import numpy as np
 import scandir
 
-from code_data.read_data import read_student_local_data
+from code_data.read_data import read_student_local_data, read_local_test_code_records
 from experiment.experiment_util import do_new_tokenize
 
 
@@ -68,13 +68,14 @@ def remove_blank(code):
 
 
 def get_student_test_set():
-    build_df = read_student_code_bf()
+    # build_df = read_student_code_bf()
+    build_df = read_student_code_test_records_bf()
     build_df['res'] = ''
     build_df = build_df.apply(filter_actions, raw=True, axis=1)
     build_df = build_df[build_df['res'].map(lambda x: x is not None)].copy()
 
-    build_df['file_content'] = build_df['file_content'].map(init_code)
-    build_df['tokenize'] = build_df['file_content'].map(do_tokenize)
+    build_df['code'] = build_df['code'].map(init_code)
+    build_df['tokenize'] = build_df['code'].map(do_tokenize)
     build_df = build_df[build_df['tokenize'].map(lambda x: x is not None)].copy()
 
     build_df = build_df.apply(filter_include, raw=True, axis=1)
@@ -90,10 +91,17 @@ def read_student_code_bf():
     return build_df
 
 
+def read_student_code_test_records_bf():
+    build_df = read_local_test_code_records()
+    build_df = build_df[build_df['distance'].map(lambda x: x < 6 and x > 0)]
+    build_df['action_character_list'] = build_df['action_character_list'].map(json.loads)
+    return build_df
+
+
 def filter_actions(one):
-    actions = one['modify_action_list']
-    error_code = one['file_content']
-    ac_code = one['similar_code']
+    actions = one['action_character_list']
+    error_code = one['code']
+    ac_code = one['ac_code']
     res_list = [check_action(act, error_code) for act in actions]
     res = np.sum(res_list)
     if res > 0:

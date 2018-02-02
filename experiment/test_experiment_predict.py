@@ -44,10 +44,11 @@ if __name__ == '__main__':
     # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue'
     # experiment_name = 'final_iterative_model_without_iscontinue'
     # experiment_name = 'one_iteration_token_level_multirnn_model_without_iscontinue'
-    experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue'
     # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue_without_beam_search'
     # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_beam_search'
     # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_identifier_mask'
+    experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_sample_mask'
 
     # model_name = 'final_iterative_model_using_common_error_without_iscontinue'
     # model_name = 'final_iterative_model_without_iscontinue'

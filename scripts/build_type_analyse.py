@@ -98,7 +98,7 @@ def summary_build_info_by_message_with_code(build_df):
 def cal_one_build(one, build_res):
     # print('one', one)
     error_message = one['build_error_info']
-    cpp_code = one['file_content']
+    cpp_code = one['code']
     if not check_one_file(cpp_code):
         return
     for da in error_message:
@@ -136,6 +136,7 @@ if __name__ == '__main__':
     # build_res = summary_build_info_by_message(build_df)
     # build_res = sort_dict_value(build_res)
     # build_res = [list(bui) + [per] for bui, per in zip(build_res, percent_build_res)]
+    build_df['build_error_info'] = build_df['build_error_info'].map(json.loads)
 
     build_dict = summary_build_info_by_message_with_code(build_df)
     build_res = sort_dict_value(build_dict, lambda x: x[1][0])
@@ -146,7 +147,7 @@ if __name__ == '__main__':
     n = get_top_percent(list(zip(*build_res))[-1], 0.8)
     # n = 20
 
-    save_build_error(build_res[:n])
+    save_build_error(build_res)
 
     res_sum = np.sum(list(zip(*build_res[:n]))[-1])
     print(len(build_res), n, res_sum)

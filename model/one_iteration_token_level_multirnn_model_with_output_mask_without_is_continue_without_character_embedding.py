@@ -411,8 +411,8 @@ class TokenLevelMultiRnnModel(object):
         return self._model.global_step
 
     def quick_metrics_model(self, *args):
-        input_data = args[0:5]
-        output_data = args[5:9]
+        input_data = args[0:3]
+        output_data = args[3:]
 
         predict_data = self._one_predict_fn(*input_data)
         predict_data = list(predict_data)
@@ -436,8 +436,8 @@ class TokenLevelMultiRnnModel(object):
         # for t in args:
         #     print(np.array(t).shape)
         max_decode_iterator_num = 5
-        input_data = args[0:5]
-        output_data = args[5:9]
+        input_data = args[0:3]
+        output_data = args[3:]
         predict_data = self.predict_model(*input_data, )
         name_list = ["position", "is_copy", "keyword", "copy_word"]
         for n, p, o in zip(name_list, predict_data, output_data):
@@ -676,9 +676,9 @@ class TokenLevelMultiRnnModel(object):
         next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
         return next_inputs
 
-    def _create_one_next_code_without_continue(self, action, token_input, token_input_length, character_input, character_input_length, identifier_mask):
+    def _create_one_next_code_without_continue(self, action, token_input, token_input_length, identifier_mask):
         position, is_copy, keyword_id, copy_id = action
-        next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
+        next_inputs = token_input, token_input_length, identifier_mask
         code_length = token_input_length
 
         if position % 2 == 1 and is_copy == 0 and keyword_id == self.placeholder_token:
@@ -690,8 +690,6 @@ class TokenLevelMultiRnnModel(object):
                 return next_inputs
             token_input = token_input[0:position] + token_input[position + 1:]
             token_input_length -= 1
-            character_input = character_input[0:position] + character_input[position + 1:]
-            character_input_length = character_input_length[0:position] + character_input_length[position + 1:]
             identifier_mask = identifier_mask[0:position] + identifier_mask[position + 1:]
         else:
             if is_copy:
@@ -703,8 +701,6 @@ class TokenLevelMultiRnnModel(object):
                     print('details:', position, is_copy, keyword_id, copy_position_id, code_length)
                     return next_inputs
                 word_token_id = token_input[copy_position_id]
-                word_character_id = character_input[copy_position_id]
-                word_character_length = character_input_length[copy_position_id]
                 iden_mask = identifier_mask[copy_position_id]
             else:
                 word_token_id = keyword_id
@@ -713,8 +709,6 @@ class TokenLevelMultiRnnModel(object):
                     # keyword id error
                     print('keyword id error', keyword_id)
                     return next_inputs
-                word_character_id = self.parse_token(word, character_position_label=True)
-                word_character_length = len(word_character_id)
                 iden_mask = [0 for i in range(len(identifier_mask[0]))]
 
             if position % 2 == 0:
@@ -726,8 +720,6 @@ class TokenLevelMultiRnnModel(object):
                     return next_inputs
                 token_input = token_input[0:position] + [word_token_id] + token_input[position:]
                 token_input_length += 1
-                character_input = character_input[0:position] + [word_character_id] + character_input[position:]
-                character_input_length = character_input_length[0:position] + [word_character_length] + character_input_length[position:]
                 identifier_mask = identifier_mask[0:position] + [iden_mask] + identifier_mask[position:]
             elif position % 2 == 1:
                 # change
@@ -737,10 +729,8 @@ class TokenLevelMultiRnnModel(object):
                     print('change action position error', position, code_length)
                     return next_inputs
                 token_input[position] = word_token_id
-                character_input[position] = word_character_id
-                character_input_length[position] = word_character_length
                 identifier_mask[position] = iden_mask
-        next_inputs = token_input, token_input_length, character_input, character_input_length, identifier_mask
+        next_inputs = token_input, token_input_length, identifier_mask
         return next_inputs
 
 

@@ -143,6 +143,36 @@ def load_data_common_error_token_level__without_iscontinue__without_identifier_m
     test_data = parse_xy_fn(test, 'test', *parse_xy_param)
     vaild_data = parse_xy_fn(vaild, 'vaild', *parse_xy_param)
     return flat_train_data, test_data, vaild_data
+
+
+@util.disk_cache(basename='common_error_token_code_load_data_without_iscontinue_without_character_embedding', directory=cache_data_path)
+def load_data_common_error_token_level_without_iscontinue_without_character_embedding(max_bug_number=1, min_bug_number=0):
+    train, test, vaild = read_cpp_common_error_token_code_records_set()
+
+    parse_xy_fn = parse_xy_token_level_without_iscontinue_without_character
+    key_val, char_voc = create_embedding()
+    parse_xy_param = [key_val, char_voc, max_bug_number, min_bug_number, action_list_sorted]
+    flat_train_data = parse_xy_fn(train, 'flat_train', *parse_xy_param)
+    # train_data = parse_xy_fn(train, 'train', *parse_xy_param, sample_size=50000)
+    # train_data = get_part_of_train_data(train, parse_xy_param)
+    test_data = parse_xy_fn(test, 'test', *parse_xy_param)
+    vaild_data = parse_xy_fn(vaild, 'vaild', *parse_xy_param)
+    return flat_train_data, test_data, vaild_data
+
+
+@util.disk_cache(basename='common_error_token_code_load_data_without_iscontinue_without_character_embedding_sample_5000', directory=cache_data_path)
+def load_data_common_error_token_level__without_iscontinue_without_character_embedding_sample(max_bug_number=1, min_bug_number=0):
+    train, test, vaild = sample_on_common_error_token_code_records()
+
+    parse_xy_fn = parse_xy_token_level_without_iscontinue_without_character
+    key_val, char_voc = create_embedding()
+    parse_xy_param = [key_val, char_voc, max_bug_number, min_bug_number, action_list_sorted]
+    flat_train_data = parse_xy_fn(train, 'flat_train', *parse_xy_param)
+    # train_data = parse_xy_token_level(train, 'train', *parse_xy_param)
+    # train_data = parse_xy_fn(train, 'train', *parse_xy_param)
+    test_data = parse_xy_fn(test, 'test', *parse_xy_param)
+    vaild_data = parse_xy_fn(vaild, 'vaild', *parse_xy_param)
+    return flat_train_data, test_data, vaild_data
     
 
 @util.disk_cache(basename='random_get_part_of_train_data_50000', directory=cache_data_path)
@@ -400,6 +430,10 @@ def parse_xy_token_level_without_iscontinue_without_character(df, data_type: str
     df = df.apply(create_token_identify_mask, axis=1, raw=True, pre_defined_token_set=pre_defined_cpp_token)
     df = df[df['res'].map(lambda x: x is not None)].copy()
     print('after create identify mask: ', len(df.index))
+
+    df = df.apply(create_character_id_input, axis=1, raw=True, char_voc=char_voc)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+    print('after create charactid: ', len(df.index))
 
     df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number,
                   min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict, find_identifier_mask_fn=find_pos_by_identifier_mask)
@@ -659,7 +693,7 @@ def create_token_id_input_with_different_identifier_id(one, keyword_voc):
             if id_list[i] == identifier_id:
                 search_pos = search_token_name(name_list[i], identifier_list)
                 if search_pos != -1:
-                    id_list[i] = search_pos
+                    id_list[i] = keyword_length + search_pos
                 else:
                     id_list[i] = keyword_length+len(identifier_list)
                     identifier_list.append(name_list[i])
