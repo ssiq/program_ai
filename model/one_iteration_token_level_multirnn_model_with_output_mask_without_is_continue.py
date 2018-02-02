@@ -15,8 +15,36 @@ def _transpose_mask(identifier_mask):
     return tf.transpose(identifier_mask, perm=list(range(identifier_mask_dims - 2)) +
                                    [identifier_mask_dims - 1, identifier_mask_dims - 2])
 
+# def _sample_mask(identifier_mask):
+#     identifier_mask = tf_util.cast_float(identifier_mask)
+#     identifier_mask = _transpose_mask(identifier_mask)
+#     print("transposed_mask:{}".format(identifier_mask))
+#     identifier_mask_shape = tf_util.get_shape(identifier_mask)
+#     identifier_mask = tf.reshape(identifier_mask, (-1, identifier_mask_shape[-1]))
+#     identifier_mask_sum = tf.reduce_sum(identifier_mask, axis=-1, keep_dims=True)
+#     identifier_mask_mask = tf.greater(identifier_mask_sum, tf.constant(0.0, dtype=tf.float32))
+#     identifier_mask_sum = tf.where(tf.equal(identifier_mask_sum, tf.constant(0.0, dtype=tf.float32)),
+#                                    x=tf.ones_like(identifier_mask_sum),
+#                                    y=identifier_mask_sum)
+#     identifier_mask = identifier_mask / identifier_mask_sum
+#     identifier_mask = tf.clip_by_value(identifier_mask, clip_value_min=1e-7, clip_value_max=1.0-1e-7)
+#     identifier_mask = tf.log(identifier_mask)
+#     sampled_mask = tf.multinomial(identifier_mask, 1)
+#     print("sample_mask:{}".format(sampled_mask))
+#     # sampled_mask = tf.Print(sampled_mask, [sampled_mask], "samples_mask")
+#     diagnal = tf.diag(tf.ones((identifier_mask_shape[-1], ), dtype=tf.float32))
+#     print("diagnal:{}".format(diagnal))
+#     sampled_mask = tf.nn.embedding_lookup(diagnal, sampled_mask)
+#     sampled_mask = tf.squeeze(sampled_mask, axis=-2)
+#     print("looked_sample_mask:{}".format(sampled_mask))
+#     sampled_mask = sampled_mask * tf_util.cast_float(identifier_mask_mask)
+#     sampled_mask = tf.reshape(sampled_mask, identifier_mask_shape)
+#     sampled_mask = _transpose_mask(sampled_mask)
+#     return sampled_mask
+
+
 def _sample_mask(identifier_mask):
-    whehter_sample = tf.constant(True, dtype=tf.bool)
+    whehter_sample = tf.constant(False, dtype=tf.bool)
     identifier_mask = tf_util.cast_float(identifier_mask)
     ori_identifier_mask = identifier_mask
     identifier_mask = _transpose_mask(identifier_mask)

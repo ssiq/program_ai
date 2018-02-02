@@ -379,6 +379,45 @@ def parse_xy_token_level_without_iscontinue(df, data_type: str, keyword_voc, cha
 
     return returns
 
+
+@util.disk_cache(basename='random_token_action_multirnn_on_fake_cpp_data_parse_xy_without_iscontinue_without_character', directory=cache_data_path)
+def parse_xy_token_level_without_iscontinue_without_character(df, data_type: str, keyword_voc, char_voc, max_bug_number=1, min_bug_number=0, sort_fn=None, sample_size=None):
+    print('start :', len(df.index))
+
+    df['res'] = ''
+    df['ac_code_obj'] = df['ac_code'].map(do_new_tokenize)
+    df = df[df['ac_code_obj'].map(lambda x: x is not None)].copy()
+    print('after tokenize: ', len(df.index))
+
+    df = df.apply(create_error_list_by_token_actionmap, axis=1, raw=True, sort_fn=sort_fn)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+    print('after create error: ', len(df.index))
+
+    df = df.apply(create_token_id_input_with_different_identifier_id, axis=1, raw=True, keyword_voc=keyword_voc)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+    print('after create token id: ', len(df.index))
+
+    df = df.apply(create_token_identify_mask, axis=1, raw=True, pre_defined_token_set=pre_defined_cpp_token)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+    print('after create identify mask: ', len(df.index))
+
+    df = df.apply(create_full_output, axis=1, raw=True, keyword_voc=keyword_voc, max_bug_number=max_bug_number,
+                  min_bug_number=min_bug_number, find_copy_id_fn=find_copy_id_by_identifier_dict, find_identifier_mask_fn=find_pos_by_identifier_mask)
+    df = df[df['res'].map(lambda x: x is not None)].copy()
+    print('after create output: ', len(df.index))
+
+    if sample_size is not None:
+        df = df.sample(sample_size)
+
+    returns = (df['token_id_list'], df['token_length_list'],
+               df['token_identify_mask'], df['position_list'], df['is_copy_list'],
+               df['keywordid_list'], df['copyid_list'])
+
+    if data_type == 'flat_train':
+        returns = [flat_list(ret) for ret in returns]
+
+    return returns
+
 # -------------------------------- parse_xy util method -------------------------------- #
 
 def create_error_list(one):
@@ -589,6 +628,42 @@ def create_token_id_input(one, keyword_voc):
         if id_list == None:
             one['res'] = None
             return one
+        len_list.append(len(id_list))
+        token_id_list.append(id_list)
+    one['token_id_list'] = token_id_list
+    one['token_length_list'] = len_list
+    return one
+
+
+def create_token_id_input_with_different_identifier_id(one, keyword_voc):
+
+    def search_token_name(token_name, identifier_list):
+        for i in range(len(identifier_list)):
+            if identifier_list[i] == token_name:
+                return i
+        return -1
+
+    token_name_list = one['token_name_list']
+    token_id_list = []
+    len_list = []
+    keyword_length = len(keyword_voc.word_id_map)
+    identifier_id = keyword_voc.word_to_id(keyword_voc.identifier_label)
+    identifier_list = []
+    for name_list in token_name_list:
+        id_list = keyword_voc.parse_text_without_pad([name_list], False)[0]
+        if id_list == None:
+            one['res'] = None
+            return one
+
+        for i in range(len(id_list)):
+            if id_list[i] == identifier_id:
+                search_pos = search_token_name(name_list[i], identifier_list)
+                if search_pos != -1:
+                    id_list[i] = search_pos
+                else:
+                    id_list[i] = keyword_length+len(identifier_list)
+                    identifier_list.append(name_list[i])
+
         len_list.append(len(id_list))
         token_id_list.append(id_list)
     one['token_id_list'] = token_id_list
