@@ -44,7 +44,7 @@ def _transpose_mask(identifier_mask):
 
 
 def _sample_mask(identifier_mask):
-    whehter_sample = tf.constant(False, dtype=tf.bool)
+    whehter_sample = tf.constant(True, dtype=tf.bool)
     identifier_mask = tf_util.cast_float(identifier_mask)
     ori_identifier_mask = identifier_mask
     identifier_mask = _transpose_mask(identifier_mask)

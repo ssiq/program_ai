@@ -129,7 +129,7 @@ def save_build_error(build_res):
     insert_items(local_student_db_path, STUDENT_TEST_BUILD_ERROR_STAT, build_res)
 
 
-if __name__ == '__main__':
+def stat_student_build_type():
     build_df = get_student_test_set()
     print(len(build_df.index))
     # build_res = summary_build_info_by_error_code(build_df)
@@ -137,12 +137,16 @@ if __name__ == '__main__':
     # build_res = sort_dict_value(build_res)
     # build_res = [list(bui) + [per] for bui, per in zip(build_res, percent_build_res)]
     build_df['build_error_info'] = build_df['build_error_info'].map(json.loads)
-
     build_dict = summary_build_info_by_message_with_code(build_df)
     build_res = sort_dict_value(build_dict, lambda x: x[1][0])
     percent_build_res = cal_percentage(build_res, lambda x: x[1][0])
     build_res = [list(bui) + [per] for bui, per in zip(build_res, percent_build_res)]
     build_res = [list(more_itertools.collapse(bui, levels=1)) for bui in build_res]
+    return build_res
+
+
+if __name__ == '__main__':
+    build_res = stat_student_build_type()
 
     n = get_top_percent(list(zip(*build_res))[-1], 0.8)
     # n = 20

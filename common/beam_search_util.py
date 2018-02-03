@@ -328,7 +328,7 @@ def init_beam_search_stack(batch_size, cur_beam_size, output_num=5):
 
 
 def metrics_output_directly(output_data, predict_data):
-    res_mask = [1] * len(output_data[0])
+    res_mask = [1 for i in range(len(output_data[0]))]
     for i in range(len(output_data)):
         res = np.equal(predict_data[i], output_data[i])
         res_mask = np.logical_and(res_mask, res)

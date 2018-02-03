@@ -62,29 +62,9 @@ if __name__ == '__main__':
     # train_supervision = create_supervision_experiment(train, test, vaild, parse_xy_with_iden_mask, parse_xy_param, experiment_name='token_level_multirnn_model', batch_size=16)
 
     train_supervision = create_supervision_experiment(load_data_fn, load_data_param, experiment_name='one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_character', batch_size=16, create_condition_fn=error_count_create_condition_fn, modify_condition=modify_condition)
-    param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -3]},
-                                                  choice_param={ },
-                                                  constant_param={"hidden_size": 100,
-                                                                  'rnn_layer_number': 2,
-                                                                  'output_layer_num': 2,
-                                                                  'decay_steps': 1000,
-                                                                  'decay_rate': 0.96,
-                                                                  'keyword_number': len(key_val.word_id_map),
-                                                                  # 'start_id': key_val.word_to_id(key_val.start_label),
-                                                                  'end_token_id': key_val.word_to_id(key_val.end_label),
-                                                                  # 'max_decode_iterator_num': MAX_ITERATOR_LEGNTH,
-                                                                  'identifier_token': key_val.word_to_id(key_val.identifier_label),
-                                                                  'placeholder_token': key_val.word_to_id(key_val.placeholder_label),
-                                                                  'word_embedding_layer_fn': key_val.create_embedding_layer,
-                                                                  'character_embedding_layer_fn': char_voc.create_embedding_layer,
-                                                                  'id_to_word_fn': key_val.id_to_word,
-                                                                  'parse_token_fn': char_voc.parse_token})
-
-    train_supervision(TokenLevelMultiRnnModel, param_generator, 1, debug=False, restore=False)
-    # restore_param_generator = random_parameters_generator(random_param={ },
+    # param_generator = random_parameters_generator(random_param={"learning_rate": [-4, -3]},
     #                                               choice_param={ },
-    #                                               constant_param={"learning_rate": 0.000623810360711,
-    #                                                               "hidden_size": 100,
+    #                                               constant_param={"hidden_size": 100,
     #                                                               'rnn_layer_number': 2,
     #                                                               'output_layer_num': 2,
     #                                                               'decay_steps': 1000,
@@ -99,7 +79,27 @@ if __name__ == '__main__':
     #                                                               'character_embedding_layer_fn': char_voc.create_embedding_layer,
     #                                                               'id_to_word_fn': key_val.id_to_word,
     #                                                               'parse_token_fn': char_voc.parse_token})
-    # train_supervision(TokenLevelMultiRnnModel, restore_param_generator, 1, debug=False, restore=True)
+    #
+    # train_supervision(TokenLevelMultiRnnModel, param_generator, 1, debug=False, restore=False)
+    restore_param_generator = random_parameters_generator(random_param={ },
+                                                  choice_param={ },
+                                                  constant_param={"learning_rate": 0.000536082568864,
+                                                                  "hidden_size": 100,
+                                                                  'rnn_layer_number': 2,
+                                                                  'output_layer_num': 2,
+                                                                  'decay_steps': 1000,
+                                                                  'decay_rate': 0.96,
+                                                                  'keyword_number': len(key_val.word_id_map),
+                                                                  # 'start_id': key_val.word_to_id(key_val.start_label),
+                                                                  'end_token_id': key_val.word_to_id(key_val.end_label),
+                                                                  # 'max_decode_iterator_num': MAX_ITERATOR_LEGNTH,
+                                                                  'identifier_token': key_val.word_to_id(key_val.identifier_label),
+                                                                  'placeholder_token': key_val.word_to_id(key_val.placeholder_label),
+                                                                  'word_embedding_layer_fn': key_val.create_embedding_layer,
+                                                                  'character_embedding_layer_fn': char_voc.create_embedding_layer,
+                                                                  'id_to_word_fn': key_val.id_to_word,
+                                                                  'parse_token_fn': char_voc.parse_token})
+    train_supervision(TokenLevelMultiRnnModel, restore_param_generator, 1, debug=False, restore=True)
 
     # import tensorflow as tf
     # with tf.Session():

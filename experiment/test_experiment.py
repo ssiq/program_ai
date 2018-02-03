@@ -8,6 +8,8 @@ from code_data.constants import local_test_experiment_db, TEST_EXPERIMENT_RECORD
 from common import util
 from database.database_util import run_sql_statment
 from scripts.student_build_closest_text import levenshtenin_distance, equal_fn
+from scripts.scripts_util import init_code
+from common.beam_search_util import metrics_output_directly
 
 import pandas as pd
 import random
@@ -151,7 +153,9 @@ def check_result(args):
     file_name = 'test'+str(current.pid)+'.cpp'
     file_path = os.path.join(compile_file_path, file_name)
 
-    beam_actions, identifier_list, output_length, tokens, ac_tokens = init_one_records(one)
+    beam_actions, identifier_list, output_length, tokens, ac_tokens, outputs = init_one_records(one)
+    if beam_actions is None:
+        return [], [], -1, [], '', -1
 
     print('iteration {} after tokenize in Process {} {}'.format(count, current.pid, current.name))
 
@@ -160,8 +164,9 @@ def check_result(args):
     key_val_list = [key_val for i in range(len(beam_actions))]
     tokens_list = [tokens for i in range(len(beam_actions))]
     output_length_list = [output_length for i in range(len(beam_actions))]
+    output_list = [outputs for i in range(len(beam_actions))]
     print('iteration {} before map beam action in Process {} {}'.format(count, current.pid, current.name))
-    returns = map(check_beam_actions, zip(file_path_list, identifier_list_list, key_val_list, tokens_list, beam_actions, output_length_list))
+    returns = map(check_beam_actions, zip(file_path_list, identifier_list_list, key_val_list, tokens_list, beam_actions, output_length_list, output_list))
     res_list, res_code_list, res_action_list = list(zip(*returns))
     # res, res_code, res_action = check_beam_actions(file_path, identifier_list, key_val, output_length, tokens, beam_actions)
     print('iteration {} after map beam action in Process {} {}'.format(count, current.pid, current.name))
@@ -200,7 +205,9 @@ def check_result_distance(args):
     current = multiprocessing.current_process()
     print('iteration {} in process {} {}: '.format(count, current.pid, current.name))
 
-    beam_actions, identifier_list, output_length, tokens, ac_tokens = init_one_records(one)
+    beam_actions, identifier_list, output_length, tokens, ac_tokens, outputs = init_one_records(one)
+    if beam_actions is None:
+        return [], -1, -1
     distance = one['distance']
 
     print('iteration {} after tokenize in Process {} {}'.format(count, current.pid, current.name))
@@ -230,8 +237,8 @@ def check_result_distance(args):
 
 
 def init_one_records(one):
-    code = one['code']
-    ac_code = one['ac_code']
+    code = init_code(one['code'])
+    ac_code = init_code(one['ac_code'])
     inputs = one['input_list']
     outputs = one['output_list']
     predicts = one['predict_list']
@@ -242,22 +249,36 @@ def init_one_records(one):
     # print('beam actions: ', beam_actions)
     tokens = do_tokenize(code)
     ac_tokens = do_tokenize(ac_code)
+    if tokens is None or ac_tokens is None:
+        return None, None, None, None, None, None
     # for tok in tokens:
     #     print(tok)
     identifier_list = inputs[-1][0]
-    return beam_actions, identifier_list, output_length, tokens, ac_tokens
+    return beam_actions, identifier_list, output_length, tokens, ac_tokens, outputs
+
+
+def metrics_actions(actions, outputs):
+    if len(actions[0]) != len(outputs[0]):
+        return 0
+    res_mask = metrics_output_directly(actions, outputs)
+    res = 1
+    for a_res in res_mask:
+        if a_res == 0:
+            res = 0
+    return res
 
 
 def check_beam_actions(args):
-    file_path, identifier_list, key_val, tokens, actions, output_length = args
+    file_path, identifier_list, key_val, tokens, actions, output_length, outputs = args
     new_tokens = copy.copy(tokens)
     identifier_list = copy.copy(identifier_list)
+    res = metrics_actions(actions, outputs)
     actions = list(zip(*actions))
     # print('actions in one beam: {}'.format(actions))
     new_tokens = recovery_tokens(actions, new_tokens, identifier_list, key_val, output_length)
     res_code = convert_token_to_code(new_tokens)
     # res = compile_code(res_code, r'G:\Project\program_ai\test.cpp')
-    res = compile_code(res_code, file_path)
+    # res = compile_code(res_code, file_path)
     return res, res_code, actions
 
 
@@ -323,13 +344,16 @@ if __name__ == '__main__':
     # experiment_name = 'final_iterative_model_using_common_error_without_iscontinue_without_beam_search'
     # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_beam_search'
     # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_identifier_mask'
-    experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_sample_mask'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_sample_mask'
+    # experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_without_character'
+    experiment_name = 'one_iteration_token_level_multirnn_model_using_common_error_without_iscontinue_in_train_data'
     core_num = 8
 
     test_df = read_test_experiment_by_experiment_name(local_test_experiment_db, experiment_name)
     # test_df = test_df.sample(48)
 
     test_df['input_list'] = test_df['input_list'].map(json.loads)
+    test_df['output_list'] = test_df['output_list'].map(json.loads)
     test_df['predict_list'] = test_df['predict_list'].map(json.loads)
 
     test_dict = test_df.to_dict('records')
@@ -362,10 +386,10 @@ if __name__ == '__main__':
     total = 0
     for res in test_df['final_res']:
         total += 1
-        if res == '0':
-            err += 1
-        else:
+        if res == '1':
             scc += 1
+        else:
+            err += 1
     print('total {} code, recovery success {}, failed {}'.format(total, scc, err))
     print('parallel map time: {}'.format(end1-start1))
 
