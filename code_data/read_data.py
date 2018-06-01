@@ -5,7 +5,7 @@ import json
 
 import pandas as pd
 
-from code_data.constants import cache_data_path, STUDENT_BUILD_INFO, BUILD_ERROR_STAT
+from code_data.constants import cache_data_path, STUDENT_BUILD_INFO, BUILD_ERROR_STAT, DEEPFIX_DB, DEEPFIX_TABLE
 from common import util
 
 
@@ -247,6 +247,12 @@ def read_local_test_code_records() -> pd.DataFrame:
 def read_test_experiment_by_experiment_name(local_db_path, experiment_name):
     con = sqlite3.connect("file:{}?mode=ro".format(local_db_path), uri=True)
     test_df = pd.read_sql('select * from {}'.format(experiment_name), con)
+    return test_df
+
+
+def read_deepfix_records():
+    con = sqlite3.connect("file:{}?mode=ro".format(DEEPFIX_DB), uri=True)
+    test_df = pd.read_sql('select * from {}'.format(DEEPFIX_TABLE), con)
     return test_df
 
 

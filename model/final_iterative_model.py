@@ -453,7 +453,7 @@ class TokenLevelMultiRnnModel(object):
         # print("metrics input")
         # for t in args:
         #     print(np.array(t).shape)
-        max_decode_iterator_num = 5
+        max_decode_iterator_num = 10
         input_data = args[0:5]
         output_data = args[5:9]
         predict_data = self.predict_model(*input_data, )
@@ -563,7 +563,7 @@ class TokenLevelMultiRnnModel(object):
         batch_size = len(args[0])
         cur_beam_size = 1
         beam_size = 5
-        max_decode_iterator_num = 5
+        max_decode_iterator_num = 10
         output_num = 4
 
         length_list = [max_decode_iterator_num for i in range(batch_size)]

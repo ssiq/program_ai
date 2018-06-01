@@ -1,3 +1,4 @@
+import types
 from multiprocessing import Pool
 
 import sklearn
@@ -422,6 +423,60 @@ def weight_choice(weight):
         t -= val
         if t < 0:
             return i
+
+
+def maintain_function_co_firstlineno(ori_fn):
+    """
+    This decorator is used to make the decorated function's co_firstlineno the same as the ori_fn
+    """
+
+    def wrapper(fn):
+        wrapper_code = fn.__code__
+        fn.__code__ = types.CodeType(
+            wrapper_code.co_argcount,
+            wrapper_code.co_kwonlyargcount,
+            wrapper_code.co_nlocals,
+            wrapper_code.co_stacksize,
+            wrapper_code.co_flags,
+            wrapper_code.co_code,
+            wrapper_code.co_consts,
+            wrapper_code.co_names,
+            wrapper_code.co_varnames,
+            wrapper_code.co_filename,
+            wrapper_code.co_name,
+            ori_fn.__code__.co_firstlineno,
+            wrapper_code.co_lnotab,
+            wrapper_code.co_freevars,
+            wrapper_code.co_cellvars
+        )
+
+        return fn
+
+    return wrapper
+
+
+def compile_c_code_by_gcc(code, file_path):
+    write_code_to_file(code, file_path)
+    res = os.system('gcc -pedantic-errors -std=gnu99 {} >/dev/null 2>/dev/null'.format(file_path))
+    # res = os.system('gcc -pedantic-errors -std=gnu99 {}'.format(file_path))
+    if res == 0:
+        return True
+    return False
+
+
+def write_code_to_file(code, file_path):
+    file_path = os.path.abspath(file_path)
+    ensure_file_path(file_path)
+    f = open(file_path, 'w')
+    f.write(code)
+    f.flush()
+    f.close()
+    return file_path
+
+
+def ensure_file_path(file_path):
+    if not os.path.exists(os.path.dirname(file_path)):
+        os.makedirs(os.path.dirname(file_path))
 
 
 if __name__ == '__main__':

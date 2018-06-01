@@ -13,7 +13,7 @@ def restore_model(model_fn, model_params, experiment_name):
     return model, sess
 
 
-def create_test_experiment(test_df, parse_xy_fn, parse_params, experiment_name='default', batch_size=16, input_length=5):
+def create_test_experiment(test_df, parse_xy_fn, parse_params, experiment_name='default', batch_size=16, input_length=5, output_length=4):
 
     def test_model(model_fn, param_generator):
 
@@ -33,10 +33,14 @@ def create_test_experiment(test_df, parse_xy_fn, parse_params, experiment_name='
             with tf.Session(config=config):
                 with tf_util.summary_scope():
                     model, sess = restore_model(model_fn, model_params, experiment_name)
+                    print('model total step: {}'.format(model.global_step))
 
                     # input_list = [[] for i in range(input_length)]
                     # output_list = [[] for i in range(len(test_data)-input_length)]
-                    predict_list = [[] for i in range(len(test_data)-input_length)]
+                    if (len(test_data)-input_length) == 0:
+                        predict_list = [[] for i in range(output_length)]
+                    else:
+                        predict_list = [[] for i in range(len(test_data)-input_length)]
 
                     for i, data in enumerate(test_batch_iterator()):
                         print('in {} enumerate'.format(i))

@@ -1,3 +1,5 @@
+import sys
+
 import tensorflow as tf
 import numpy as np
 import gc
@@ -162,6 +164,8 @@ def create_model_train_fn(model_fn, model_parameters, debug=False, restore=None)
                     # valid = model.metrics_model(*next(validation_data_itr))
                     valid = 0
                     print("iteration {} with loss {} and accuracy {} and metrics {} and validation metrics {}".format(current_step, loss_mean, accuracy_mean, metrics_mean, valid))
+                    sys.stdout.flush()
+                    sys.stderr.flush()
                     yield metrics_mean
                     losses = []
                     accuracies = []

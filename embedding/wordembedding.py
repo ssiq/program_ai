@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
 
+from code_data.constants import pre_defined_cpp_token, pre_defined_c_tokens
+
 
 class WordMap(object):
     def __init__(self):
@@ -27,8 +29,7 @@ class WordMap(object):
 
 
 class KeyWordMap(WordMap):
-    def __init__(self):
-        from code_data.constants import pre_defined_cpp_token
+    def __init__(self, pre_defined_cpp_token=pre_defined_cpp_token):
         super().__init__()
         self._keyword = pre_defined_cpp_token | {self._start_label, self._end_label, self._identifier_label, self._placeholder_label}
         self._keyword = sorted(self._keyword)
@@ -127,5 +128,5 @@ class Vocabulary(object):
 
 
 def load_vocabulary(word_vector_name, embedding_size) -> Vocabulary:
-    namd_embedding_dict = {"keyword": KeyWordMap()}
+    namd_embedding_dict = {"keyword": KeyWordMap(), 'c_keyword': KeyWordMap(pre_defined_cpp_token=pre_defined_c_tokens)}
     return Vocabulary(namd_embedding_dict[word_vector_name], embedding_size)

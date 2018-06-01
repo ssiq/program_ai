@@ -1,7 +1,6 @@
 import numpy
 import numpy as np
 import more_itertools
-from Cython.Includes.numpy import __init__
 
 
 def length_penalty(sequence_lengths, penalty_factor=0.6):
